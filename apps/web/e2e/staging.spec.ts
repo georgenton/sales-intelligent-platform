@@ -41,7 +41,9 @@ test('admin can manage a synthetic opportunity and end the session', async ({ pa
 
   await expect(page).toHaveURL(/\/app\/opportunities\/[0-9a-f-]+$/);
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
-  await page.getByLabel('Stage', { exact: true }).selectOption({ label: '50% · Proposal' });
+  await page
+    .getByRole('combobox', { name: 'Stage', exact: true })
+    .selectOption({ label: '50% · Proposal' });
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toHaveText('Changes saved.');
   await expect(page.getByText('50% · Proposal').first()).toBeVisible();

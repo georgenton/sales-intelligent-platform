@@ -86,6 +86,7 @@ async function main(): Promise<void> {
   const runId = randomUUID().replaceAll('-', '').slice(0, 12);
   const tenantIds: string[] = [];
   const userIds: string[] = [];
+  let retainFixtures = false;
 
   try {
     const roleState = await prisma.$queryRaw<
@@ -98,6 +99,39 @@ async function main(): Promise<void> {
       roleState[0].rolinherit
     ) {
       throw new Error('Runtime role is not restricted as required');
+    }
+
+    const cleanupArgument = process.argv.find((argument) =>
+      argument.startsWith('--cleanup-public-probe='),
+    );
+    if (cleanupArgument) {
+      const cleanupRunId = cleanupArgument.split('=', 2)[1];
+      if (!cleanupRunId || !/^[a-f0-9]{12}$/.test(cleanupRunId)) {
+        throw new Error('Invalid public isolation probe ID');
+      }
+      const tenant = await prisma.tenant.findUnique({
+        where: { slug: `staging-rls-b-${cleanupRunId}` },
+        include: { memberships: { select: { userId: true } } },
+      });
+      if (tenant) {
+        await prisma.tenant.delete({ where: { id: tenant.id } });
+        await prisma.user.deleteMany({
+          where: { id: { in: tenant.memberships.map((membership) => membership.userId) } },
+        });
+      }
+      console.log(JSON.stringify({ status: 'cleaned', probeId: cleanupRunId }));
+      return;
+    }
+
+    if (process.argv.includes('--setup-public-probe')) {
+      const fixture = await createFixture(prisma, runId, 'b');
+      tenantIds.push(fixture.tenantId);
+      userIds.push(fixture.userId);
+      retainFixtures = true;
+      console.log(
+        JSON.stringify({ status: 'ready', probeId: runId, opportunityId: fixture.opportunityId }),
+      );
+      return;
     }
 
     const fixtureA = await createFixture(prisma, runId, 'a');
@@ -176,10 +210,10 @@ async function main(): Promise<void> {
       }),
     );
   } finally {
-    if (tenantIds.length > 0) {
+    if (!retainFixtures && tenantIds.length > 0) {
       await prisma.tenant.deleteMany({ where: { id: { in: tenantIds } } });
     }
-    if (userIds.length > 0) {
+    if (!retainFixtures && userIds.length > 0) {
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     }
     await prisma.$disconnect();
