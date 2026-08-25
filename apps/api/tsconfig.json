@@ -1,0 +1,11 @@
+{
+  "extends": "@sip/typescript-config/nest.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "paths": { "@/*": ["src/*"] },
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma/**/*.ts", "vitest.config.mts"],
+  "exclude": ["node_modules", "dist"]
+}

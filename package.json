@@ -1,0 +1,39 @@
+{
+  "name": "sales-intelligence-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enterprise multitenant sales intelligence SaaS",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=10.0.0 <11"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "pnpm --filter @sip/api test:integration",
+    "test:tenant-isolation": "pnpm --filter @sip/api test:tenant-isolation",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @sip/api db:generate",
+    "db:migrate": "pnpm --filter @sip/api db:migrate",
+    "db:migrate:deploy": "pnpm --filter @sip/api db:migrate:deploy",
+    "db:seed": "pnpm --filter @sip/api db:seed",
+    "import:excel": "pnpm --filter @sip/api import:excel",
+    "security:audit": "pnpm audit --audit-level high"
+  },
+  "pnpm": {
+    "overrides": {
+      "deepmerge-ts": "8.0.0"
+    }
+  },
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "turbo": "2.10.11"
+  }
+}
