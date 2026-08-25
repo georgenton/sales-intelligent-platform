@@ -136,7 +136,8 @@ login without `SUPERUSER` or `BYPASSRLS`. Enable **Wait for CI** before autodepl
 The staging bootstrap is an explicit one-shot operation. It requires `APP_ENV=staging`,
 `ALLOW_STAGING_BOOTSTRAP=true`, a strong `STAGING_ADMIN_PASSWORD`, and the migration credential.
 Remove both bootstrap variables immediately after it succeeds. Never use the local demonstration
-password in a hosted environment.
+password in a hosted environment. Hosted operators run the compiled `/app/dist/scripts/seed.js`
+inside the API container so the owner connection remains on Railway's private network.
 
 No production deployment is performed by this repository bootstrap.
 
