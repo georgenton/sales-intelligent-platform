@@ -111,4 +111,20 @@ describe('PostgreSQL tenant isolation', () => {
       }),
     ).rejects.toThrow(/row-level security policy/i);
   });
+
+  it('blocks cross-tenant updates addressed by direct UUID', async () => {
+    await expect(
+      prisma.$transaction(async (transaction) => {
+        await transaction.$executeRawUnsafe('SET LOCAL ROLE app_runtime');
+        await transaction.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantIds[0]!}, true)`;
+        return transaction.opportunity.update({
+          where: { id: opportunityB },
+          data: { title: 'Cross-tenant update must not persist' },
+        });
+      }),
+    ).rejects.toThrow(/record to update not found|operation failed because it depends/i);
+
+    const unchanged = await prisma.opportunity.findUniqueOrThrow({ where: { id: opportunityB } });
+    expect(unchanged.title).toBe('Opportunity B');
+  });
 });

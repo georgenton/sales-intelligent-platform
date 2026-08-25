@@ -16,7 +16,7 @@ FROM deps AS builder
 COPY . .
 RUN pnpm --filter @sip/api db:generate && pnpm --filter @sip/api build
 RUN pnpm --filter @sip/api deploy --prod --legacy /app
-RUN cp -R apps/api/dist /app/dist && cp -R apps/api/prisma /app/prisma
+RUN cp -R apps/api/dist /app/dist && cp -R apps/api/prisma /app/prisma && cp -R apps/api/scripts /app/scripts
 RUN cd /app && node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma
 
 FROM node:24.19.0-alpine AS runner

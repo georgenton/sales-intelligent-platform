@@ -8,3 +8,4 @@
 - [ADR-006: PostgreSQL row-level security](ADR-006-postgresql-row-level-security.md)
 - [ADR-007: same-origin frontend/backend proxy](ADR-007-frontend-backend-proxy.md)
 - [ADR-008: AI provider abstraction](ADR-008-ai-provider-abstraction.md)
+- [ADR-009: Separate database credentials for migrations and runtime](ADR-009-database-credential-separation.md)

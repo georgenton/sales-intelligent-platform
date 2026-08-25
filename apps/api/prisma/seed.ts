@@ -9,8 +9,6 @@ import {
   PrismaClient,
 } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
 const addDays = (date: Date, days: number): Date => new Date(date.getTime() + days * 86_400_000);
 
 function fiscalQuarter(now: Date, fiscalStartMonth: number): { start: Date; end: Date } {
@@ -25,10 +23,50 @@ function fiscalQuarter(now: Date, fiscalStartMonth: number): { start: Date; end:
 }
 
 async function main(): Promise<void> {
-  if (process.env.NODE_ENV === 'production') throw new Error('Demo seed is disabled in production');
-  const generatedPassword = !process.env.DEMO_ADMIN_PASSWORD;
-  const password =
-    process.env.DEMO_ADMIN_PASSWORD ?? `Local-${randomBytes(18).toString('base64url')}!`;
+  const stagingBootstrap = process.argv.includes('--staging');
+  if (stagingBootstrap) {
+    if (process.env.APP_ENV !== 'staging' || process.env.ALLOW_STAGING_BOOTSTRAP !== 'true') {
+      throw new Error(
+        'Staging bootstrap requires APP_ENV=staging and ALLOW_STAGING_BOOTSTRAP=true',
+      );
+    }
+    if (!process.env.MIGRATION_DATABASE_URL) {
+      throw new Error('MIGRATION_DATABASE_URL is required for staging bootstrap');
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    throw new Error('Development demo seed is disabled in production');
+  }
+
+  const stagingPassword = process.env.STAGING_ADMIN_PASSWORD;
+  if (stagingBootstrap && (!stagingPassword || stagingPassword.length < 24)) {
+    throw new Error('STAGING_ADMIN_PASSWORD must contain at least 24 characters');
+  }
+  if (stagingPassword === 'ChangeMe-Local-2026!') {
+    throw new Error('The local demonstration password cannot be used for staging');
+  }
+
+  const generatedPassword = !stagingBootstrap && !process.env.DEMO_ADMIN_PASSWORD;
+  const password = stagingBootstrap
+    ? stagingPassword!
+    : (process.env.DEMO_ADMIN_PASSWORD ?? `Local-${randomBytes(18).toString('base64url')}!`);
+  const databaseUrl = stagingBootstrap
+    ? process.env.MIGRATION_DATABASE_URL!
+    : process.env.DATABASE_URL;
+  const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+
+  try {
+    await seedDemo(prisma, password, generatedPassword, stagingBootstrap);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function seedDemo(
+  prisma: PrismaClient,
+  password: string,
+  generatedPassword: boolean,
+  stagingBootstrap: boolean,
+): Promise<void> {
   const passwordHash = await argon2.hash(password, {
     type: argon2.argon2id,
     memoryCost: 19_456,
@@ -78,6 +116,15 @@ async function main(): Promise<void> {
   ];
   const users = [];
   for (const person of people) {
+    const credentialHash =
+      stagingBootstrap && person.email !== 'admin@techdistribution.demo'
+        ? await argon2.hash(randomBytes(48).toString('base64url'), {
+            type: argon2.argon2id,
+            memoryCost: 19_456,
+            timeCost: 2,
+            parallelism: 1,
+          })
+        : passwordHash;
     const user = await prisma.user.upsert({
       where: { email: person.email },
       update: { name: person.name, status: 'ACTIVE' },
@@ -85,8 +132,8 @@ async function main(): Promise<void> {
     });
     await prisma.localCredential.upsert({
       where: { userId: user.id },
-      update: { passwordHash, passwordChangedAt: new Date() },
-      create: { userId: user.id, passwordHash },
+      update: { passwordHash: credentialHash, passwordChangedAt: new Date() },
+      create: { userId: user.id, passwordHash: credentialHash },
     });
     await prisma.authIdentity.upsert({
       where: { provider_providerSubject: { provider: 'LOCAL', providerSubject: person.email } },
@@ -332,11 +379,7 @@ async function main(): Promise<void> {
   if (generatedPassword) console.log(`One-time generated demo password: ${password}`);
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : 'Seed failed');
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : 'Seed failed');
+  process.exitCode = 1;
+});

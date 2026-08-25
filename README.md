@@ -88,11 +88,14 @@ pnpm typecheck
 pnpm test                   # unit tests
 pnpm test:integration       # API vertical slice (requires migrated + seeded DB)
 pnpm test:tenant-isolation  # critical PostgreSQL RLS test
+pnpm test:e2e:staging       # HTTPS staging flow; requires staging env variables
 pnpm security:audit
 pnpm db:up
 pnpm db:migrate
 pnpm db:migrate:deploy
+pnpm db:provision:runtime
 pnpm db:seed
+pnpm db:bootstrap:staging
 ```
 
 Schema changes must be expressed as Prisma migrations. Production uses `prisma migrate deploy` in a
@@ -123,10 +126,17 @@ only from a green `main`. Browser traffic uses `/backend/*`, so session cookies 
 
 ### Railway
 
-Use the repository root and `railway.toml`. Configure `DATABASE_URL`, `APP_URL`, `PORT`,
-`SESSION_TTL_HOURS`, `AI_PROVIDER=mock` and `LOG_LEVEL`. Provision PostgreSQL, run migrations as the
-database owner in pre-deploy, and run the API with a separate least-privilege login granted the
-`app_runtime` role. Enable **Wait for CI** before autodeploy. Health check: `/health/ready`.
+Use the repository root and `railway.toml`. Configure `MIGRATION_DATABASE_URL` for the pre-deploy
+owner workflow and `DATABASE_URL` for the restricted runtime login, plus `RUNTIME_DATABASE_USER`,
+`RUNTIME_DATABASE_PASSWORD`, `APP_ENV`, `APP_URL`, `PORT`, `SESSION_TTL_HOURS`, `AI_PROVIDER=mock`
+and `LOG_LEVEL`. The pre-deploy command applies migrations and idempotently provisions the runtime
+login without `SUPERUSER` or `BYPASSRLS`. Enable **Wait for CI** before autodeploy. Health check:
+`/health/ready`.
+
+The staging bootstrap is an explicit one-shot operation. It requires `APP_ENV=staging`,
+`ALLOW_STAGING_BOOTSTRAP=true`, a strong `STAGING_ADMIN_PASSWORD`, and the migration credential.
+Remove both bootstrap variables immediately after it succeeds. Never use the local demonstration
+password in a hosted environment.
 
 No production deployment is performed by this repository bootstrap.
 

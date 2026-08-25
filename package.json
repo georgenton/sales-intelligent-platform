@@ -14,6 +14,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e:staging": "pnpm --filter @sip/web test:e2e:staging",
     "test:integration": "pnpm --filter @sip/api test:integration",
     "test:tenant-isolation": "pnpm --filter @sip/api test:tenant-isolation",
     "format": "prettier --write .",
@@ -23,7 +24,9 @@
     "db:generate": "pnpm --filter @sip/api db:generate",
     "db:migrate": "pnpm --filter @sip/api db:migrate",
     "db:migrate:deploy": "pnpm --filter @sip/api db:migrate:deploy",
+    "db:provision:runtime": "pnpm --filter @sip/api db:provision:runtime",
     "db:seed": "pnpm --filter @sip/api db:seed",
+    "db:bootstrap:staging": "pnpm --filter @sip/api db:bootstrap:staging",
     "import:excel": "pnpm --filter @sip/api import:excel",
     "security:audit": "pnpm audit --audit-level high"
   },

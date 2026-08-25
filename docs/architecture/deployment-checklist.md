@@ -11,10 +11,13 @@
 
 - Provision PostgreSQL and separate owner/runtime login roles.
 - Grant the runtime login `app_runtime`; do not grant `BYPASSRLS`.
+- Confirm hosted startup rejects a runtime URL whose username does not match `RUNTIME_DATABASE_USER`.
 - Run `prisma migrate deploy` as pre-deploy, not at process startup.
 - Set health check to `/health/ready`; confirm failed health prevents activation.
 - Enable GitHub integration and **Wait for CI**.
 - Confirm structured logs redact cookies, auth, CSRF and passwords.
+- Run the guarded synthetic bootstrap once; then remove `ALLOW_STAGING_BOOTSTRAP` and
+  `STAGING_ADMIN_PASSWORD` from the service.
 
 ## Vercel web
 
@@ -30,3 +33,4 @@
 3. Create and update a synthetic opportunity; observe stage history and audit event.
 4. Generate a manager brief and capture a forecast snapshot.
 5. Log out; confirm the previous session is rejected.
+6. Run `pnpm test:e2e:staging` with credentials supplied only through the operator environment.

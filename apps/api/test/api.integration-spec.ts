@@ -28,9 +28,11 @@ describe('MVP API vertical slice', () => {
   });
 
   it('logs in with an opaque HttpOnly session and issues a CSRF cookie', async () => {
+    const password = process.env.DEMO_ADMIN_PASSWORD;
+    if (!password) throw new Error('DEMO_ADMIN_PASSWORD is required for integration tests');
     const response = await agent
       .post('/auth/login')
-      .send({ email: 'admin@techdistribution.demo', password: 'ChangeMe-Local-2026!' })
+      .send({ email: 'admin@techdistribution.demo', password })
       .expect(200);
     const cookies = response.headers['set-cookie'] as unknown as string[];
     expect(

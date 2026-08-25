@@ -14,7 +14,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:provision:runtime": "tsx src/scripts/provision-runtime-role.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "db:bootstrap:staging": "tsx prisma/seed.ts --staging",
     "import:excel": "tsx src/modules/imports/excel-importer.cli.ts"
   },
   "dependencies": {
