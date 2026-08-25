@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import pinoHttp from 'pino-http';
 import { requestContext } from './common/http/request-context.middleware';
+import { requestTracker } from './common/http/request-tracker';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { environment } from './config/environment';
 import { AuditModule } from './modules/audit/audit.module';
@@ -19,7 +20,10 @@ import { UsersModule } from './modules/users/users.module';
 @Module({
   imports: [
     PrismaModule,
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+      getTracker: requestTracker,
+    }),
     AuditModule,
     AuthModule,
     AuthorizationModule,
