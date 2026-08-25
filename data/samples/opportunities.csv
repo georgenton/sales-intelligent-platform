@@ -1,0 +1,4 @@
+Opportunity,Seller Email,Brand,Customer,Partner,Amount,Stage,Expected Close,Expected Billing,PO,External ID
+Synthetic Branch Modernization,sofia@techdistribution.demo,Lenovo,Synthetic Customer 01,Andes Technology,"125,000",50,15/10/2026,30/10/2026,,SAMPLE-001
+Synthetic Data Platform,diego@techdistribution.demo,Nutanix,Synthetic Customer 02,CloudBridge,"210,000",90,20/09/2026,10/10/2026,PO-SAMPLE-002,SAMPLE-002
+Synthetic Storage Renewal,camila@techdistribution.demo,Hitachi,Synthetic Customer 03,Pacific IT,"85,000",25,noviembre,,,SAMPLE-003
