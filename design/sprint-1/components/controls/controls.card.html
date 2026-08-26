@@ -1,0 +1,31 @@
+<!-- @dsCard group="Components" viewport="700x380" name="Controls" subtitle="Period selector, filter bar, ⌘K command palette" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:16px;background:var(--bg-canvas);font-family:var(--font-sans)}</style></head><body><div id="root"></div>
+<script type="text/babel">const { PeriodSelector, FilterBar, CommandPalette, Card } = window.SalesIntelligenceDesignSystem_3dfbfd;
+function Demo(){const [p,setP]=React.useState('FY26 Q3');const [ap,setAp]=React.useState(['at-risk']);const [q,setQ]=React.useState('');
+return <div style={{display:'grid',gap:16}}>
+  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+    <PeriodSelector periods={['FY26 Q1','FY26 Q2','FY26 Q3','FY26 Q4']} value={p} onChange={setP} comparison="last snapshot"/>
+  </div>
+  <FilterBar search={q} onSearch={setQ} applied={ap} onToggle={(id)=>setAp(a=>a.includes(id)?a.filter(x=>x!==id):[...a,id])} onClear={()=>setAp([])}
+    searchPlaceholder="Search title, customer or seller"
+    filters={[{id:'at-risk',label:'At risk',count:12},{id:'commit',label:'Commit',count:7},{id:'low-margin',label:'Margin under 10%',count:5},{id:'mine',label:'My deals'}]}/>
+  <Card style={{position:'relative',height:230,overflow:'hidden'}}>
+    <div style={{position:'absolute',inset:0}}>
+      <CommandPalette open commands={[
+        {id:'a',label:'Find customer',group:'Navigate'},
+        {id:'b',label:'Find opportunity',group:'Navigate'},
+        {id:'c',label:'Create opportunity',group:'Create'},
+        {id:'d',label:'View opportunities at risk',group:'Review',hint:'12'},
+        {id:'e',label:'Open forecast review',group:'Review'},
+        {id:'f',label:'Ask Copilot',group:'Copilot'}]} style={{position:'absolute',paddingTop:16}}/>
+    </div>
+  </Card>
+</div>;}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script></body></html>

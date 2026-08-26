@@ -1,0 +1,23 @@
+/* 4px base grid, exactly the Tailwind steps the source uses. */
+:root{
+  --space-0:0;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;
+  --space-6:24px;--space-7:28px;--space-8:32px;--space-10:40px;--space-12:48px;--space-16:64px;
+
+  --gap-card:20px;         /* grid gap-5 between cards */
+  --gap-kpi:16px;          /* gap-4 between KPI tiles */
+  --pad-card:20px;         /* CardHeader/CardContent p-5 */
+  --pad-card-compact:16px; /* KPI tile p-4 */
+  --pad-page:20px;         /* p-5 */
+  --pad-page-lg:32px;      /* lg:p-8 */
+
+  --radius:12px;           /* --radius: 0.75rem in source */
+  --radius-sm:8px;         /* buttons, inputs (rounded-lg) */
+  --radius-md:12px;        /* inner rows (rounded-xl) */
+  --radius-lg:16px;        /* cards (rounded-2xl) */
+  --radius-xl:18px;
+  --radius-pill:999px;     /* badges */
+
+  --control-h-sm:32px;--control-h:40px;--control-h-lg:48px;
+  --sidebar-w:248px;--header-h:64px;--drawer-w:480px;--panel-w:380px;
+  --content-max:1600px;
+}

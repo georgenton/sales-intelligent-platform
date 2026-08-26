@@ -25,10 +25,10 @@ export default async function AlertsPage() {
                 className={cn(
                   'grid size-11 place-items-center rounded-xl',
                   alert.severity === 'CRITICAL'
-                    ? 'bg-red-50 text-danger'
+                    ? 'bg-surface-danger-soft text-danger'
                     : alert.severity === 'HIGH'
-                      ? 'bg-orange-50 text-orange-600'
-                      : 'bg-amber-50 text-amber-700',
+                      ? 'bg-surface-danger-soft text-danger'
+                      : 'bg-surface-warning-soft text-warning',
                 )}
               >
                 <AlertOctagon className="size-5" />

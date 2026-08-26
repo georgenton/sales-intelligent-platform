@@ -1,0 +1,9 @@
+/* Minimal resets mirroring the source globals.css tail. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg-canvas);color:var(--text-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit}
+::selection{background:color-mix(in oklab,var(--accent) 35%,transparent)}
+:focus-visible{outline:var(--focus-ring-width) solid var(--focus-ring);outline-offset:2px}
+a{color:var(--text-brand);text-decoration:none}
+a:hover{color:var(--brand-hover);text-decoration:underline}
+.tnum{font-variant-numeric:tabular-nums}

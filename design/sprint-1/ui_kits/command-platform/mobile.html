@@ -1,0 +1,255 @@
+<!-- @dsCard group="Command Platform" viewport="430x932" name="Mobile — seller" subtitle="Today · Opportunities · Actions · Meetings · Copilot, with a full-screen deal sheet" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sales Intelligence — mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script src="./data.js"></script>
+<script>Object.assign(window, window.SalesIntelligenceDesignSystem_3dfbfd || {});</script>
+<style>html,body{margin:0;height:100%}body{background:var(--surface-sunken);font-family:var(--font-sans);color:var(--text-primary);-webkit-font-smoothing:antialiased}#root{height:100%}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const K = (n) => '$' + (n / 1000).toFixed(0) + 'K';
+const TABS = [
+  { id: 'today', label: 'Today', icon: 'Sun' },
+  { id: 'opps', label: 'Opportunities', icon: 'Target' },
+  { id: 'actions', label: 'Actions', icon: 'ListChecks' },
+  { id: 'meetings', label: 'Meetings', icon: 'CalendarDays' },
+  { id: 'copilot', label: 'Copilot', icon: 'Bot' },
+];
+
+function TopBar({ title, right }) {
+  return (
+    <header style={{ position: 'sticky', top: 0, zIndex: 10, height: 56, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', background: 'color-mix(in oklab, var(--surface) 92%, transparent)', backdropFilter: 'var(--blur-header)', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, borderRadius: 10, background: 'var(--surface-inverse)', color: 'var(--accent-bright)', fontWeight: 700, fontSize: 11 }}>SI</span>
+      <b style={{ fontSize: 16, letterSpacing: '-0.02em' }}>{title}</b>
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>{right}</span>
+    </header>
+  );
+}
+
+function TabBar({ tab, onTab, badge }) {
+  return (
+    <nav aria-label="Primary" style={{ position: 'sticky', bottom: 0, display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', borderTop: '1px solid var(--border)', background: 'var(--surface)', paddingBottom: 6 }}>
+      {TABS.map((t) => {
+        const on = tab === t.id;
+        return (
+          <button key={t.id} type="button" onClick={() => onTab(t.id)} aria-current={on ? 'page' : undefined}
+            style={{ minHeight: 56, display: 'grid', justifyItems: 'center', gap: 3, border: 'none', background: 'none', cursor: 'pointer', color: on ? 'var(--text-brand)' : 'var(--text-muted)', fontSize: 10, fontWeight: 600, position: 'relative', padding: '8px 0' }}>
+            <Icon name={t.icon} size={20} />
+            {t.label}
+            {t.id === 'actions' && badge ? <span className="tnum" style={{ position: 'absolute', top: 4, right: '50%', marginRight: -22, minWidth: 16, height: 16, borderRadius: 999, background: 'var(--danger)', color: '#fff', fontSize: 10, display: 'grid', placeItems: 'center', padding: '0 4px' }}>{badge}</span> : null}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function Sheet({ deal, onClose }) {
+  if (!deal) return null;
+  const rows = [['Stage', deal.stage], ['Category', deal.forecastCategory], ['Seller', deal.seller], ['Partner', deal.partner], ['Brand', deal.brand], ['Close', deal.closeDate], ['Billing', deal.billingDate || '—'], ['Margin', deal.margin + '%']];
+  return (
+    <div role="dialog" aria-modal="true" aria-label={deal.title}
+      style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--surface)', display: 'grid', gridTemplateRows: '56px 1fr auto' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', borderBottom: '1px solid var(--border)' }}>
+        <button type="button" onClick={onClose} aria-label="Close"
+          style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, marginLeft: -10, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><Icon name="ChevronLeft" size={22} /></button>
+        <b style={{ fontSize: 15 }}>{deal.customer}</b>
+        <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: 999, background: 'var(--text-muted)' }} />
+      </header>
+      <div style={{ overflowY: 'auto', padding: 16, display: 'grid', gap: 16, alignContent: 'start' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>{deal.title}</h1>
+          <p className="tnum" style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 600, letterSpacing: '-0.04em' }}>{K(deal.amount)}</p>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {deal.alerts.length ? deal.alerts.map((a) => <RiskBadge key={a.code} severity={a.severity} code={a.code} />) : <Badge tone="positive">No open risks</Badge>}
+        </div>
+        <Card pad><OpportunityHealth score={deal.health.score} status={deal.health.status} size="lg" showFactors factors={deal.health.factors} /></Card>
+        <Card pad><StageVelocity stage={deal.stage} daysInStage={deal.daysInStage} benchmarkDays={deal.stageBenchmarkDays || 20} /></Card>
+        {deal.nextAction ? (
+          <Card pad style={{ background: 'var(--surface-brand-soft)', borderColor: 'transparent' }}>
+            <p style={{ margin: 0, font: 'var(--type-meta)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 'var(--tracking-label)', color: 'var(--teal-800)' }}>Next action</p>
+            <p style={{ margin: '6px 0 0', font: 'var(--type-body)' }}>{deal.nextAction}</p>
+          </Card>
+        ) : null}
+        <Card><CardHeader title="Details" /><CardContent>
+          {rows.map(([k, v], i) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 14 }}>
+              <span style={{ color: 'var(--text-muted)' }}>{k}</span><b>{v || '—'}</b>
+            </div>
+          ))}
+        </CardContent></Card>
+        <Card><CardHeader title="Recent stage history" /><CardContent>
+          <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 12 }}>
+            {deal.stageHistory.map((h) => (
+              <li key={h.at} style={{ paddingLeft: 18, borderLeft: '2px solid var(--surface-brand-soft)', position: 'relative' }}>
+                <span style={{ position: 'absolute', left: -5, top: 4, width: 8, height: 8, borderRadius: 999, background: 'var(--brand)' }} />
+                <b style={{ fontSize: 14 }}>{h.from ? h.from + ' → ' : ''}{h.to}</b>
+                <div style={{ font: 'var(--type-meta)', color: 'var(--text-muted)' }}>{h.by} · {h.at}</div>
+              </li>
+            ))}
+          </ol>
+        </CardContent></Card>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: 16, borderTop: '1px solid var(--border)' }}>
+        <Button size="lg" icon={<Icon name="Phone" />}>Log activity</Button>
+        <Button size="lg" variant="outline" aria-label="Ask Copilot about this deal"><Icon name="Bot" size={18} /></Button>
+      </div>
+    </div>
+  );
+}
+
+function Today({ onOpen }) {
+  const k = SIP.sellerKpis;
+  const [all, setAll] = React.useState(false);
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <Card pad><QuotaProgress quota={k.quota} billed={k.billed} forecast={k.forecast} label="My quota · FY26 Q3" /></Card>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <RevenueKPI label="Billed" value={k.billed} detail="44.6% attainment" tone="positive" />
+        <RevenueKPI label="Gap" value={k.gap} detail="to quota" tone="risk" />
+      </div>
+      {all ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <RevenueKPI label="Forecast" value={k.forecast} detail="35.0% attainment" delta={-24000} />
+          <RevenueKPI label="Coverage" value={k.coverage} format="multiple" detail="of remaining gap" />
+        </div>
+      ) : null}
+      <Button variant="ghost" onClick={() => setAll(!all)} iconAfter={<Icon name={all ? 'ChevronUp' : 'ChevronDown'} size={16} />}>{all ? 'Fewer metrics' : 'All metrics'}</Button>
+      <Card><CardHeader title="Focus today" subtitle="2 actions may materially affect your quarter" /><CardContent style={{ display: 'grid', gap: 12 }}>
+        {SIP.opportunities.filter((o) => o.risk).slice(0, 2).map((o) => (
+          <NextBestAction key={o.id} customer={o.customer} amount={o.amount} category={o.forecastCategory}
+            severity={o.health.status === 'CRITICAL' ? 'CRITICAL' : 'HIGH'} risk={o.risk} suggestion={o.suggestion}
+            primaryLabel="Log activity" onOpen={() => onOpen(o)} />
+        ))}
+      </CardContent></Card>
+      <Card><CardHeader title="Since Monday" subtitle="Your forecast movement" /><CardContent>
+        <ForecastMovement since="Monday" net={-115000} movements={SIP.movements.slice(0, 2)}
+          onSelect={(m) => onOpen(SIP.opportunities.find((o) => o.id === m.opportunityId))} />
+      </CardContent></Card>
+    </div>
+  );
+}
+
+function OppList({ onOpen }) {
+  const [q, setQ] = React.useState('');
+  const [applied, setApplied] = React.useState([]);
+  const rows = SIP.opportunities.filter((o) => (o.customer + o.title).toLowerCase().includes(q.toLowerCase()))
+    .filter((o) => !applied.includes('at-risk') || o.health.status !== 'HEALTHY');
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <Input icon={<Icon name="Search" size={15} />} placeholder="Search customer or deal" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        <FilterBar applied={applied} onToggle={(id) => setApplied((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]))}
+          filters={[{ id: 'at-risk', label: 'At risk', count: 4 }, { id: 'commit', label: 'Commit' }, { id: 'mine', label: 'Mine' }]} />
+      </div>
+      {rows.map((o) => (
+        <button key={o.id} type="button" onClick={() => onOpen(o)}
+          style={{ display: 'grid', gap: 8, textAlign: 'left', padding: 16, borderRadius: 16, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: 'var(--shadow-card)', cursor: 'pointer', minHeight: 44 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+            <span><b style={{ display: 'block', fontSize: 15 }}>{o.customer}</b><span style={{ font: 'var(--type-meta)', color: 'var(--text-muted)' }}>{o.title}</span></span>
+            <b className="tnum" style={{ fontSize: 15 }}>{K(o.amount)}</b>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Badge tone="brand">{o.stageCode}% · {o.stage.split(' · ')[0]}</Badge>
+            {o.alerts[0] ? <RiskBadge severity={o.alerts[0].severity} code={o.alerts[0].code} /> : <Badge tone="positive">On track</Badge>}
+            <span style={{ marginLeft: 'auto' }}><OpportunityHealth score={o.health.score} status={o.health.status} size="sm" /></span>
+          </div>
+        </button>
+      ))}
+      {!rows.length ? <p style={{ font: 'var(--type-meta)', color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>No opportunities match. Clear a filter to see more.</p> : null}
+    </div>
+  );
+}
+
+function Actions({ onOpen }) {
+  const [done, setDone] = React.useState([]);
+  const list = SIP.opportunities.filter((o) => o.risk);
+  const open = list.filter((o) => !done.includes(o.id));
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {open.map((o) => (
+        <NextBestAction key={o.id} customer={o.customer} amount={o.amount} category={o.forecastCategory}
+          severity={o.health.status === 'CRITICAL' ? 'CRITICAL' : 'HIGH'} risk={o.risk} suggestion={o.suggestion}
+          primaryLabel="Mark done" onPrimary={() => setDone((d) => [...d, o.id])} onOpen={() => onOpen(o)} />
+      ))}
+      {!open.length ? (
+        <Card pad style={{ textAlign: 'center', display: 'grid', gap: 8, justifyItems: 'center', padding: 32 }}>
+          <Icon name="CircleCheck" size={28} style={{ color: 'var(--success)' }} />
+          <b style={{ fontSize: 16 }}>Nothing needs you today.</b>
+          <span style={{ font: 'var(--type-meta)', color: 'var(--text-muted)' }}>Your forecast is current. New risks appear here as they are detected.</span>
+        </Card>
+      ) : null}
+      {done.length ? <p style={{ font: 'var(--type-meta)', color: 'var(--text-muted)' }}>{done.length} completed today.</p> : null}
+    </div>
+  );
+}
+
+function Meetings() {
+  const days = [['Today', [['09:30', 'Banco ABC', 'PO review with CFO', 'Commit · $180K'], ['14:00', 'Internal', 'Forecast prep with Morgan', null]]], ['Tomorrow', [['15:00', 'Retail Norte', 'Technical validation', 'Commit · $210K']]], ['Friday', [['11:00', 'Telco Andina', 'Budget qualification', 'Pipeline · $142K']]]];
+  return (
+    <div style={{ display: 'grid', gap: 20 }}>
+      {days.map(([day, items]) => (
+        <div key={day} style={{ display: 'grid', gap: 8 }}>
+          <span style={{ font: 'var(--type-meta)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 'var(--tracking-label)', color: 'var(--text-muted)' }}>{day}</span>
+          {items.map(([time, who, what, ctx]) => (
+            <Card key={time + who} pad style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span className="tnum" style={{ fontSize: 13, fontWeight: 600, minWidth: 44 }}>{time}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <b style={{ display: 'block', fontSize: 15 }}>{who}</b>
+                <span style={{ font: 'var(--type-meta)', color: 'var(--text-muted)' }}>{what}</span>
+                {ctx ? <span style={{ display: 'block', marginTop: 6 }}><Badge tone="brand">{ctx}</Badge></span> : null}
+              </span>
+            </Card>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MobileCopilot() {
+  const [messages, setMessages] = React.useState([]);
+  const ask = (q) => setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: /first|today/i.test(q)
+    ? 'Start with Banco ABC: $180K in Commit, no activity in 9 days and no purchase order. One call today protects 37% of your remaining gap.'
+    : 'Your gap is $98K. Two deals cover it — Banco ABC ($180K, at risk) and Retail Norte ($210K, purchase order missing).' }]);
+  return (
+    <CopilotPanel context="Seller home" contextLabel="Context · FY26 Q3 · Sofía Torres"
+      suggestions={['What should I do first today?', 'Why is Banco ABC at risk?', 'Draft a follow-up']}
+      messages={messages} onAsk={ask} style={{ height: '100%' }}
+      insights={<CopilotInsight tone="risk" defaultOpen headline="2 deals need you this week" detail="$390K of your quarter"
+        items={[{ label: 'Banco ABC · no activity 9 days', value: '$180K' }, { label: 'Retail Norte · purchase order missing', value: '$210K' }]} />} />
+  );
+}
+
+function MobileApp() {
+  const [tab, setTab] = React.useState('today');
+  const [deal, setDeal] = React.useState(null);
+  const titles = { today: 'Today', opps: 'Opportunities', actions: 'Actions', meetings: 'Meetings', copilot: 'Copilot' };
+  const body = {
+    today: <Today onOpen={setDeal} />,
+    opps: <OppList onOpen={setDeal} />,
+    actions: <Actions onOpen={setDeal} />,
+    meetings: <Meetings />,
+    copilot: <MobileCopilot />,
+  }[tab];
+  return (
+    <div style={{ height: '100%', display: 'grid', gridTemplateRows: '56px 1fr auto', background: 'var(--bg-canvas)' }}>
+      <TopBar title={titles[tab]} right={<>
+        <Button size="icon" variant="ghost" aria-label="Search"><Icon name="Search" size={18} /></Button>
+        <Button size="icon" variant="ghost" aria-label="Alerts"><Icon name="BellRing" size={18} /></Button>
+      </>} />
+      <main style={{ overflowY: 'auto', padding: tab === 'copilot' ? 0 : 16 }}>{body}</main>
+      <TabBar tab={tab} onTab={setTab} badge={2} />
+      <Sheet deal={deal} onClose={() => setDeal(null)} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<MobileApp />);
+</script></body></html>

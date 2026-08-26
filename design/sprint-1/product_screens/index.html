@@ -1,0 +1,173 @@
+<!-- @dsCard group="Product Screens" viewport="1440x1024" name="Sales Intelligence — product prototype" subtitle="Seller workspace, Focus, Guided, Revenue Command Center, funnel drill-down, drawer, forecast review, Copilot, import, responsive" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sales Intelligence — product screens</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.js"></script>
+<script src="../_ds_bundle.js"></script>
+<script src="./data.js"></script>
+<script>Object.assign(window, window.SalesIntelligenceDesignSystem_3dfbfd || {});</script>
+<style>html,body{margin:0;height:100%}body{background:var(--surface-sunken);color:var(--text-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}#root{width:1440px;height:100%}body{overflow-x:auto}</style>
+</head><body><div id="root"></div>
+<script type="text/babel" src="./Shell.jsx"></script>
+<script type="text/babel" src="./SellerScreens.jsx"></script>
+<script type="text/babel" src="./ManagerScreens.jsx"></script>
+<script type="text/babel" src="./SharedScreens.jsx"></script>
+<script type="text/babel" src="./Responsive.jsx"></script>
+<script type="text/babel">
+const SELLER_SCREENS = ['seller-standard', 'seller-focus', 'seller-guided'];
+const MODE_BY_SCREEN = { 'seller-standard': 'Standard', 'seller-focus': 'Focus', 'seller-guided': 'Guided', 'manager-review': 'Review' };
+
+function App() {
+  const [screen, setScreen] = React.useState(() => (location.hash || '#manager-command').slice(1));
+  const [deal, setDeal] = React.useState(null);
+  const [palette, setPalette] = React.useState(false);
+  const [period, setPeriod] = React.useState(D.period);
+  const [messages, setMessages] = React.useState([]);
+  const [railOpen, setRailOpen] = React.useState(null); // null = follow the persona default
+  const [toast, setToastRaw] = React.useState(null);
+  const setToast = (t) => { setToastRaw(t); window.clearTimeout(setToast._t); setToast._t = window.setTimeout(() => setToastRaw(null), 2600); };
+
+  React.useEffect(() => { location.hash = screen; }, [screen]);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette((p) => !p); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const persona = SELLER_SCREENS.includes(screen) || screen === 'seller-mobile' || screen === 'opportunity-mobile' ? 'seller' : 'manager';
+  const mode = MODE_BY_SCREEN[screen] || 'Standard';
+  const ask = (q, ctxDeal) => setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: copilotAnswer(q, ctxDeal || deal) }]);
+
+  const setMode = (m) => {
+    if (m === 'Standard') setScreen(persona === 'seller' ? 'seller-standard' : 'manager-command');
+    else if (m === 'Focus') setScreen('seller-focus');
+    else if (m === 'Guided') setScreen('seller-guided');
+    else setScreen('manager-review');
+  };
+
+  const commands = [
+    { id: 'c1', label: 'Find customer — Banco Andino', group: 'Navigate', hint: '2 opportunities' },
+    { id: 'c2', label: 'Find opportunity — OPP-2041', group: 'Navigate', hint: '$240K Commit' },
+    { id: 'c3', label: 'Create opportunity', group: 'Create' },
+    { id: 'c4', label: 'View opportunities at risk', group: 'Review', hint: '18' },
+    { id: 'c5', label: 'View seller forecast', group: 'Review' },
+    { id: 'c6', label: 'Open forecast review', group: 'Review', hint: '12 to decide' },
+    { id: 'c7', label: 'Import forecast workbook', group: 'Data' },
+    { id: 'c8', label: 'Ask Copilot — why could we miss quota?', group: 'Copilot' },
+  ];
+  const runCommand = (c) => {
+    setPalette(false);
+    if (c.id === 'c1' || c.id === 'c2') setDeal(D.byId('OPP-2041'));
+    else if (c.id === 'c4') setScreen('manager-funnel');
+    else if (c.id === 'c5') setScreen('manager-sellers');
+    else if (c.id === 'c6') setScreen('manager-review');
+    else if (c.id === 'c7') setScreen('shared-import');
+    else if (c.id === 'c8') { setScreen('shared-copilot'); ask('Why could we miss quota?', null); }
+  };
+
+  const copilotRail = ['seller-standard', 'manager-command', 'manager-funnel', 'opportunity-drawer'].includes(screen)
+    ? <CopilotRail ctx={persona} deal={deal} messages={messages} onAsk={ask} />
+    : null;
+  // Manager desktop: expanded rail. Seller surfaces: collapsed by default — the seller's job is the action list, not the analyst.
+  const railDefault = persona === 'manager';
+  const railIsOpen = railOpen === null ? railDefault : railOpen;
+
+  const body = () => {
+    switch (screen) {
+      case 'seller-standard': return <SellerStandard onOpen={setDeal} />;
+      case 'seller-focus': return <SellerFocus onOpen={setDeal} />;
+      case 'seller-guided': return <SellerGuided onOpen={setDeal} onAskCopilot={ask} onExit={() => setScreen('seller-standard')} />;
+      case 'opportunity-drawer': return <ManagerCommand onOpen={setDeal} onScreen={setScreen} />;
+      case 'manager-command': return <ManagerCommand onOpen={setDeal} onScreen={setScreen} />;
+      case 'manager-funnel': return (
+        <div>
+          <ScreenHead eyebrow="Pipeline" title="Where is the quarter sitting?"
+            meta={`${D.period} · ${K(D.team.pipeline)} open pipeline · ${D.team.coverage}× coverage · click a stage to drill in place`} />
+          <FunnelCard onOpen={setDeal} initial="Commit" subtitle="Commit is expanded below — hover any band for conversion, slippage and days in stage" />
+        </div>
+      );
+      case 'manager-review': return <ForecastReview onOpen={setDeal} onAskCopilot={ask} onExit={() => setScreen('manager-command')} />;
+      case 'manager-sellers': return <ManagerSellers onOpen={setDeal} />;
+      case 'shared-copilot': return <CopilotShowcase onOpen={setDeal} />;
+      case 'shared-import': return <ImportWizardScreen />;
+      case 'seller-mobile': case 'manager-tablet': case 'opportunity-mobile': return <ResponsiveScreen kind={screen} onOpen={setDeal} />;
+      default: return <ManagerCommand onOpen={setDeal} onScreen={setScreen} />;
+    }
+  };
+
+  React.useEffect(() => { if (screen === 'opportunity-drawer' && !deal) setDeal(D.byId('OPP-2041')); }, [screen]);
+
+  const drawerDeal = deal ? {
+    title: deal.title, customer: deal.customer, amount: deal.amount, currency: 'USD',
+    stage: `${deal.stage.code}% · ${deal.stage.name}`, forecastCategory: catLabel[deal.forecastCategory],
+    seller: deal.seller, partner: deal.partner, brand: deal.brand,
+    closeDate: deal.closeDate, billingDate: deal.billingDate, margin: deal.margin,
+    health: deal.health, alerts: deal.alerts, daysInStage: deal.daysInStage, stageBenchmarkDays: deal.benchmarkDays,
+    nextAction: deal.nextAction, stageHistory: deal.stageHistory,
+    nextStep: deal.nextStep || null,
+    lastActivity: deal.lastActivityDetail || null,
+    evidence: deal.evidenceBlock ? { ...deal.evidenceBlock, verdict: deal.evidenceBlock.verdict } : null,
+  } : null;
+
+  return (
+    <div style={{ height: '100%', display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gridTemplateRows: 'auto auto minmax(0,1fr)' }}>
+      <ScreenNav screen={screen} onScreen={(s) => { setScreen(s); if (s !== 'opportunity-drawer') setDeal(null); }} />
+      <ViewportNote />
+      <div style={{ minHeight: 0, minWidth: 0 }}>
+        <Workspace persona={persona} screen={screen} onScreen={setScreen} mode={mode}
+          onMode={persona === 'seller' || screen === 'manager-review' || screen === 'manager-command' ? setMode : null}
+          period={period} onPeriod={setPeriod} onCommand={() => setPalette(true)} copilot={copilotRail}
+          copilotOpen={railIsOpen} onToggleCopilot={() => setRailOpen(!railIsOpen)} copilotCount={persona === 'manager' ? 3 : 2}
+          headerRight={screen === 'manager-command' || screen === 'manager-funnel' ? <Badge tone="risk">{D.team.atRisk} at risk</Badge> : null}>
+          {body()}
+        </Workspace>
+      </div>
+      <OpportunityDrawer open={!!deal} opportunity={drawerDeal} onClose={() => setDeal(null)}
+        onOpenFull={() => { setDeal(null); setScreen('manager-funnel'); }}
+        quickActions={[{ label: 'Add activity', primary: true }, 'Add next step', 'Change stage', 'Update forecast', 'Add note', 'Ask Copilot']}
+        onQuickAction={(label) => { if (label === 'Ask Copilot') ask('Why is this deal at risk?', deal); else setToast(label + ' — ' + deal.customer); }}
+        footer={deal ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 14 }}>
+            <div>
+              <p style={{ margin: '0 0 7px', font: 'var(--type-card-title)' }}>Risk factors</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 6 }}>
+                {deal.health.factors.map((f) => (
+                  <span key={f.code} style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', gap: 9, font: 'var(--type-meta)' }}>
+                    <b className="tnum" style={{ color: f.impact < 0 ? 'var(--danger)' : 'var(--success)' }}>{f.impact > 0 ? '+' : ''}{f.impact}</b>
+                    <span style={{ color: 'var(--text-muted)' }}>{f.message}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p style={{ margin: '0 0 7px', font: 'var(--type-card-title)' }}>Ask Copilot about this deal</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {D.copilot.deal.map((s) => (
+                  <button key={s} type="button" onClick={() => { ask(s, deal); }}
+                    style={{ minHeight: 30, padding: '0 11px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', font: 'var(--type-meta)', cursor: 'pointer' }}>{s}</button>
+                ))}
+              </div>
+              {messages.length ? (
+                <div style={{ marginTop: 10, padding: 12, borderRadius: 11, background: 'var(--surface-sunken)', font: 'var(--type-body)' }}>
+                  {messages[messages.length - 1].text}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null} />
+      <CommandPalette open={palette} commands={commands} onSelect={runCommand} onClose={() => setPalette(false)} />
+      {toast ? (
+        <div role="status" style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', borderRadius: 999, background: 'var(--surface-inverse)', color: '#fff', boxShadow: 'var(--shadow-overlay)', fontSize: 13, fontWeight: 600 }}>
+          <Icon name="Check" size={15} style={{ color: 'var(--accent-bright)' }} />{toast}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script></body></html>

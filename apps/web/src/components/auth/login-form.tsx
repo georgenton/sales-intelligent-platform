@@ -76,7 +76,10 @@ export function LoginForm() {
             <p className="text-sm text-danger">Password must have at least 10 characters.</p>
           )}
           {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">
+            <p
+              role="alert"
+              className="rounded-lg bg-surface-danger-soft px-3 py-2 text-sm text-danger"
+            >
               {error}
             </p>
           )}

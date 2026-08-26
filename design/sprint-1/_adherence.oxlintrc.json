@@ -1,0 +1,615 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/controls/**",
+              "components/copilot/**",
+              "components/core/**",
+              "components/data/**",
+              "components/overlay/**",
+              "components/sales/**",
+              "product_screens/**",
+              "ui_kits/command-platform/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute > JSXIdentifier[name!=/^(?:tone|icon|uppercase|children|key|ref|className|style|children)$/]",
+        "message": "<Badge> doesn't accept that prop. Declared props: tone, icon, uppercase, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:neutral|brand|positive|warning|risk|critical|outline)$/]",
+        "message": "<Badge> tone must be one of 'neutral' | 'brand' | 'positive' | 'warning' | 'risk' | 'critical' | 'outline'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|size|icon|iconAfter|full|children|key|ref|className|style|children)$/]",
+        "message": "<Button> doesn't accept that prop. Declared props: variant, size, icon, iconAfter, full, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:primary|secondary|outline|ghost|danger|onDark)$/]",
+        "message": "<Button> variant must be one of 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'onDark'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg|icon)$/]",
+        "message": "<Button> size must be one of 'sm' | 'md' | 'lg' | 'icon'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Card'] > JSXAttribute > JSXIdentifier[name!=/^(?:tone|pad|children|key|ref|className|style|children)$/]",
+        "message": "<Card> doesn't accept that prop. Declared props: tone, pad, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Card'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:default|inverse|risk|sunken)$/]",
+        "message": "<Card> tone must be one of 'default' | 'inverse' | 'risk' | 'sunken'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Command'] > JSXAttribute > JSXIdentifier[name!=/^(?:id|label|group|hint|key|ref|className|style|children)$/]",
+        "message": "<Command> doesn't accept that prop. Declared props: id, label, group, hint."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='CopilotInsightItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|value|opportunityId|key|ref|className|style|children)$/]",
+        "message": "<CopilotInsightItem> doesn't accept that prop. Declared props: label, value, opportunityId."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='CopilotMessage'] > JSXAttribute > JSXIdentifier[name!=/^(?:role|text|key|ref|className|style|children)$/]",
+        "message": "<CopilotMessage> doesn't accept that prop. Declared props: role, text."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='CopilotMessage'] > JSXAttribute[name.name='role'] > Literal[value!=/^(?:user|assistant)$/]",
+        "message": "<CopilotMessage> role must be one of 'user' | 'assistant'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='DataQualityCounts'] > JSXAttribute > JSXIdentifier[name!=/^(?:ready|warnings|invalid|duplicates|key|ref|className|style|children)$/]",
+        "message": "<DataQualityCounts> doesn't accept that prop. Declared props: ready, warnings, invalid, duplicates."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FilterChip'] > JSXAttribute > JSXIdentifier[name!=/^(?:id|label|count|key|ref|className|style|children)$/]",
+        "message": "<FilterChip> doesn't accept that prop. Declared props: id, label, count."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ForecastConfidence'] > JSXAttribute > JSXIdentifier[name!=/^(?:sellerCategory|confidence|rationale|key|ref|className|style|children)$/]",
+        "message": "<ForecastConfidence> doesn't accept that prop. Declared props: sellerCategory, confidence, rationale."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ForecastConfidence'] > JSXAttribute[name.name='sellerCategory'] > Literal[value!=/^(?:PIPELINE|BEST_CASE|COMMIT|CLOSED|OMITTED)$/]",
+        "message": "<ForecastConfidence> sellerCategory must be one of 'PIPELINE' | 'BEST_CASE' | 'COMMIT' | 'CLOSED' | 'OMITTED'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ForecastMovementItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|delta|reason|opportunityId|key|ref|className|style|children)$/]",
+        "message": "<ForecastMovementItem> doesn't accept that prop. Declared props: label, delta, reason, opportunityId."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FunnelStage'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|token|amount|count|widthPct|atRisk|atRiskAmount|avgDaysInStage|likelyToSlip|conversion|probability|avgAmount|currency|selected|onSelect|key|ref|className|style|children)$/]",
+        "message": "<FunnelStage> doesn't accept that prop. Declared props: name, token, amount, count, widthPct, atRisk, atRiskAmount, avgDaysInStage, likelyToSlip, conversion, probability, avgAmount, currency, selected, onSelect."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FunnelStage'] > JSXAttribute[name.name='token'] > Literal[value!=/^(?:discovery|qualified|proposal|commit|backlog|billed)$/]",
+        "message": "<FunnelStage> token must be one of 'discovery' | 'qualified' | 'proposal' | 'commit' | 'backlog' | 'billed'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='GuidedTask'] > JSXAttribute > JSXIdentifier[name!=/^(?:step|total|title|why|children|primaryLabel|onPrimary|onSkip|onBack|key|ref|className|style|children)$/]",
+        "message": "<GuidedTask> doesn't accept that prop. Declared props: step, total, title, why, children, primaryLabel, onPrimary, onSkip, onBack."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Icon'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|size|strokeWidth|label|key|ref|className|style|children)$/]",
+        "message": "<Icon> doesn't accept that prop. Declared props: name, size, strokeWidth, label."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ImportMappingRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:source|target|confidence|key|ref|className|style|children)$/]",
+        "message": "<ImportMappingRow> doesn't accept that prop. Declared props: source, target, confidence."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Input'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|hint|error|icon|borderless|key|ref|className|style|children)$/]",
+        "message": "<Input> doesn't accept that prop. Declared props: label, hint, error, icon, borderless."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='NextBestAction'] > JSXAttribute > JSXIdentifier[name!=/^(?:customer|amount|currency|category|risk|suggestion|severity|primaryLabel|onPrimary|onOpen|key|ref|className|style|children)$/]",
+        "message": "<NextBestAction> doesn't accept that prop. Declared props: customer, amount, currency, category, risk, suggestion, severity, primaryLabel, onPrimary, onOpen."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='NextBestAction'] > JSXAttribute[name.name='severity'] > Literal[value!=/^(?:WARNING|HIGH|CRITICAL)$/]",
+        "message": "<NextBestAction> severity must be one of 'WARNING' | 'HIGH' | 'CRITICAL'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='DrawerOpportunity'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|customer|amount|currency|stage|forecastCategory|seller|partner|brand|closeDate|billingDate|margin|health|alerts|daysInStage|stageBenchmarkDays|nextStep|lastActivity|evidence|nextAction|stageHistory|key|ref|className|style|children)$/]",
+        "message": "<DrawerOpportunity> doesn't accept that prop. Declared props: title, customer, amount, currency, stage, forecastCategory, seller, partner, brand, closeDate, billingDate, margin, health, alerts, daysInStage, stageBenchmarkDays, nextStep, lastActivity, evidence, nextAction, stageHistory."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='HealthFactor'] > JSXAttribute > JSXIdentifier[name!=/^(?:code|impact|message|key|ref|className|style|children)$/]",
+        "message": "<HealthFactor> doesn't accept that prop. Declared props: code, impact, message."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PeriodSelector'] > JSXAttribute > JSXIdentifier[name!=/^(?:periods|value|onChange|comparison|key|ref|className|style|children)$/]",
+        "message": "<PeriodSelector> doesn't accept that prop. Declared props: periods, value, onChange, comparison."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QuotaGapDriver'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|amount|key|ref|className|style|children)$/]",
+        "message": "<QuotaGapDriver> doesn't accept that prop. Declared props: label, amount."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QuotaProgress'] > JSXAttribute > JSXIdentifier[name!=/^(?:quota|billed|forecast|currency|label|compact|key|ref|className|style|children)$/]",
+        "message": "<QuotaProgress> doesn't accept that prop. Declared props: quota, billed, forecast, currency, label, compact."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RevenueKPI'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|value|currency|format|detail|delta|deltaLabel|icon|tone|hero|key|ref|className|style|children)$/]",
+        "message": "<RevenueKPI> doesn't accept that prop. Declared props: label, value, currency, format, detail, delta, deltaLabel, icon, tone, hero."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RevenueKPI'] > JSXAttribute[name.name='format'] > Literal[value!=/^(?:currency|percent|multiple|raw)$/]",
+        "message": "<RevenueKPI> format must be one of 'currency' | 'percent' | 'multiple' | 'raw'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RevenueKPI'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:default|positive|warning|risk)$/]",
+        "message": "<RevenueKPI> tone must be one of 'default' | 'positive' | 'warning' | 'risk'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RiskBadge'] > JSXAttribute > JSXIdentifier[name!=/^(?:severity|label|code|key|ref|className|style|children)$/]",
+        "message": "<RiskBadge> doesn't accept that prop. Declared props: severity, label, code."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RiskBadge'] > JSXAttribute[name.name='severity'] > Literal[value!=/^(?:INFO|WARNING|HIGH|CRITICAL)$/]",
+        "message": "<RiskBadge> severity must be one of 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SalesFunnel'] > JSXAttribute > JSXIdentifier[name!=/^(?:stages|currency|selectedStage|onSelectStage|renderDetail|key|ref|className|style|children)$/]",
+        "message": "<SalesFunnel> doesn't accept that prop. Declared props: stages, currency, selectedStage, onSelectStage, renderDetail."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SelectOption'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|label|key|ref|className|style|children)$/]",
+        "message": "<SelectOption> doesn't accept that prop. Declared props: value, label."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SellerPerformanceRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:seller|opportunities|pipeline|commit|quota|key|ref|className|style|children)$/]",
+        "message": "<SellerPerformanceRow> doesn't accept that prop. Declared props: seller, opportunities, pipeline, commit, quota."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StageVelocity'] > JSXAttribute > JSXIdentifier[name!=/^(?:stage|daysInStage|benchmarkDays|key|ref|className|style|children)$/]",
+        "message": "<StageVelocity> doesn't accept that prop. Declared props: stage, daysInStage, benchmarkDays."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "Badge": {
+        "replaces": []
+      },
+      "Button": {
+        "replaces": []
+      },
+      "Card": {
+        "replaces": []
+      },
+      "Command": {
+        "replaces": []
+      },
+      "CopilotInsightItem": {
+        "replaces": []
+      },
+      "CopilotMessage": {
+        "replaces": []
+      },
+      "DataQualityCounts": {
+        "replaces": []
+      },
+      "FilterChip": {
+        "replaces": []
+      },
+      "ForecastConfidence": {
+        "replaces": []
+      },
+      "ForecastMovementItem": {
+        "replaces": []
+      },
+      "FunnelStage": {
+        "replaces": []
+      },
+      "GuidedTask": {
+        "replaces": []
+      },
+      "Icon": {
+        "replaces": []
+      },
+      "ImportMappingRow": {
+        "replaces": []
+      },
+      "Input": {
+        "replaces": []
+      },
+      "NextBestAction": {
+        "replaces": []
+      },
+      "DrawerOpportunity": {
+        "replaces": []
+      },
+      "HealthFactor": {
+        "replaces": []
+      },
+      "PeriodSelector": {
+        "replaces": []
+      },
+      "QuotaGapDriver": {
+        "replaces": []
+      },
+      "QuotaProgress": {
+        "replaces": []
+      },
+      "RevenueKPI": {
+        "replaces": []
+      },
+      "RiskBadge": {
+        "replaces": []
+      },
+      "SalesFunnel": {
+        "replaces": []
+      },
+      "SelectOption": {
+        "replaces": []
+      },
+      "SellerPerformanceRow": {
+        "replaces": []
+      },
+      "StageVelocity": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--accent",
+      "--accent-bright",
+      "--amber-500",
+      "--bg-canvas",
+      "--blur-header",
+      "--border",
+      "--border-inverse",
+      "--border-strong",
+      "--brand",
+      "--brand-active",
+      "--brand-hover",
+      "--chart-1",
+      "--chart-2",
+      "--chart-3",
+      "--chart-4",
+      "--chart-grid",
+      "--content-max",
+      "--control-h",
+      "--control-h-lg",
+      "--control-h-sm",
+      "--critical",
+      "--critical-soft",
+      "--danger",
+      "--danger-soft",
+      "--drawer-w",
+      "--dur-base",
+      "--dur-fast",
+      "--dur-instant",
+      "--dur-slow",
+      "--ease-in-out",
+      "--ease-out",
+      "--ease-standard",
+      "--focus-ring",
+      "--focus-ring-width",
+      "--font-mono",
+      "--font-sans",
+      "--gap-card",
+      "--gap-kpi",
+      "--green-600",
+      "--header-h",
+      "--info",
+      "--info-soft",
+      "--ink-800",
+      "--ink-850",
+      "--ink-900",
+      "--input-border",
+      "--leading-normal",
+      "--leading-relaxed",
+      "--leading-snug",
+      "--leading-tight",
+      "--orange-600",
+      "--pad-card",
+      "--pad-card-compact",
+      "--pad-page",
+      "--pad-page-lg",
+      "--panel-w",
+      "--pipeline-backlog",
+      "--pipeline-backlog-soft",
+      "--pipeline-billed",
+      "--pipeline-billed-soft",
+      "--pipeline-commit",
+      "--pipeline-commit-soft",
+      "--pipeline-discovery",
+      "--pipeline-discovery-soft",
+      "--pipeline-proposal",
+      "--pipeline-proposal-soft",
+      "--pipeline-qualified",
+      "--pipeline-qualified-soft",
+      "--radius",
+      "--radius-lg",
+      "--radius-md",
+      "--radius-pill",
+      "--radius-sm",
+      "--radius-xl",
+      "--red-600",
+      "--red-800",
+      "--sales-neutral",
+      "--sales-positive",
+      "--sales-risk",
+      "--sales-warning",
+      "--scrim",
+      "--shadow-card",
+      "--shadow-focus",
+      "--shadow-none",
+      "--shadow-overlay",
+      "--shadow-raised",
+      "--sidebar-w",
+      "--slate-100",
+      "--slate-200",
+      "--slate-300",
+      "--slate-500",
+      "--slate-700",
+      "--space-0",
+      "--space-1",
+      "--space-10",
+      "--space-12",
+      "--space-16",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-7",
+      "--space-8",
+      "--success",
+      "--success-soft",
+      "--surface",
+      "--surface-brand-soft",
+      "--surface-elevated",
+      "--surface-inverse",
+      "--surface-inverse-2",
+      "--surface-muted",
+      "--surface-sunken",
+      "--teal-100",
+      "--teal-300",
+      "--teal-400",
+      "--teal-50",
+      "--teal-500",
+      "--teal-600",
+      "--teal-700",
+      "--teal-800",
+      "--teal-900",
+      "--text-10",
+      "--text-11",
+      "--text-2xl",
+      "--text-3xl",
+      "--text-4xl",
+      "--text-5xl",
+      "--text-base",
+      "--text-brand",
+      "--text-inverse",
+      "--text-inverse-muted",
+      "--text-lg",
+      "--text-muted",
+      "--text-on-brand",
+      "--text-primary",
+      "--text-sm",
+      "--text-xl",
+      "--text-xs",
+      "--tracking-display",
+      "--tracking-label",
+      "--tracking-normal",
+      "--tracking-tight",
+      "--transition-color",
+      "--transition-panel",
+      "--type-body",
+      "--type-card-title",
+      "--type-eyebrow",
+      "--type-kpi",
+      "--type-kpi-hero",
+      "--type-meta",
+      "--type-page-title",
+      "--warning",
+      "--warning-soft",
+      "--weight-bold",
+      "--weight-medium",
+      "--weight-regular",
+      "--weight-semibold",
+      "--white"
+    ],
+    "tokenKinds": {
+      "--teal-900": "color",
+      "--teal-800": "color",
+      "--teal-700": "color",
+      "--teal-600": "color",
+      "--teal-500": "color",
+      "--teal-400": "color",
+      "--teal-300": "color",
+      "--teal-100": "color",
+      "--teal-50": "color",
+      "--ink-900": "color",
+      "--ink-850": "color",
+      "--ink-800": "color",
+      "--slate-700": "color",
+      "--slate-500": "color",
+      "--slate-300": "color",
+      "--slate-200": "color",
+      "--slate-100": "color",
+      "--white": "color",
+      "--green-600": "color",
+      "--amber-500": "color",
+      "--red-600": "color",
+      "--red-800": "color",
+      "--orange-600": "color",
+      "--bg-canvas": "color",
+      "--surface": "color",
+      "--surface-elevated": "color",
+      "--surface-sunken": "color",
+      "--surface-muted": "color",
+      "--surface-brand-soft": "color",
+      "--surface-inverse": "color",
+      "--surface-inverse-2": "color",
+      "--text-primary": "font",
+      "--text-muted": "font",
+      "--text-inverse": "font",
+      "--text-inverse-muted": "font",
+      "--text-brand": "font",
+      "--text-on-brand": "font",
+      "--border": "color",
+      "--border-strong": "color",
+      "--border-inverse": "color",
+      "--input-border": "color",
+      "--focus-ring": "color",
+      "--focus-ring-width": "spacing",
+      "--brand": "color",
+      "--brand-hover": "color",
+      "--brand-active": "color",
+      "--accent": "color",
+      "--accent-bright": "color",
+      "--success": "color",
+      "--success-soft": "color",
+      "--warning": "color",
+      "--warning-soft": "color",
+      "--danger": "color",
+      "--danger-soft": "color",
+      "--critical": "color",
+      "--critical-soft": "color",
+      "--info": "color",
+      "--info-soft": "color",
+      "--sales-positive": "color",
+      "--sales-risk": "color",
+      "--sales-warning": "color",
+      "--sales-neutral": "color",
+      "--chart-1": "color",
+      "--chart-2": "color",
+      "--chart-3": "color",
+      "--chart-4": "color",
+      "--chart-grid": "color",
+      "--pipeline-discovery": "color",
+      "--pipeline-qualified": "color",
+      "--pipeline-proposal": "color",
+      "--pipeline-commit": "color",
+      "--pipeline-backlog": "color",
+      "--pipeline-billed": "color",
+      "--pipeline-discovery-soft": "color",
+      "--pipeline-qualified-soft": "color",
+      "--pipeline-proposal-soft": "color",
+      "--pipeline-commit-soft": "color",
+      "--pipeline-backlog-soft": "color",
+      "--pipeline-billed-soft": "color",
+      "--font-sans": "font",
+      "--font-mono": "font",
+      "--text-10": "font",
+      "--text-11": "font",
+      "--text-xs": "font",
+      "--text-sm": "font",
+      "--text-base": "font",
+      "--text-lg": "font",
+      "--text-xl": "font",
+      "--text-2xl": "font",
+      "--text-3xl": "font",
+      "--text-4xl": "font",
+      "--text-5xl": "font",
+      "--weight-regular": "font",
+      "--weight-medium": "font",
+      "--weight-semibold": "font",
+      "--weight-bold": "font",
+      "--leading-tight": "font",
+      "--leading-snug": "font",
+      "--leading-normal": "font",
+      "--leading-relaxed": "font",
+      "--tracking-display": "font",
+      "--tracking-tight": "font",
+      "--tracking-normal": "font",
+      "--tracking-label": "font",
+      "--type-page-title": "font",
+      "--type-eyebrow": "font",
+      "--type-card-title": "font",
+      "--type-body": "font",
+      "--type-meta": "font",
+      "--type-kpi": "font",
+      "--type-kpi-hero": "font",
+      "--space-0": "spacing",
+      "--space-1": "spacing",
+      "--space-2": "spacing",
+      "--space-3": "spacing",
+      "--space-4": "spacing",
+      "--space-5": "spacing",
+      "--space-6": "spacing",
+      "--space-7": "spacing",
+      "--space-8": "spacing",
+      "--space-10": "spacing",
+      "--space-12": "spacing",
+      "--space-16": "spacing",
+      "--gap-card": "spacing",
+      "--gap-kpi": "spacing",
+      "--pad-card": "spacing",
+      "--pad-card-compact": "spacing",
+      "--pad-page": "spacing",
+      "--pad-page-lg": "spacing",
+      "--radius": "radius",
+      "--radius-sm": "radius",
+      "--radius-md": "radius",
+      "--radius-lg": "radius",
+      "--radius-xl": "radius",
+      "--radius-pill": "radius",
+      "--control-h-sm": "spacing",
+      "--control-h": "spacing",
+      "--control-h-lg": "spacing",
+      "--sidebar-w": "spacing",
+      "--header-h": "spacing",
+      "--drawer-w": "spacing",
+      "--panel-w": "spacing",
+      "--content-max": "spacing",
+      "--shadow-none": "shadow",
+      "--shadow-card": "shadow",
+      "--shadow-raised": "shadow",
+      "--shadow-overlay": "shadow",
+      "--shadow-focus": "shadow",
+      "--scrim": "color",
+      "--blur-header": "other",
+      "--dur-instant": "other",
+      "--dur-fast": "other",
+      "--dur-base": "other",
+      "--dur-slow": "other",
+      "--ease-standard": "other",
+      "--ease-out": "other",
+      "--ease-in-out": "other",
+      "--transition-color": "color",
+      "--transition-panel": "color"
+    },
+    "fontFamilies": []
+  }
+}

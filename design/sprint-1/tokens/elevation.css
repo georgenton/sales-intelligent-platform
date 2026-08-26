@@ -1,0 +1,17 @@
+/* Elevation is restrained: cards are defined by their border, not their shadow.
+   Only overlays (drawer, palette, popover) get real depth. */
+:root{
+  --shadow-none:none;
+  --shadow-card:0 1px 2px 0 oklch(0.2 0.03 225 / 0.05);
+  --shadow-raised:0 2px 6px -1px oklch(0.2 0.03 225 / 0.08),0 1px 2px 0 oklch(0.2 0.03 225 / 0.05);
+  --shadow-overlay:0 18px 48px -12px oklch(0.2 0.03 225 / 0.28),0 2px 8px -2px oklch(0.2 0.03 225 / 0.12);
+  --shadow-focus:0 0 0 2px var(--focus-ring);
+  --scrim:oklch(0.19 0.03 226 / 0.45);
+  --blur-header:blur(8px); /* @kind other */
+}
+[data-theme='dark']{
+  --shadow-card:0 1px 2px 0 oklch(0 0 0 / 0.4);
+  --shadow-raised:0 2px 6px -1px oklch(0 0 0 / 0.5),0 1px 2px 0 oklch(0 0 0 / 0.4);
+  --shadow-overlay:0 18px 48px -12px oklch(0 0 0 / 0.7),0 2px 8px -2px oklch(0 0 0 / 0.5);
+  --scrim:oklch(0.1 0.02 226 / 0.6);
+}
