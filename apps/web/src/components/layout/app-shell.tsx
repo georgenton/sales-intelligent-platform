@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2, CircleUserRound, Moon, Search, Sun, WandSparkles } from 'lucide-react';
+import { Bot, Building2, CircleUserRound, Moon, Search, Sun, WandSparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CommandPalette } from '@/components/layout/command-palette';
@@ -13,6 +13,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   setAppearanceMode,
   setCommandPaletteOpen,
+  setCopilotPanelOpen,
   setExperienceMode,
   type AppearanceMode,
   type ExperienceMode,
@@ -64,20 +65,20 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
 
   return (
     <div
-      className={`min-h-screen bg-background lg:grid lg:grid-cols-[248px_minmax(0,1fr)] ${copilotOpen ? 'xl:grid-cols-[248px_minmax(0,1fr)_330px]' : ''}`}
+      className={`min-h-screen bg-background lg:grid lg:grid-cols-[72px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)] ${copilotOpen ? 'xl:grid-cols-[248px_minmax(0,1fr)_330px]' : ''}`}
     >
-      <aside className="hidden min-h-screen flex-col bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex">
-        <div className="mb-8 flex items-center gap-3 px-2">
+      <aside className="hidden min-h-screen flex-col bg-sidebar px-2 py-5 text-sidebar-foreground lg:flex xl:px-4">
+        <div className="mb-8 flex items-center justify-center gap-3 px-2 xl:justify-start">
           <span className="grid size-10 place-items-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
             SI
           </span>
-          <div>
+          <div className="hidden xl:block">
             <p className="text-sm font-semibold">Sales Intelligence</p>
             <p className="text-xs text-sidebar-muted">Command platform</p>
           </div>
         </div>
         <SidebarNav showAdmin={admin} />
-        <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-3">
+        <div className="mt-auto hidden rounded-2xl border border-sidebar-foreground/10 bg-sidebar-foreground/5 p-3 xl:block">
           <p className="text-xs text-sidebar-muted">Active workspace</p>
           <p className="mt-1 truncate text-sm font-medium">{profile.tenant.name}</p>
         </div>
@@ -140,6 +141,15 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              className="hidden h-9 items-center gap-2 rounded-lg border bg-card px-3 text-xs font-semibold lg:flex xl:hidden"
+              aria-label="Open contextual Copilot"
+              onClick={() => dispatch(setCopilotPanelOpen(true))}
+            >
+              <Bot className="size-4 text-primary" />
+              Copilot
+            </button>
             <div className="hidden items-center gap-2 text-xs text-muted-foreground xl:flex">
               <Building2 className="size-4" />
               {profile.tenant.name}
@@ -170,7 +180,7 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
           </Link>
         ))}
         <button
-          onClick={() => dispatch(setCommandPaletteOpen(true))}
+          onClick={() => dispatch(setCopilotPanelOpen(true))}
           className="px-1 py-3 text-[10px] font-semibold text-muted-foreground"
         >
           Copilot

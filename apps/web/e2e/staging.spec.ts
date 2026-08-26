@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const baseUrl = process.env.STAGING_BASE_URL;
 const adminEmail = process.env.STAGING_ADMIN_EMAIL ?? 'admin@techdistribution.demo';
@@ -23,21 +23,29 @@ test.beforeAll(() => {
   }
 });
 
+async function signIn(page: Page, email: string, password: string) {
+  await page.goto('/login', { waitUntil: 'networkidle' });
+  const emailInput = page.getByLabel('Email', { exact: true });
+  const passwordInput = page.getByLabel('Password', { exact: true });
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
+  await expect(emailInput).toHaveValue(email);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+}
+
 test('admin can manage a synthetic opportunity and end the session', async ({ page }) => {
   const title = `E2E staging opportunity ${Date.now()}`;
   const closeDate = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
 
-  await page.goto('/login');
-  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
-  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await signIn(page, adminEmail, adminPassword!);
 
   await expect(page).toHaveURL(/\/app\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Will the team reach quota?' })).toBeVisible();
   await expect(page.getByText('Team quota attainment')).toBeVisible();
 
   await page.keyboard.press('Control+k');
-  await page.getByRole('option', { name: /Create opportunity/ }).click();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
   await page.getByLabel('Title', { exact: true }).fill(title);
   await page.getByLabel('Estimated amount', { exact: true }).fill('12500');
   await page.getByLabel('Gross profit', { exact: true }).fill('2500');
@@ -63,10 +71,7 @@ test('admin can manage a synthetic opportunity and end the session', async ({ pa
 });
 
 test('manager drills into the funnel, opens context and closes with Escape', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
-  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await signIn(page, adminEmail, adminPassword!);
 
   const commit = page.getByRole('button', { name: /^Commit:/ }).first();
   await expect(commit).toBeVisible();
@@ -81,13 +86,20 @@ test('manager drills into the funnel, opens context and closes with Escape', asy
   await drawer.getByRole('button', { name: 'Ask Copilot' }).click();
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
+  await expect(opportunity).toBeFocused();
+
+  await page.goto('/app/alerts');
+  const inspect = page.getByRole('button', { name: /^Inspect / }).first();
+  await expect(inspect).toBeVisible();
+  await inspect.click();
+  const alertDrawer = page.getByRole('dialog').last();
+  await expect(alertDrawer).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(alertDrawer).toBeHidden();
 });
 
 test('manager review advances only after an explicit decision', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
-  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await signIn(page, adminEmail, adminPassword!);
   await page.getByRole('button', { name: 'Forecast review' }).click();
   await expect(
     page.getByText(/classifications change only after an explicit action/i),
@@ -100,10 +112,7 @@ test('manager review advances only after an explicit decision', async ({ page })
 });
 
 test('appearance cycles through Light, Dark and System and persists', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
-  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await signIn(page, adminEmail, adminPassword!);
   const appearance = page.getByLabel('Appearance');
   await appearance.selectOption('DARK');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -119,10 +128,7 @@ test('appearance cycles through Light, Dark and System and persists', async ({ p
 
 test('seller completes Focus and advances the Guided queue', async ({ page }) => {
   test.skip(!sellerEmail || !sellerPassword, 'Seller staging credentials are optional');
-  await page.goto('/login');
-  await page.getByLabel('Email', { exact: true }).fill(sellerEmail!);
-  await page.getByLabel('Password', { exact: true }).fill(sellerPassword!);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await signIn(page, sellerEmail!, sellerPassword!);
   await page.getByLabel('Cognitive mode').selectOption('FOCUS');
   await expect(page.getByRole('heading', { name: '3 priorities today' })).toBeVisible();
   const priority = page.getByRole('button', { name: /Complete priority 1/ });

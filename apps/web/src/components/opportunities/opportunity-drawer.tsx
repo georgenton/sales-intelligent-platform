@@ -347,7 +347,7 @@ export function OpportunityDrawer() {
                   {copilotPrompts.map((prompt) => (
                     <button
                       key={prompt}
-                      className="block w-full rounded-lg px-2 py-2 text-left text-xs text-white/75 hover:bg-white/10"
+                      className="block w-full rounded-lg px-2 py-2 text-left text-xs text-sidebar-foreground/75 hover:bg-sidebar-foreground/10"
                       onClick={() => {
                         dispatch(
                           setCopilotContext({

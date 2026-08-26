@@ -589,7 +589,9 @@ function SellerFocus({
                   onClick={() => dispatch(togglePriority(opportunity.id))}
                   className={cn(
                     'grid size-10 shrink-0 place-items-center rounded-full border-2',
-                    done ? 'border-success bg-success text-white' : 'border-primary text-primary',
+                    done
+                      ? 'border-success bg-success text-on-strong'
+                      : 'border-primary text-primary',
                   )}
                 >
                   {done ? <Check className="size-5" /> : index + 1}

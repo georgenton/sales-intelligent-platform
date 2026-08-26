@@ -38,13 +38,15 @@ export function SidebarNav({ showAdmin }: { showAdmin: boolean }) {
           <Link
             key={item.href}
             href={item.href}
+            aria-label={item.label}
+            title={item.label}
             className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground',
-              active && 'bg-white/10 text-sidebar-foreground',
+              'flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground xl:justify-start',
+              active && 'bg-sidebar-foreground/10 text-sidebar-foreground',
             )}
           >
             <Icon className="size-[18px]" />
-            {item.label}
+            <span className="hidden xl:inline">{item.label}</span>
           </Link>
         );
       })}

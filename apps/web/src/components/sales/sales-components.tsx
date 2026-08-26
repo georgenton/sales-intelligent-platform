@@ -8,9 +8,10 @@ import {
   CircleAlert,
   Gauge,
   Minus,
+  OctagonAlert,
   ShieldAlert,
 } from 'lucide-react';
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -227,6 +228,16 @@ export function RiskBadge({
   className?: string;
 }) {
   const text = label ?? code?.replaceAll('_', ' ') ?? severity;
+  const severityIcon =
+    severity === 'CRITICAL' ? (
+      <OctagonAlert className="size-3" />
+    ) : severity === 'HIGH' ? (
+      <ShieldAlert className="size-3" />
+    ) : severity === 'WARNING' ? (
+      <AlertTriangle className="size-3" />
+    ) : (
+      <CircleAlert className="size-3" />
+    );
   return (
     <Badge
       className={cn(
@@ -237,11 +248,7 @@ export function RiskBadge({
         className,
       )}
     >
-      {severity === 'CRITICAL' ? (
-        <ShieldAlert className="size-3" />
-      ) : (
-        <AlertTriangle className="size-3" />
-      )}
+      {severityIcon}
       {text}
     </Badge>
   );
@@ -296,29 +303,48 @@ export function OpportunityHealth({
 export function StageVelocity({
   stage,
   daysInStage,
-  benchmarkDays = 14,
+  benchmarkDays,
 }: {
   stage: string;
   daysInStage: number;
   benchmarkDays?: number;
 }) {
-  const ratio = Math.min(100, (daysInStage / Math.max(benchmarkDays * 1.5, 1)) * 100);
-  const slow = daysInStage > benchmarkDays;
+  const pace = benchmarkDays ? daysInStage / benchmarkDays : null;
+  const ratio = pace === null ? 0 : Math.min(100, (pace / 1.5) * 100);
+  const verdict =
+    pace === null ? null : pace <= 1 ? 'On pace' : pace <= 1.5 ? 'Slowing' : 'Stalled';
   return (
-    <div aria-label={`${stage}: ${daysInStage} days, benchmark ${benchmarkDays} days`}>
+    <div
+      aria-label={`${stage}: ${daysInStage} days${benchmarkDays ? `, benchmark ${benchmarkDays} days, ${verdict}` : ''}`}
+    >
       <div className="flex justify-between text-xs">
         <span className="font-semibold">{stage} velocity</span>
-        <span className={slow ? 'text-warning' : 'text-success'}>
-          {daysInStage}d · benchmark {benchmarkDays}d
+        <span
+          className={cn(
+            verdict === 'On pace' && 'text-success',
+            verdict === 'Slowing' && 'text-warning',
+            verdict === 'Stalled' && 'text-danger',
+          )}
+        >
+          {daysInStage}d{benchmarkDays ? ` · ${verdict} · benchmark ${benchmarkDays}d` : ''}
         </span>
       </div>
-      <div className="relative mt-2 h-2 rounded-full bg-surface-sunken">
-        <span
-          className={cn('block h-2 rounded-full', slow ? 'bg-warning' : 'bg-success')}
-          style={{ width: `${ratio}%` }}
-        />
-        <i className="absolute top-[-3px] h-4 w-px bg-foreground/60" style={{ left: '66%' }} />
-      </div>
+      {benchmarkDays ? (
+        <div className="relative mt-2 h-2 rounded-full bg-surface-sunken">
+          <span
+            className={cn(
+              'block h-2 rounded-full',
+              verdict === 'On pace'
+                ? 'bg-success'
+                : verdict === 'Slowing'
+                  ? 'bg-warning'
+                  : 'bg-danger',
+            )}
+            style={{ width: `${ratio}%` }}
+          />
+          <i className="absolute top-[-3px] h-4 w-px bg-foreground/60" style={{ left: '66%' }} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -341,7 +367,7 @@ export function ForecastConfidence({
         <b
           className={cn(
             'tnum',
-            confidence >= 70 ? 'text-success' : confidence >= 45 ? 'text-warning' : 'text-danger',
+            confidence >= 65 ? 'text-success' : confidence >= 40 ? 'text-warning' : 'text-danger',
           )}
         >
           {confidence}% confidence
@@ -394,13 +420,13 @@ export function SalesFunnel({
     <div>
       <div className="space-y-1.5" aria-label="Sales funnel">
         {stages.map((stage, index) => {
-          const width = Math.max(48, 100 - index * (46 / Math.max(stages.length - 1, 1)));
+          const width = Math.max(34, 100 - index * (58 / Math.max(stages.length - 1, 1)));
           const active = selectedStage === stage.stage;
           return (
             <div
               key={stage.stage}
-              className="group relative mx-auto"
-              style={{ width: `${width}%` }}
+              className="group relative mx-auto w-full sm:w-[var(--funnel-width)]"
+              style={{ '--funnel-width': `${width}%` } as CSSProperties}
             >
               <button
                 type="button"
@@ -408,7 +434,7 @@ export function SalesFunnel({
                 aria-label={`${stage.stage}: ${formatCurrency(stage.amount, currency)}, ${stage.count} opportunities, ${stage.atRisk ?? 0} at risk`}
                 onClick={() => onSelectStage?.(active ? null : stage.stage)}
                 className={cn(
-                  'relative flex h-11 w-full items-center justify-between gap-3 rounded-lg px-4 text-left text-xs font-semibold text-sidebar transition-transform hover:scale-[1.005] focus-visible:z-20',
+                  'relative flex h-11 w-full items-center justify-between gap-3 rounded-lg px-4 text-left text-xs font-semibold text-sidebar transition-[filter,outline-color] hover:brightness-[1.08] focus-visible:z-20',
                   pipelineColors[index % pipelineColors.length],
                   active && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
                 )}
@@ -420,7 +446,7 @@ export function SalesFunnel({
               </button>
               <div
                 role="tooltip"
-                className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 hidden w-64 -translate-x-1/2 rounded-xl border bg-card p-3 text-xs text-foreground shadow-[var(--shadow-overlay)] group-hover:block group-focus-within:block"
+                className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 hidden w-64 -translate-x-1/2 rounded-xl border bg-card p-3 text-xs text-foreground shadow-[var(--shadow-overlay)] sm:group-hover:block sm:group-focus-within:block"
               >
                 <p className="font-semibold">{stage.stage}</p>
                 <p className="tnum mt-1 text-lg font-semibold">

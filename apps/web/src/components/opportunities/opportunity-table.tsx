@@ -17,11 +17,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { OpportunityData } from '@/lib/types';
-import { formatCurrency, formatDateOnly } from '@/lib/utils';
+import { cn, formatCurrency, formatDateOnly } from '@/lib/utils';
 import { useAppDispatch } from '@/store/hooks';
 import { selectOpportunity } from '@/store/ui-slice';
 
 const column = createColumnHelper<OpportunityData>();
+const tabletHiddenColumns = new Set(['status', 'seller', 'brand', 'expectedCloseDate']);
 
 export function OpportunityTable({ data }: { data: OpportunityData[] }) {
   const dispatch = useAppDispatch();
@@ -44,6 +45,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         ),
       }),
       column.accessor('stage.probability', {
+        id: 'stage',
         header: 'Stage',
         cell: ({ row }) => (
           <Badge className="bg-secondary text-secondary-foreground">
@@ -55,7 +57,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         header: 'Status',
         cell: ({ getValue }) => <Badge>{getValue()}</Badge>,
       }),
-      column.accessor('seller.name', { header: 'Seller' }),
+      column.accessor('seller.name', { id: 'seller', header: 'Seller' }),
       column.accessor((row) => row.lineItems[0]?.brand.name ?? '—', {
         id: 'brand',
         header: 'Brand',
@@ -160,12 +162,18 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         ))}
       </div>
       <div className="hidden overflow-x-auto sm:block">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[620px] text-left text-sm xl:min-w-[960px]">
           <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
                 {group.headers.map((header) => (
-                  <th key={header.id} className="px-4 py-3 font-semibold">
+                  <th
+                    key={header.id}
+                    className={cn(
+                      'px-4 py-3 font-semibold',
+                      tabletHiddenColumns.has(header.column.id) && 'hidden xl:table-cell',
+                    )}
+                  >
                     <button
                       className="inline-flex items-center gap-1"
                       onClick={header.column.getToggleSortingHandler()}
@@ -182,7 +190,13 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-muted/40">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-4 align-middle">
+                  <td
+                    key={cell.id}
+                    className={cn(
+                      'px-4 py-4 align-middle',
+                      tabletHiddenColumns.has(cell.column.id) && 'hidden xl:table-cell',
+                    )}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
