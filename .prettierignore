@@ -4,3 +4,6 @@ dist
 coverage
 pnpm-lock.yaml
 apps/web/next-env.d.ts
+
+# Preserve the UX Sprint 1 source-of-truth artifacts exactly as delivered.
+design/sprint-1

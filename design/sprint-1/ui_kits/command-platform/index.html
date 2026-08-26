@@ -1,0 +1,167 @@
+<!-- @dsCard group="Command Platform" viewport="1780x900" name="Sales Intelligence — command platform" subtitle="Login, seller home, revenue command center, funnel drill-down, drawer, Copilot, guided + review modes" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sales Intelligence — command platform</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script src="./data.js"></script>
+<script>Object.assign(window, window.SalesIntelligenceDesignSystem_3dfbfd || {});</script>
+<style>html,body{margin:0;min-height:100%}body{background:var(--bg-canvas);color:var(--text-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}#root{min-height:100vh}</style>
+</head><body><div id="root"></div>
+<script type="text/babel" src="./AppShell.jsx"></script>
+<script type="text/babel" src="./SellerHome.jsx"></script>
+<script type="text/babel" src="./ManagerHome.jsx"></script>
+<script type="text/babel" src="./Opportunities.jsx"></script>
+<script type="text/babel" src="./Workflows.jsx"></script>
+<script type="text/babel">
+function Login({ onIn }) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+      <div style={{ background: 'var(--surface-inverse)', color: '#fff', padding: 48, display: 'grid', alignContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 12, background: 'var(--accent-bright)', color: '#08242c', fontWeight: 700, fontSize: 14 }}>SI</span>
+          <b style={{ fontSize: 14 }}>Sales Intelligence</b>
+        </div>
+        <div style={{ maxWidth: 460 }}>
+          <p style={{ margin: 0, font: 'var(--type-eyebrow)', color: 'var(--accent-bright)' }}>Sales operating system</p>
+          <h1 style={{ margin: '12px 0 0', fontSize: 44, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 1.05 }}>Know the quarter before it ends.</h1>
+          <p style={{ margin: '16px 0 0', font: 'var(--type-body)', color: 'var(--text-inverse-muted)', textWrap: 'pretty' }}>Quota, forecast, margin and commercial risk in one instrument — with the next action always visible.</p>
+        </div>
+        <p style={{ margin: 0, font: 'var(--type-meta)', color: 'var(--text-inverse-muted)' }}>{SIP.tenant} · synthetic demo workspace</p>
+      </div>
+      <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
+        <form onSubmit={(e) => { e.preventDefault(); onIn(); }} style={{ width: 'min(400px, 100%)', display: 'grid', gap: 20 }}>
+          <div>
+            <p style={{ margin: 0, font: 'var(--type-eyebrow)', color: 'var(--text-brand)' }}>Secure workspace</p>
+            <h2 style={{ margin: '8px 0 0', fontSize: 36, fontWeight: 600, letterSpacing: '-0.04em' }}>Welcome back</h2>
+            <p style={{ margin: '8px 0 0', font: 'var(--type-body)', color: 'var(--text-muted)' }}>Sign in to review your team&apos;s commercial position.</p>
+          </div>
+          <Input label="Email" defaultValue="manager@techdistribution.demo" autoComplete="email" />
+          <Input label="Password" type="password" defaultValue="ChangeMe-Local-2026!" autoComplete="current-password" />
+          <Button size="lg" full type="submit" iconAfter={<Icon name="ArrowRight" />}>Sign in</Button>
+          <p style={{ margin: 0, font: 'var(--type-meta)', color: 'var(--text-muted)' }}>Sessions are server-side and revocable. Tenant context comes from the session, never the browser.</p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const copilotSuggestions = {
+  seller: ['What should I do first today?', 'Why is Banco ABC at risk?', 'Draft a follow-up email', 'Prepare my forecast update'],
+  manager: ['Why could we miss quota?', 'What changed since Monday?', 'Which sellers need intervention?', 'Prepare my forecast meeting'],
+  deal: ['Why is this opportunity at risk?', 'Is Commit justified?', 'What information is missing?', 'Prepare the next meeting'],
+};
+
+function App() {
+  const [authed, setAuthed] = React.useState(false);
+  const [persona, setPersona] = React.useState('manager');
+  const [view, setView] = React.useState('command');
+  const [mode, setMode] = React.useState('Standard');
+  const [theme, setTheme] = React.useState('light');
+  const [palette, setPalette] = React.useState(false);
+  const [deal, setDeal] = React.useState(null);
+  const [messages, setMessages] = React.useState([]);
+
+  React.useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette((p) => !p); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  React.useEffect(() => {
+    if (persona === 'seller' && ['command', 'review'].includes(view)) setView('home');
+    if (persona === 'manager' && ['home', 'guided'].includes(view)) setView('command');
+  }, [persona]);
+  React.useEffect(() => {
+    if (mode === 'Guided') setView(persona === 'seller' ? 'guided' : 'review');
+    if (mode === 'Review') setView(persona === 'manager' ? 'review' : 'guided');
+  }, [mode]);
+
+  const ask = (q) => setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: answer(q) }]);
+  const answer = (q) => {
+    if (/commit/i.test(q)) return 'Not on current evidence: no purchase order, no activity in 9 days, and the close date has moved twice. System confidence is 38% against a Commit call.';
+    if (/monday|chang/i.test(q)) return 'Four meaningful changes: Banco ABC slipped out of the quarter (−$180K), Retail Norte moved Commit → Best case (−$95K), Ministerio de Salud advanced to Proposal (+$65K), Telco Andina was rescoped (−$32K).';
+    if (/miss quota|quota/i.test(q)) return 'Forecast is $390K short. $510K of that sits in three deals with open risk signals — two missing purchase orders and one stalled 33 days in Discovery.';
+    if (/interven|seller/i.test(q)) return 'Diego Andrade: $640K pipeline but only 15.3% in Commit, and no dated next step on six deals. Start there.';
+    return 'Looking at ' + (deal ? deal.customer : (persona === 'manager' ? 'the team position' : 'your day')) + ': the largest single lever this week is the Banco ABC purchase order, worth $180K of Commit.';
+  };
+
+  const copilot = (
+    <CopilotPanel
+      context={deal ? 'Opportunity' : persona === 'manager' ? 'Manager dashboard' : 'Seller home'}
+      contextLabel={deal ? `Context · ${deal.customer} · $${(deal.amount / 1000).toFixed(0)}K · ${deal.forecastCategory}` : `Context · ${SIP.period} · ${SIP.users[persona].roleLabel}`}
+      suggestions={copilotSuggestions[deal ? 'deal' : persona]}
+      messages={messages}
+      onAsk={ask}
+      style={{ height: 'calc(100vh - 104px)', position: 'sticky', top: 20 }}
+      insights={
+        <>
+          <CopilotInsight tone="risk" defaultOpen headline="4 meaningful changes since Monday" detail="Forecast, slippage and margin"
+            items={SIP.movements.map((m) => ({ label: m.reason, value: (m.delta > 0 ? '+' : '−') + '$' + Math.abs(m.delta / 1000).toFixed(0) + 'K', opportunityId: m.opportunityId }))}
+            onItemSelect={(it) => setDeal(SIP.opportunities.find((o) => o.id === it.opportunityId) || null)} />
+          <CopilotInsight headline="2 purchase orders missing above 75%" detail="$390K of billing exposure this quarter" />
+        </>
+      } />
+  );
+
+  const commands = [
+    { id: 'c1', label: 'Find customer', group: 'Navigate', hint: 'Banco ABC, Retail Norte…' },
+    { id: 'c2', label: 'Find opportunity', group: 'Navigate' },
+    { id: 'c3', label: 'Create opportunity', group: 'Create' },
+    { id: 'c4', label: 'View opportunities at risk', group: 'Review', hint: '4' },
+    { id: 'c5', label: 'View seller forecast', group: 'Review' },
+    { id: 'c6', label: 'Open forecast review', group: 'Review' },
+    { id: 'c7', label: 'Import forecast workbook', group: 'Data' },
+    { id: 'c8', label: 'Ask Copilot why we could miss quota', group: 'Copilot' },
+  ];
+  const runCommand = (c) => {
+    setPalette(false);
+    if (c.id === 'c4') { setView('alerts'); }
+    else if (c.id === 'c6') { setMode('Review'); setPersona('manager'); setView('review'); }
+    else if (c.id === 'c7') { setView('import'); }
+    else if (c.id === 'c8') { ask('Why could we miss quota?'); }
+    else if (c.id === 'c1' || c.id === 'c2') { setDeal(SIP.opportunities[0]); }
+    else { setView('opportunities'); }
+  };
+
+  if (!authed) return <Login onIn={() => setAuthed(true)} />;
+
+  const screens = {
+    home: <SellerHome mode={mode} onOpen={setDeal} />,
+    command: <ManagerHome mode={mode} onOpen={setDeal} onReview={() => { setMode('Review'); setView('review'); }} />,
+    opportunities: <Opportunities onOpen={setDeal} />,
+    alerts: <AlertsScreen onOpen={setDeal} />,
+    import: <ImportWizard />,
+    settings: <SettingsScreen />,
+    guided: <GuidedMode onDone={() => { setMode('Standard'); setView(persona === 'seller' ? 'home' : 'command'); }} />,
+    review: <ReviewMode onOpen={setDeal} />,
+  };
+
+  return (
+    <>
+      <AppShell persona={persona} onPersona={setPersona} view={view} onView={setView} mode={mode} onMode={setMode}
+        theme={theme} onTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        onCommand={() => setPalette(true)} copilot={mode === 'Guided' ? null : copilot}>
+        {screens[view] || screens.command}
+      </AppShell>
+      <OpportunityDrawer open={!!deal} opportunity={deal} onClose={() => setDeal(null)} onOpenFull={() => { setDeal(null); setView('opportunities'); }}
+        footer={<div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+          <p style={{ margin: '0 0 8px', font: 'var(--type-card-title)' }}>Copilot on this deal</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {copilotSuggestions.deal.map((s) => (
+              <button key={s} type="button" onClick={() => { ask(s); setDeal(null); }}
+                style={{ padding: '6px 12px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', font: 'var(--type-meta)', cursor: 'pointer' }}>{s}</button>
+            ))}
+          </div>
+        </div>} />
+      <CommandPalette open={palette} commands={commands} onSelect={runCommand} onClose={() => setPalette(false)} />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script></body></html>

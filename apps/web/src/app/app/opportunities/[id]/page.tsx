@@ -75,7 +75,7 @@ export default async function OpportunityDetailPage({
                   opportunity.health.status === 'HEALTHY'
                     ? 'text-success'
                     : opportunity.health.status === 'AT_RISK'
-                      ? 'text-amber-600'
+                      ? 'text-warning'
                       : 'text-danger',
                 )}
               >
@@ -139,20 +139,20 @@ export default async function OpportunityDetailPage({
             </CardContent>
           </Card>
           {opportunity.alerts.length > 0 && (
-            <Card className="border-red-100">
+            <Card className="border-danger/25">
               <CardHeader>
                 <CardTitle>Active risk signals</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {opportunity.alerts.map((alert) => (
-                  <div key={alert.id} className="rounded-xl bg-red-50 p-3">
+                  <div key={alert.id} className="rounded-xl bg-surface-danger-soft p-3">
                     <div className="flex items-center gap-2">
-                      <Badge className="border-red-200 bg-white text-danger">
+                      <Badge className="border-danger/25 bg-card text-danger">
                         {alert.severity}
                       </Badge>
                       <p className="text-sm font-semibold">{alert.code.replaceAll('_', ' ')}</p>
                     </div>
-                    <p className="mt-2 text-sm text-red-800">{alert.message}</p>
+                    <p className="mt-2 text-sm text-danger">{alert.message}</p>
                   </div>
                 ))}
               </CardContent>

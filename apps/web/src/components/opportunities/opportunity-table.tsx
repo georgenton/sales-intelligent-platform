@@ -11,17 +11,21 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { ArrowUpDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { OpportunityHealth, RiskBadge } from '@/components/sales/sales-components';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { OpportunityData } from '@/lib/types';
 import { cn, formatCurrency, formatDateOnly } from '@/lib/utils';
+import { useAppDispatch } from '@/store/hooks';
+import { selectOpportunity } from '@/store/ui-slice';
 
 const column = createColumnHelper<OpportunityData>();
+const tabletHiddenColumns = new Set(['status', 'seller', 'brand', 'expectedCloseDate']);
 
 export function OpportunityTable({ data }: { data: OpportunityData[] }) {
+  const dispatch = useAppDispatch();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const columns = useMemo(
@@ -30,17 +34,18 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         header: 'Opportunity',
         cell: ({ row }) => (
           <div>
-            <Link
-              href={`/app/opportunities/${row.original.id}`}
+            <button
+              onClick={() => dispatch(selectOpportunity(row.original.id))}
               className="font-semibold hover:text-primary"
             >
               {row.original.title}
-            </Link>
+            </button>
             <p className="mt-1 text-xs text-muted-foreground">{row.original.customer.name}</p>
           </div>
         ),
       }),
       column.accessor('stage.probability', {
+        id: 'stage',
         header: 'Stage',
         cell: ({ row }) => (
           <Badge className="bg-secondary text-secondary-foreground">
@@ -52,7 +57,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         header: 'Status',
         cell: ({ getValue }) => <Badge>{getValue()}</Badge>,
       }),
-      column.accessor('seller.name', { header: 'Seller' }),
+      column.accessor('seller.name', { id: 'seller', header: 'Seller' }),
       column.accessor((row) => row.lineItems[0]?.brand.name ?? '—', {
         id: 'brand',
         header: 'Brand',
@@ -72,23 +77,15 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
       column.accessor('health.score', {
         header: 'Health',
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'size-2 rounded-full',
-                row.original.health.status === 'HEALTHY'
-                  ? 'bg-success'
-                  : row.original.health.status === 'AT_RISK'
-                    ? 'bg-warning'
-                    : 'bg-danger',
-              )}
-            />
-            <span className="font-semibold tabular-nums">{row.original.health.score}</span>
-          </div>
+          <OpportunityHealth
+            score={row.original.health.score}
+            status={row.original.health.status}
+            size="sm"
+          />
         ),
       }),
     ],
-    [],
+    [dispatch],
   );
   // TanStack Table intentionally returns mutable table helpers; React Compiler skips this component.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -130,13 +127,53 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
           <option value="LOST">Lost</option>
         </select>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[960px] text-left text-sm">
+      <div className="grid gap-2 p-3 sm:hidden">
+        {table.getRowModel().rows.map(({ original }) => (
+          <button
+            key={original.id}
+            onClick={() => dispatch(selectOpportunity(original.id))}
+            className="rounded-xl border p-3 text-left"
+          >
+            <span className="flex items-start justify-between gap-3">
+              <span>
+                <b className="block text-sm">{original.title}</b>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {original.customer.name}
+                </span>
+              </span>
+              <b className="tnum text-sm">
+                {formatCurrency(original.estimatedAmount, original.currency)}
+              </b>
+            </span>
+            <span className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge className="bg-secondary text-secondary-foreground">
+                {original.stage.code}% · {original.stage.name}
+              </Badge>
+              {original.alerts[0] && (
+                <RiskBadge severity={original.alerts[0].severity} code={original.alerts[0].code} />
+              )}
+              <OpportunityHealth
+                score={original.health.score}
+                status={original.health.status}
+                size="sm"
+              />
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[620px] text-left text-sm xl:min-w-[960px]">
           <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
                 {group.headers.map((header) => (
-                  <th key={header.id} className="px-4 py-3 font-semibold">
+                  <th
+                    key={header.id}
+                    className={cn(
+                      'px-4 py-3 font-semibold',
+                      tabletHiddenColumns.has(header.column.id) && 'hidden xl:table-cell',
+                    )}
+                  >
                     <button
                       className="inline-flex items-center gap-1"
                       onClick={header.column.getToggleSortingHandler()}
@@ -153,7 +190,13 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-muted/40">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-4 align-middle">
+                  <td
+                    key={cell.id}
+                    className={cn(
+                      'px-4 py-4 align-middle',
+                      tabletHiddenColumns.has(cell.column.id) && 'hidden xl:table-cell',
+                    )}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

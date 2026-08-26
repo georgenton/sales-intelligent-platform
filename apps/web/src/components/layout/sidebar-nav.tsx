@@ -3,6 +3,7 @@
 import {
   BellRing,
   ChartNoAxesCombined,
+  FileUp,
   Gauge,
   Settings,
   Sparkles,
@@ -19,6 +20,7 @@ const nav = [
   { href: '/app/forecast', label: 'Forecast', icon: Sparkles },
   { href: '/app/alerts', label: 'Alerts', icon: BellRing },
   { href: '/app/analytics', label: 'Analytics', icon: ChartNoAxesCombined },
+  { href: '/app/import', label: 'Import', icon: FileUp },
   { href: '/app/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -36,13 +38,15 @@ export function SidebarNav({ showAdmin }: { showAdmin: boolean }) {
           <Link
             key={item.href}
             href={item.href}
+            aria-label={item.label}
+            title={item.label}
             className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white',
-              active && 'bg-cyan-300/10 text-cyan-200',
+              'flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground xl:justify-start',
+              active && 'bg-sidebar-foreground/10 text-sidebar-foreground',
             )}
           >
             <Icon className="size-[18px]" />
-            {item.label}
+            <span className="hidden xl:inline">{item.label}</span>
           </Link>
         );
       })}

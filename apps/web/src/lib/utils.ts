@@ -9,7 +9,7 @@ export function formatCurrency(value: number, currency = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
-    notation: Math.abs(value) >= 1_000_000 ? 'compact' : 'standard',
+    notation: Math.abs(value) >= 100_000 ? 'compact' : 'standard',
     maximumFractionDigits: 1,
   }).format(value);
 }

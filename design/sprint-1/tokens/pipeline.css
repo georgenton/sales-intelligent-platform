@@ -1,0 +1,33 @@
+/* Pipeline stage semantics. Stage names and probabilities are the tenant
+   stage ladder seeded in apps/api/prisma/seed.ts: 0 Identified · 25 Discovery ·
+   50 Proposal · 75 Commit · 90 Closed won pending billing · 100 Billed.
+   The ramp reads left-to-right as "further from cash" -> "cash". */
+:root{
+  --pipeline-discovery:oklch(0.7 0.045 222);
+  --pipeline-qualified:oklch(0.64 0.09 210);
+  --pipeline-proposal:oklch(0.59 0.115 200);
+  --pipeline-commit:oklch(0.53 0.13 190);
+  --pipeline-backlog:oklch(0.58 0.13 168);
+  --pipeline-billed:oklch(0.61 0.16 154);
+
+  --pipeline-discovery-soft:oklch(0.95 0.012 222);
+  --pipeline-qualified-soft:oklch(0.945 0.022 210);
+  --pipeline-proposal-soft:oklch(0.94 0.028 200);
+  --pipeline-commit-soft:oklch(0.94 0.032 192);
+  --pipeline-backlog-soft:oklch(0.94 0.035 168);
+  --pipeline-billed-soft:oklch(0.945 0.04 154);
+}
+[data-theme='dark']{
+  --pipeline-discovery:oklch(0.62 0.05 222);
+  --pipeline-qualified:oklch(0.66 0.09 210);
+  --pipeline-proposal:oklch(0.7 0.115 200);
+  --pipeline-commit:oklch(0.74 0.12 195);
+  --pipeline-backlog:oklch(0.72 0.13 168);
+  --pipeline-billed:oklch(0.75 0.15 154);
+  --pipeline-discovery-soft:oklch(0.3 0.02 222);
+  --pipeline-qualified-soft:oklch(0.31 0.04 210);
+  --pipeline-proposal-soft:oklch(0.32 0.05 200);
+  --pipeline-commit-soft:oklch(0.33 0.06 192);
+  --pipeline-backlog-soft:oklch(0.32 0.06 168);
+  --pipeline-billed-soft:oklch(0.32 0.07 154);
+}

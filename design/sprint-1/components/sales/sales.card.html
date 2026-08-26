@@ -1,0 +1,47 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Sales primitives" subtitle="KPI, quota, funnel, health, risk, velocity, movement" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:16px;background:var(--bg-canvas);font-family:var(--font-sans)}</style></head><body><div id="root"></div>
+<script type="text/babel">const { RevenueKPI, QuotaProgress, QuotaGap, SalesFunnel, OpportunityHealth, ForecastConfidence, RiskBadge, StageVelocity, ForecastMovement, SellerPerformance, NextBestAction, Card, CardHeader, CardContent, Icon } = window.SalesIntelligenceDesignSystem_3dfbfd;
+function Demo(){return <div style={{display:'grid',gap:16}}>
+  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16}}>
+    <RevenueKPI label="Quota" value={2200000} detail="FY26 Q3" icon={<Icon name="Goal"/>}/>
+    <RevenueKPI label="Forecast" value={1810000} detail="82.3% attainment" delta={-120000} icon={<Icon name="CircleGauge"/>}/>
+    <RevenueKPI label="Billed" value={1180000} detail="53.6% attainment" tone="positive" icon={<Icon name="ReceiptText"/>}/>
+    <RevenueKPI label="At risk" value={7} format="raw" tone="risk" detail="active signals" icon={<Icon name="TriangleAlert"/>}/>
+  </div>
+  <div style={{display:'grid',gridTemplateColumns:'1.1fr 1fr',gap:16}}>
+    <Card pad><QuotaProgress quota={2200000} billed={1180000} forecast={630000}/></Card>
+    <QuotaGap gap={390000} interpretation="Forecast is $390K below quota. Three opportunities representing $510K account for most of the quarter risk." drivers={[{label:'Banco ABC · no activity 9 days',amount:180000},{label:'Retail Norte · missing PO',amount:210000}]} action="Review risks"/>
+  </div>
+  <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr',gap:16}}>
+    <Card><CardHeader title="Pipeline funnel" subtitle="Hover a stage for mechanics · click to expand"/><CardContent><SalesFunnel stages={[
+      {name:'Discovery',token:'discovery',amount:1240000,count:18,probability:25,avgAmount:69000,avgDaysInStage:22,atRisk:4},
+      {name:'Proposal',token:'proposal',amount:860000,count:11,probability:50,avgAmount:78000,avgDaysInStage:17},
+      {name:'Commit',token:'commit',amount:610000,count:7,probability:75,avgDaysInStage:31,atRisk:3,likelyToSlip:180000},
+      {name:'Billed',token:'billed',amount:1180000,count:14,probability:100}]}/></CardContent></Card>
+    <div style={{display:'grid',gap:16,alignContent:'start'}}>
+      <Card pad><OpportunityHealth score={42} status="CRITICAL" size="lg" showFactors factors={[{code:'A',impact:-18,message:'41 days in Commit'},{code:'B',impact:-12,message:'No purchase order at 90%'}]}/></Card>
+      <ForecastConfidence sellerCategory="COMMIT" confidence={38} rationale="No activity in 9 days and no purchase order."/>
+      <Card pad><StageVelocity stage="Commit" daysInStage={41} benchmarkDays={21}/></Card>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><RiskBadge severity="INFO" label="Info"/><RiskBadge severity="WARNING" code="LOW_MARGIN"/><RiskBadge severity="HIGH" label="Slipping"/><RiskBadge severity="CRITICAL" code="MISSING_PO"/></div>
+    </div>
+  </div>
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+    <Card><CardHeader title="Forecast movement" subtitle="Since the last snapshot"/><CardContent><ForecastMovement since="Monday" net={-210000} movements={[{label:'Banco ABC',delta:-180000,reason:'Slipped out of the quarter'},{label:'Retail Norte',delta:-95000,reason:'Moved Commit → Best case'},{label:'Andes Health',delta:65000,reason:'Stage 50 → 75'}]} onSelect={()=>{}}/></CardContent></Card>
+    <Card><CardHeader title="Focus today" subtitle="Three actions may materially affect your quarter"/><CardContent style={{display:'grid',gap:12}}>
+      <NextBestAction customer="Banco ABC" amount={180000} category="Commit" severity="CRITICAL" risk="No activity in 9 days." suggestion="Contact customer." primaryLabel="Log a call"/>
+      <NextBestAction customer="Retail Norte" amount={210000} category="Commit" severity="HIGH" risk="No purchase order at 90%." suggestion="Request PO from procurement." primaryLabel="Request PO"/>
+    </CardContent></Card>
+  </div>
+  <Card><CardHeader title="Seller performance" subtitle="Commit mix under 25% needs intervention"/><CardContent><SellerPerformance sellers={[
+    {seller:'Sofía Torres',opportunities:14,pipeline:820000,commit:310000},
+    {seller:'Diego Andrade',opportunities:11,pipeline:640000,commit:98000},
+    {seller:'Camila Paz',opportunities:9,pipeline:520000,commit:245000}]} onSelect={()=>{}}/></CardContent></Card>
+</div>;}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script></body></html>

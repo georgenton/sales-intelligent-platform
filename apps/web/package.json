@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
+    "@reduxjs/toolkit": "^2.12.0",
     "@sip/shared": "workspace:*",
     "@tanstack/react-table": "8.21.3",
     "class-variance-authority": "0.7.1",
@@ -23,7 +24,7 @@
     "react-dom": "19.2.8",
     "react-hook-form": "7.71.1",
     "react-is": "19.2.8",
-    "recharts": "3.10.1",
+    "react-redux": "^9.3.0",
     "tailwind-merge": "3.5.0",
     "zod": "4.4.3"
   },
