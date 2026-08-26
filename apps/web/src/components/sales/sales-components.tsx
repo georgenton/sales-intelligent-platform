@@ -15,6 +15,12 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn, formatCurrency } from '@/lib/utils';
+import {
+  resolveForecastConfidence,
+  resolveQuotaProgress,
+  type ForecastConfidenceState,
+  type QuotaProgressState,
+} from './sales-component-contracts';
 
 export function RevenueKPI({
   label,
@@ -93,25 +99,60 @@ export function RevenueKPI({
   );
 }
 
-export function QuotaProgress({
-  quota,
-  billed,
-  forecast,
-  currency = 'USD',
-  label = 'Quota attainment',
-  compact,
-}: {
-  quota: number;
-  billed: number;
-  forecast: number;
+type QuotaProgressProps = {
   currency?: string;
   label?: string;
   compact?: boolean;
-}) {
-  const billedPct = quota ? Math.min(100, (billed / quota) * 100) : 0;
-  const forecastPct = quota ? Math.min(100 - billedPct, (forecast / quota) * 100) : 0;
+  onRetry?: () => void;
+} & QuotaProgressState;
+
+export function QuotaProgress(props: QuotaProgressProps) {
+  const { currency = 'USD', label = 'Quota attainment', compact, onRetry } = props;
+
+  const resolved = resolveQuotaProgress(props);
+  if (resolved.state === 'LOADING') {
+    return (
+      <div className="space-y-2" aria-busy="true" aria-label={`${label} is loading`}>
+        <span className="sr-only">Loading quota attainment…</span>
+        <div className="flex items-end justify-between gap-4">
+          <span className="h-4 w-32 animate-pulse rounded bg-surface-sunken" />
+          <span className="h-4 w-40 animate-pulse rounded bg-surface-sunken" />
+        </div>
+        <div
+          className={cn('animate-pulse rounded-full bg-surface-sunken', compact ? 'h-2' : 'h-3')}
+        />
+      </div>
+    );
+  }
+
+  if (resolved.state !== 'AVAILABLE') {
+    return (
+      <div
+        className="rounded-xl border border-dashed p-3"
+        role={resolved.state === 'ERROR' ? 'alert' : 'status'}
+        aria-label={`${label}: ${resolved.message}`}
+      >
+        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{resolved.message}</p>
+        {resolved.state === 'ERROR' && onRetry ? (
+          <button
+            type="button"
+            className="mt-2 text-xs font-semibold text-primary"
+            onClick={onRetry}
+          >
+            Retry quota
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const { quota, billed, forecast, billedPct, forecastPct, projectedPct } = resolved;
   return (
-    <div className="space-y-2" aria-label={`${label}: ${billedPct.toFixed(1)} percent billed`}>
+    <div
+      className="space-y-2"
+      aria-label={`${label}: ${billedPct.toFixed(1)} percent billed, ${forecastPct.toFixed(1)} percent additional forecast, ${projectedPct.toFixed(1)} percent projected against ${formatCurrency(quota, currency)} quota`}
+    >
       <div className="flex items-end justify-between gap-4">
         <span className="text-xs font-semibold text-muted-foreground">{label}</span>
         <span className="tnum text-xs font-semibold">
@@ -123,6 +164,7 @@ export function QuotaProgress({
           'flex overflow-hidden rounded-full bg-surface-sunken',
           compact ? 'h-2' : 'h-3',
         )}
+        aria-hidden="true"
       >
         <span className="bg-success" style={{ width: `${billedPct}%` }} title="Billed" />
         <span className="bg-primary/45" style={{ width: `${forecastPct}%` }} title="Forecast" />
@@ -349,20 +391,70 @@ export function StageVelocity({
   );
 }
 
-export function ForecastConfidence({
-  sellerCategory = 'PIPELINE',
-  confidence = 0,
-  rationale,
-}: {
+type ForecastConfidenceProps = {
   sellerCategory?: string;
-  confidence?: number;
   rationale?: string;
-}) {
+  onRetry?: () => void;
+} & ForecastConfidenceState;
+
+export function ForecastConfidence(props: ForecastConfidenceProps) {
+  const { sellerCategory = 'PIPELINE', rationale, onRetry } = props;
+  const sellerCall = sellerCategory.replaceAll('_', ' ');
+
+  const resolved = resolveForecastConfidence(props);
+  if (resolved.state === 'LOADING') {
+    return (
+      <div
+        className="rounded-xl border p-3"
+        aria-busy="true"
+        aria-label="Forecast confidence is loading"
+      >
+        <span className="sr-only">Loading forecast confidence…</span>
+        <div className="flex items-center justify-between gap-3">
+          <span className="h-4 w-44 animate-pulse rounded bg-surface-sunken" />
+          <span className="h-4 w-24 animate-pulse rounded bg-surface-sunken" />
+        </div>
+        <div className="mt-2 h-2 animate-pulse rounded-full bg-surface-sunken" />
+      </div>
+    );
+  }
+
+  if (resolved.state !== 'AVAILABLE') {
+    return (
+      <div
+        className="rounded-xl border p-3"
+        role={resolved.state === 'ERROR' ? 'alert' : 'status'}
+        aria-label={`Seller forecast ${sellerCall}. ${resolved.message}`}
+      >
+        <p className="text-xs font-semibold text-muted-foreground">
+          Seller forecast · {sellerCall}
+        </p>
+        <p className="mt-2 text-sm font-semibold">{resolved.message}</p>
+        {rationale ? (
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{rationale}</p>
+        ) : null}
+        {resolved.state === 'ERROR' && onRetry ? (
+          <button
+            type="button"
+            className="mt-2 text-xs font-semibold text-primary"
+            onClick={onRetry}
+          >
+            Retry confidence
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const { confidence, relationship } = resolved;
   return (
-    <div className="rounded-xl border p-3">
+    <div
+      className="rounded-xl border p-3"
+      aria-label={`Seller forecast ${sellerCall}. System confidence ${confidence} percent. ${relationship}.`}
+    >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold text-muted-foreground">
-          Seller forecast · {sellerCategory.replaceAll('_', ' ')}
+          Seller forecast · {sellerCall}
         </span>
         <b
           className={cn(
@@ -373,7 +465,8 @@ export function ForecastConfidence({
           {confidence}% confidence
         </b>
       </div>
-      <div className="mt-2 h-2 rounded-full bg-surface-sunken">
+      <p className="mt-1 text-[11px] font-medium text-muted-foreground">{relationship}</p>
+      <div className="mt-2 h-2 rounded-full bg-surface-sunken" aria-hidden="true">
         <span className="block h-2 rounded-full bg-primary" style={{ width: `${confidence}%` }} />
       </div>
       {rationale && <p className="mt-2 text-xs leading-5 text-muted-foreground">{rationale}</p>}

@@ -218,7 +218,7 @@ export function OpportunityDrawer() {
                 </h3>
                 <ForecastConfidence
                   sellerCategory={opportunity.forecastCategory}
-                  confidence={opportunity.health.score}
+                  state="INSUFFICIENT_DATA"
                   rationale={
                     evidence.missing.length
                       ? `${evidence.missing.join(', ')} still requires evidence.`

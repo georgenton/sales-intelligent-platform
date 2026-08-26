@@ -274,13 +274,22 @@ function ManagerStandard({
           </div>
           <Card>
             <CardContent className="p-5">
-              <QuotaProgress
-                quota={data.kpis.quota}
-                billed={data.kpis.billed}
-                forecast={Math.max(0, data.kpis.forecast - data.kpis.billed)}
-                currency={data.currency}
-                label="Team quota attainment"
-              />
+              {data.kpis.quota > 0 ? (
+                <QuotaProgress
+                  state="AVAILABLE"
+                  quota={data.kpis.quota}
+                  billed={data.kpis.billed}
+                  forecast={Math.max(0, data.kpis.forecast - data.kpis.billed)}
+                  currency={data.currency}
+                  label="Team quota attainment"
+                />
+              ) : (
+                <QuotaProgress
+                  state="NOT_CONFIGURED"
+                  currency={data.currency}
+                  label="Team quota attainment"
+                />
+              )}
             </CardContent>
           </Card>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -777,7 +786,7 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
             </p>
             <ForecastConfidence
               sellerCategory={opportunity.forecastCategory}
-              confidence={opportunity.health.score}
+              state="INSUFFICIENT_DATA"
               rationale={opportunity.health.factors[0]?.message}
             />
             <Button
@@ -865,7 +874,7 @@ function ForecastReview({
           <CardContent className="space-y-4">
             <ForecastConfidence
               sellerCategory={opportunity.forecastCategory}
-              confidence={opportunity.health.score}
+              state="INSUFFICIENT_DATA"
               rationale={opportunity.health.factors.map((factor) => factor.message).join(' ')}
             />
             <div className="grid gap-3 sm:grid-cols-2">
