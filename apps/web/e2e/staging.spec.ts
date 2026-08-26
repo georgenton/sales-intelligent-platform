@@ -109,10 +109,22 @@ test('manager review advances only after an explicit decision', async ({ page })
   await expect(keep).toBeVisible();
   await keep.click();
   await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(headingBefore ?? '');
+
+  const appearance = page.getByLabel('Appearance');
+  await appearance.selectOption('DARK');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const persistedAppearance = page.getByLabel('Appearance');
+  await expect(persistedAppearance).toHaveValue('DARK');
+  await persistedAppearance.selectOption('LIGHT');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByLabel('Appearance').selectOption('SYSTEM');
+  await expect(page.getByLabel('Appearance')).toHaveValue('SYSTEM');
 });
 
 test('critical Copilot and import contracts block unsafe interaction', async ({ page }) => {
-  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.setViewportSize({ width: 1024, height: 768 });
   let requests = 0;
   await page.route('**/backend/ai/manager-brief', async (route) => {
     requests += 1;
@@ -191,6 +203,8 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   await page.getByRole('button', { name: /Continue/ }).click();
   await expect(page.getByText('Data quality: BLOCKED')).toBeVisible();
   await expect(page.getByText('Every row is BLOCKED')).toBeVisible();
+  await page.getByRole('button', { name: 'Revalidate file' }).click();
+  await expect(page.getByText('Data quality: BLOCKED')).toBeVisible();
   await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
   expect(opportunityPosts).toBe(0);
 
@@ -208,30 +222,20 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   await page.keyboard.press('Escape');
   await expect(mobileLauncher).toBeFocused();
 
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1440, height: 1024 });
   await expect(page.getByRole('region', { name: 'Contextual Copilot' })).toBeVisible();
   await page.getByRole('button', { name: 'Forecast review' }).click();
   await expect(page.getByText('System confidence not yet computed').first()).toBeVisible();
 });
 
-test('appearance cycles through Light, Dark and System and persists', async ({ page }) => {
-  await signIn(page, adminEmail, adminPassword!);
-  const appearance = page.getByLabel('Appearance');
-  await appearance.selectOption('DARK');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  const persistedAppearance = page.getByLabel('Appearance');
-  await expect(persistedAppearance).toHaveValue('DARK');
-  await persistedAppearance.selectOption('LIGHT');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByLabel('Appearance').selectOption('SYSTEM');
-  await expect(page.getByLabel('Appearance')).toHaveValue('SYSTEM');
-});
-
 test('seller completes Focus and advances the Guided queue', async ({ page }) => {
   test.skip(!sellerEmail || !sellerPassword, 'Seller staging credentials are optional');
   await signIn(page, sellerEmail!, sellerPassword!);
+  await expect(page.getByText('Not available', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Seller quota is not exposed by the API')).toBeVisible();
+  await expect(
+    page.getByText('A personal quota is required before a reliable gap can be calculated.'),
+  ).toBeVisible();
   await page.getByLabel('Cognitive mode').selectOption('FOCUS');
   await expect(page.getByRole('heading', { name: '3 priorities today' })).toBeVisible();
   const priority = page.getByRole('button', { name: /Complete priority 1/ });
