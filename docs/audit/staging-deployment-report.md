@@ -61,6 +61,23 @@
 - Dependency audit: zero high/critical findings; one moderate and one low transitive finding remain.
 - Secrets: Gitleaks passed; bootstrap password variables and temporary Vercel bypass were removed.
 
+## Credential and build-environment hardening
+
+- The staging administrator password was rotated through a dedicated administrative command that
+  accepts the secret only through stdin or an ephemeral environment variable, hashes with Argon2id,
+  revokes active sessions and records a secret-free audit event.
+- The command requires an explicit staging flag, the exact Railway staging project/environment and
+  service identity, the expected staging application URL or a local Railway SSH database tunnel, and
+  a separate rotation confirmation. It cannot run against a production environment or service.
+- The previous password was rejected with HTTP 401 after rotation; the new password authenticated
+  successfully with HTTP 200. The new password is not stored in source, reports, platform variables
+  or logs and is delivered only through the owner's macOS clipboard.
+- `API_ORIGIN` is consumed by server-side web code and the `/backend` route handler, so it is declared
+  by name in the Turborepo `build` task environment. Its value remains only in Vercel's sensitive
+  Preview and Production environment configuration.
+- The database remained private during rotation; the owner connection was reached through a
+  temporary Railway SSH tunnel that was closed immediately afterward.
+
 ## Known issues
 
 - An empty repository that briefly occupied the requested name was preserved without data loss as

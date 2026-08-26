@@ -17,6 +17,7 @@
     "db:provision:runtime": "tsx src/scripts/provision-runtime-role.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap:staging": "tsx prisma/seed.ts --staging",
+    "db:rotate:staging-admin": "tsx prisma/rotate-staging-admin-password.ts",
     "db:verify:staging-security": "tsx src/scripts/verify-staging-security.ts --staging",
     "import:excel": "tsx src/modules/imports/excel-importer.cli.ts"
   },
