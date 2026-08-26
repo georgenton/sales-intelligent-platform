@@ -75,6 +75,9 @@
 - `API_ORIGIN` is consumed by server-side web code and the `/backend` route handler, so it is declared
   by name in the Turborepo `build` task environment. Its value remains only in Vercel's sensitive
   Preview and Production environment configuration.
+- Administrative Prisma sources are excluded from the Nest runtime compilation and execute through
+  their dedicated TypeScript entry points; this preserves the container's stable `dist/main.js` and
+  `dist/scripts/provision-runtime-role.js` layout.
 - The database remained private during rotation; the owner connection was reached through a
   temporary Railway SSH tunnel that was closed immediately afterward.
 
