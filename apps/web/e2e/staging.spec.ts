@@ -111,6 +111,95 @@ test('manager review advances only after an explicit decision', async ({ page })
   await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(headingBefore ?? '');
 });
 
+test('Copilot traps and restores focus, preserves a failed question and retries', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  let requests = 0;
+  await page.route('**/backend/ai/manager-brief', async (route) => {
+    requests += 1;
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Synthetic provider failure' }),
+    });
+  });
+  await signIn(page, adminEmail, adminPassword!);
+
+  const launcher = page.getByRole('button', { name: 'Open contextual Copilot' });
+  await expect(launcher).toBeVisible();
+  await launcher.click();
+  const panel = page.getByRole('dialog', { name: 'Contextual Copilot' });
+  await expect(panel).toBeVisible();
+  const collapse = panel.getByRole('button', { name: 'Collapse Copilot' });
+  await expect(collapse).toBeFocused();
+
+  await page.keyboard.press('Shift+Tab');
+  const prompt = panel.getByLabel('Ask Sales Copilot');
+  await expect(prompt).toBeFocused();
+  await prompt.fill('Summarize current risk');
+  await panel.getByRole('button', { name: 'Send to Copilot' }).click();
+  await expect(panel.getByRole('alert')).toContainText('could not answer this request');
+  await expect(prompt).toHaveValue('Summarize current risk');
+  await panel.getByRole('button', { name: 'Retry question' }).click();
+  await expect.poll(() => requests).toBe(2);
+  await expect(panel.getByRole('alert')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(launcher).toBeFocused();
+});
+
+test('import rejects workbooks and blocks unconfirmed or invalid rows before mutation', async ({
+  page,
+}) => {
+  let opportunityPosts = 0;
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === '/backend/opportunities'
+    ) {
+      opportunityPosts += 1;
+    }
+  });
+  await signIn(page, adminEmail, adminPassword!);
+  await page.goto('/app/import');
+
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles({
+    name: 'opportunities.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('not-an-excel-workbook'),
+  });
+  await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+  await expect(page.getByText('Upload', { exact: true }).last()).toBeVisible();
+
+  await fileInput.setInputFiles({
+    name: 'opportunities.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      [
+        'Opportunity,Customer,Stage,Amount,Expected close,Brand',
+        'Synthetic blocked row,Unknown customer,Unknown stage,1000,2026-10-15,Unknown brand',
+      ].join('\n'),
+    ),
+  });
+  await expect(page.getByText('Template detection', { exact: true }).last()).toBeVisible();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await expect(page.getByText('Mapping validation: BLOCKED')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
+
+  const confirm = page.getByRole('button', { name: 'Confirm mapping' });
+  while ((await confirm.count()) > 0) await confirm.first().click();
+  await expect(page.getByText('Mapping validation: PASS')).toBeVisible();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await expect(page.getByText('Data quality: BLOCKED')).toBeVisible();
+  await expect(page.getByText('Every row is BLOCKED')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
+  expect(opportunityPosts).toBe(0);
+});
+
 test('appearance cycles through Light, Dark and System and persists', async ({ page }) => {
   await signIn(page, adminEmail, adminPassword!);
   const appearance = page.getByLabel('Appearance');
