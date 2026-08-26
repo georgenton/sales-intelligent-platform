@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 const baseUrl = process.env.STAGING_BASE_URL;
 const adminEmail = process.env.STAGING_ADMIN_EMAIL ?? 'admin@techdistribution.demo';
 const adminPassword = process.env.STAGING_ADMIN_PASSWORD;
+const sellerEmail = process.env.STAGING_SELLER_EMAIL;
+const sellerPassword = process.env.STAGING_SELLER_PASSWORD;
 
 test.beforeAll(() => {
   if (!baseUrl || !adminPassword) {
@@ -26,10 +28,11 @@ test('admin can manage a synthetic opportunity and end the session', async ({ pa
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   await expect(page).toHaveURL(/\/app\/dashboard$/);
-  await expect(page.getByRole('heading', { name: 'How is the quarter looking?' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Quarter KPIs' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Will the team reach quota?' })).toBeVisible();
+  await expect(page.getByText('Team quota attainment')).toBeVisible();
 
-  await page.getByRole('link', { name: 'New opportunity' }).first().click();
+  await page.keyboard.press('Control+k');
+  await page.getByRole('option', { name: /Create opportunity/ }).click();
   await page.getByLabel('Title', { exact: true }).fill(title);
   await page.getByLabel('Estimated amount', { exact: true }).fill('12500');
   await page.getByLabel('Gross profit', { exact: true }).fill('2500');
@@ -52,4 +55,77 @@ test('admin can manage a synthetic opportunity and end the session', async ({ pa
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/app/dashboard');
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test('manager drills into the funnel, opens context and closes with Escape', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+
+  const commit = page.getByRole('button', { name: /^Commit:/ }).first();
+  if (!(await commit.count()))
+    test.skip(true, 'No Commit stage is present in the current tenant data');
+  await commit.click();
+  await expect(page.getByText(/Commit · \d+ opportunities/)).toBeVisible();
+
+  const opportunity = page
+    .locator('button')
+    .filter({ hasText: /Health \d+/ })
+    .first();
+  if (!(await opportunity.count())) test.skip(true, 'No scoped Commit opportunity is available');
+  await opportunity.click();
+  const drawer = page.getByRole('dialog', { name: /Opportunity context|.+/ }).last();
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole('button', { name: 'Ask Copilot' }).click();
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+});
+
+test('manager review advances only after an explicit decision', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Forecast review' }).click();
+  await expect(
+    page.getByText(/classifications change only after an explicit action/i),
+  ).toBeVisible();
+  const headingBefore = await page.getByRole('heading', { level: 1 }).textContent();
+  const keep = page.getByRole('button', { name: 'Keep Commit' });
+  if (!(await keep.count())) test.skip(true, 'No review queue item is available');
+  await keep.click();
+  await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(headingBefore ?? '');
+});
+
+test('appearance cycles through Light, Dark and System and persists', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const appearance = page.getByLabel('Appearance');
+  await appearance.selectOption('DARK');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByLabel('Appearance').selectOption('LIGHT');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByLabel('Appearance').selectOption('SYSTEM');
+  await expect(page.getByLabel('Appearance')).toHaveValue('SYSTEM');
+});
+
+test('seller completes Focus and advances the Guided queue', async ({ page }) => {
+  test.skip(!sellerEmail || !sellerPassword, 'Seller staging credentials are optional');
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(sellerEmail!);
+  await page.getByLabel('Password', { exact: true }).fill(sellerPassword!);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByLabel('Cognitive mode').selectOption('FOCUS');
+  await expect(page.getByRole('heading', { name: '3 priorities today' })).toBeVisible();
+  const priority = page.getByRole('button', { name: /Complete priority 1/ });
+  if (await priority.count()) await priority.click();
+  await page.getByRole('button', { name: /Start guided queue/ }).click();
+  const recommendation = page.getByRole('button', { name: /Choose recommendation/ });
+  if (await recommendation.count()) await recommendation.click();
+  await expect(page.getByText(/session decisions/)).toBeVisible();
 });
