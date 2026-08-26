@@ -8,9 +8,9 @@
 
 ## GitHub and CI
 
-- Repository: <https://github.com/georgenton/sales-intelligence-platform> (private)
+- Repository: <https://github.com/georgenton/sales-intelligent-platform> (private)
 - Workflow: `.github/workflows/ci.yml`
-- Application gate: <https://github.com/georgenton/sales-intelligence-platform/actions/runs/32904114317>
+- Application gate: <https://github.com/georgenton/sales-intelligent-platform/actions/runs/32905761369>
 - Gates: frozen install, migration, seed, runtime-role provisioning, format, lint, typecheck, unit,
   integration, tenant isolation, production build, dependency audit and Gitleaks.
 - Status: green on the validated application commit; the documentation commit is gated by the same
@@ -63,9 +63,9 @@
 
 ## Known issues
 
-- The GitHub repository was initially created as `sales-intelligence-platform`; the requested remote
-  name is `sales-intelligent-platform`. Renaming changes integration endpoints and needs explicit
-  confirmation before GitHub, Railway and Vercel are updated together.
+- An empty repository that briefly occupied the requested name was preserved without data loss as
+  `sales-intelligent-platform-empty-placeholder-20260825`; the application repository now uses the
+  requested `sales-intelligent-platform` name.
 - Vercel's project production-branch setting remains `main`; this dedicated staging project therefore
   uses green `staging` previews plus an explicit promotion to its stable staging alias.
 - GitHub Actions reports a deprecation warning for third-party actions still declaring Node 20; GitHub

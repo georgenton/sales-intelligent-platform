@@ -4,7 +4,7 @@ export default defineRailway(() => {
   const database = postgres('Postgres', { region: 'us-west2' });
 
   const api = service('api-staging', {
-    source: github('georgenton/sales-intelligence-platform', {
+    source: github('georgenton/sales-intelligent-platform', {
       branch: 'staging',
       checkSuites: true,
     }),
