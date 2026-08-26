@@ -12,20 +12,20 @@ export function ManagerBrief() {
   );
   const [loading, setLoading] = useState(false);
   return (
-    <Card className="overflow-hidden bg-[#0b2a32] text-white">
+    <Card className="overflow-hidden bg-copilot text-sidebar-foreground">
       <CardHeader className="flex-row items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-xl bg-cyan-300/15 text-cyan-200">
+        <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-copilot-accent">
           <Bot className="size-5" />
         </span>
         <div>
           <CardTitle>Manager brief</CardTitle>
-          <p className="text-xs text-slate-400">Advisory · deterministic mock provider</p>
+          <p className="text-xs text-sidebar-muted">Advisory · deterministic mock provider</p>
         </div>
       </CardHeader>
       <CardContent>
-        <p className="min-h-16 text-sm leading-6 text-slate-200">{summary}</p>
+        <p className="min-h-16 text-sm leading-6 text-sidebar-muted">{summary}</p>
         <Button
-          className="mt-5 bg-cyan-300 text-[#08242c] hover:bg-cyan-200"
+          className="mt-5 bg-primary text-primary-foreground hover:bg-primary/90"
           size="sm"
           disabled={loading}
           onClick={async () => {
