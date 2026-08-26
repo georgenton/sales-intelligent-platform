@@ -9,3 +9,4 @@
 - [ADR-007: same-origin frontend/backend proxy](ADR-007-frontend-backend-proxy.md)
 - [ADR-008: AI provider abstraction](ADR-008-ai-provider-abstraction.md)
 - [ADR-009: Separate database credentials for migrations and runtime](ADR-009-database-credential-separation.md)
+- [ADR-010: Scoped frontend interaction state](ADR-010-frontend-interaction-state.md)
