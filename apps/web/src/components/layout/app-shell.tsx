@@ -7,7 +7,7 @@ import { CommandPalette } from '@/components/layout/command-palette';
 import { LogoutButton } from '@/components/layout/logout-button';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
-import { ProductProvider } from '@/components/providers/product-provider';
+import { applyAppearance, ProductProvider } from '@/components/providers/product-provider';
 import { OpportunityDrawer } from '@/components/opportunities/opportunity-drawer';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
@@ -126,9 +126,11 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
               <span className="sr-only">Appearance</span>
               <select
                 value={appearance}
-                onChange={(event) =>
-                  dispatch(setAppearanceMode(event.target.value as AppearanceMode))
-                }
+                onChange={(event) => {
+                  const nextAppearance = event.target.value as AppearanceMode;
+                  applyAppearance(nextAppearance);
+                  dispatch(setAppearanceMode(nextAppearance));
+                }}
                 className="h-8 bg-transparent text-xs font-medium outline-none"
               >
                 {appearanceModes.map((item) => (

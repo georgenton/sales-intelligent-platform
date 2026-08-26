@@ -15,6 +15,13 @@ function resolveTheme(mode: AppearanceMode): 'light' | 'dark' {
   return mode.toLowerCase() as 'light' | 'dark';
 }
 
+export function applyAppearance(mode: AppearanceMode) {
+  const theme = resolveTheme(mode);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  localStorage.setItem(APPEARANCE_KEY, mode);
+}
+
 function AppearanceSynchronizer() {
   const dispatch = useAppDispatch();
   const mode = useAppSelector((state) => state.productUi.appearanceMode);
@@ -30,12 +37,8 @@ function AppearanceSynchronizer() {
       }
     }
     const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => {
-      document.documentElement.dataset.theme = resolveTheme(mode);
-      document.documentElement.style.colorScheme = resolveTheme(mode);
-    };
+    const apply = () => applyAppearance(mode);
     apply();
-    localStorage.setItem(APPEARANCE_KEY, mode);
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
   }, [dispatch, mode]);

@@ -10,10 +10,15 @@ test.beforeAll(() => {
   if (!baseUrl || !adminPassword) {
     throw new Error('STAGING_BASE_URL and STAGING_ADMIN_PASSWORD are required');
   }
-  if (new URL(baseUrl).protocol !== 'https:') {
+  const target = new URL(baseUrl);
+  const localRun =
+    process.env.E2E_ALLOW_LOCAL === 'true' &&
+    target.protocol === 'http:' &&
+    ['127.0.0.1', 'localhost'].includes(target.hostname);
+  if (target.protocol !== 'https:' && !localRun) {
     throw new Error('The staging E2E suite only accepts an HTTPS target');
   }
-  if (adminPassword === 'ChangeMe-Local-2026!') {
+  if (adminPassword === 'ChangeMe-Local-2026!' && !localRun) {
     throw new Error('The local demonstration password is forbidden in staging');
   }
 });
@@ -64,16 +69,12 @@ test('manager drills into the funnel, opens context and closes with Escape', asy
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   const commit = page.getByRole('button', { name: /^Commit:/ }).first();
-  if (!(await commit.count()))
-    test.skip(true, 'No Commit stage is present in the current tenant data');
+  await expect(commit).toBeVisible();
   await commit.click();
   await expect(page.getByText(/Commit · \d+ opportunities/)).toBeVisible();
 
-  const opportunity = page
-    .locator('button')
-    .filter({ hasText: /Health \d+/ })
-    .first();
-  if (!(await opportunity.count())) test.skip(true, 'No scoped Commit opportunity is available');
+  const opportunity = page.getByRole('button', { name: /Health \d+/ }).first();
+  await expect(opportunity).toBeVisible();
   await opportunity.click();
   const drawer = page.getByRole('dialog', { name: /Opportunity context|.+/ }).last();
   await expect(drawer).toBeVisible();
@@ -93,7 +94,7 @@ test('manager review advances only after an explicit decision', async ({ page })
   ).toBeVisible();
   const headingBefore = await page.getByRole('heading', { level: 1 }).textContent();
   const keep = page.getByRole('button', { name: 'Keep Commit' });
-  if (!(await keep.count())) test.skip(true, 'No review queue item is available');
+  await expect(keep).toBeVisible();
   await keep.click();
   await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(headingBefore ?? '');
 });
@@ -108,7 +109,9 @@ test('appearance cycles through Light, Dark and System and persists', async ({ p
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await page.getByLabel('Appearance').selectOption('LIGHT');
+  const persistedAppearance = page.getByLabel('Appearance');
+  await expect(persistedAppearance).toHaveValue('DARK');
+  await persistedAppearance.selectOption('LIGHT');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.getByLabel('Appearance').selectOption('SYSTEM');
   await expect(page.getByLabel('Appearance')).toHaveValue('SYSTEM');
@@ -123,9 +126,11 @@ test('seller completes Focus and advances the Guided queue', async ({ page }) =>
   await page.getByLabel('Cognitive mode').selectOption('FOCUS');
   await expect(page.getByRole('heading', { name: '3 priorities today' })).toBeVisible();
   const priority = page.getByRole('button', { name: /Complete priority 1/ });
-  if (await priority.count()) await priority.click();
+  await expect(priority).toBeVisible();
+  await priority.click();
   await page.getByRole('button', { name: /Start guided queue/ }).click();
   const recommendation = page.getByRole('button', { name: /Choose recommendation/ });
-  if (await recommendation.count()) await recommendation.click();
+  await expect(recommendation).toBeVisible();
+  await recommendation.click();
   await expect(page.getByText(/session decisions/)).toBeVisible();
 });
