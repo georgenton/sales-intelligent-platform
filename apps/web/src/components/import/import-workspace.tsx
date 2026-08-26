@@ -15,6 +15,17 @@ import { cn } from '@/lib/utils';
 import { useCreateOpportunityMutation, useReferenceDataQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setImportWizardState } from '@/store/ui-slice';
+import {
+  canPassImportGate,
+  detectImportMapping,
+  IMPORT_FIELDS,
+  isSupportedOpportunityCsvFileName,
+  parseOpportunityCsv,
+  validateImportMappings,
+  validateImportRows,
+  type ImportField,
+  type MappingSuggestion,
+} from './import-contracts';
 
 const steps = [
   'Upload',
@@ -26,113 +37,75 @@ const steps = [
   'Import',
   'Results',
 ];
-const fields = [
-  'Ignore',
-  'Opportunity',
-  'Customer',
-  'Stage',
-  'Amount',
-  'Expected close',
-  'Brand',
-  'Seller',
-  'Forecast category',
-  'PO number',
-  'Description',
-];
-const required = ['Opportunity', 'Customer', 'Stage', 'Amount', 'Expected close', 'Brand'];
-
-function parseCsv(value: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let quoted = false;
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    const next = value[index + 1];
-    if (char === '"' && quoted && next === '"') {
-      cell += '"';
-      index += 1;
-    } else if (char === '"') quoted = !quoted;
-    else if (char === ',' && !quoted) {
-      row.push(cell.trim());
-      cell = '';
-    } else if ((char === '\n' || char === '\r') && !quoted) {
-      if (char === '\r' && next === '\n') index += 1;
-      row.push(cell.trim());
-      if (row.some(Boolean)) rows.push(row);
-      row = [];
-      cell = '';
-    } else cell += char;
-  }
-  row.push(cell.trim());
-  if (row.some(Boolean)) rows.push(row);
-  return rows;
-}
-
-function detect(header: string): string {
-  const normalized = header.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (/^(oppty|opportunity|title|deal)$/.test(normalized)) return 'Opportunity';
-  if (/^(customer|account|client|cliente)$/.test(normalized)) return 'Customer';
-  if (/^(stage|etapa)$/.test(normalized)) return 'Stage';
-  if (/^(amount|value|monto|revenue)$/.test(normalized)) return 'Amount';
-  if (/^(closedate|expectedclose|expectedclosedate|fechacierre)$/.test(normalized))
-    return 'Expected close';
-  if (/^(brand|marca)$/.test(normalized)) return 'Brand';
-  if (/^(seller|owner|vendedor)$/.test(normalized)) return 'Seller';
-  if (/^(forecast|forecastcategory|category)$/.test(normalized)) return 'Forecast category';
-  if (/^(po|ponumber|purchaseorder)$/.test(normalized)) return 'PO number';
-  if (/^(description|product|item)$/.test(normalized)) return 'Description';
-  return 'Ignore';
-}
-
 export function ImportWorkspace() {
   const dispatch = useAppDispatch();
   const wizard = useAppSelector((state) => state.productUi.importWizardState);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
-  const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [mappings, setMappings] = useState<Record<string, ImportField>>({});
+  const [suggestions, setSuggestions] = useState<Record<string, MappingSuggestion>>({});
+  const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
+  const [fileError, setFileError] = useState('');
+  const [blockedRowsAcknowledged, setBlockedRowsAcknowledged] = useState(false);
+  const [validationRevision, setValidationRevision] = useState(0);
   const [results, setResults] = useState<Array<{ row: number; ok: boolean; message: string }>>([]);
-  const { data: reference } = useReferenceDataQuery();
+  const referenceState = useReferenceDataQuery();
+  const { data: reference } = referenceState;
   const [createOpportunity, createState] = useCreateOpportunityMutation();
   const fieldIndex = (field: string) => headers.findIndex((header) => mappings[header] === field);
   const valueAt = (row: string[], field: string) => row[fieldIndex(field)]?.trim() ?? '';
-  const issues = useMemo(() => {
-    const missingMappings = required.filter((field) => !Object.values(mappings).includes(field));
-    const rowIssues = rows.flatMap((row, index) => {
-      const messages = required
-        .filter((field) => !valueAt(row, field))
-        .map((field) => `Missing ${field}`);
-      return messages.map((message) => ({ row: index + 2, message }));
-    });
-    return { missingMappings, rowIssues };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- recompute from CSV state and mappings only.
-  }, [headers, mappings, rows]);
-  const ready = rows.length - new Set(issues.rowIssues.map((issue) => issue.row)).size;
+  const mappingValidation = useMemo(
+    () => validateImportMappings(headers, mappings, confirmations),
+    [confirmations, headers, mappings],
+  );
+  const quality = useMemo(
+    () => (reference ? validateImportRows({ headers, rows, mappings, reference }) : null),
+    // validationRevision intentionally lets the operator explicitly rerun local validation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [headers, mappings, reference, rows, validationRevision],
+  );
+  const importGatePass = Boolean(
+    reference && canPassImportGate({ mappingValidation, quality, blockedRowsAcknowledged }),
+  );
 
   const loadFile = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setResults([
-        {
-          row: 0,
-          ok: false,
-          message: 'Excel workbook parsing is not implemented. Export the Oppty sheet as CSV.',
-        },
-      ]);
+    setFileError('');
+    if (!isSupportedOpportunityCsvFileName(file.name)) {
+      setFileError('Unsupported file type. Export the opportunity sheet as a CSV and try again.');
       return;
     }
-    const parsed = parseCsv(await file.text());
-    const nextHeaders = parsed[0] ?? [];
-    setHeaders(nextHeaders);
-    setRows(parsed.slice(1, 501));
-    setMappings(Object.fromEntries(nextHeaders.map((header) => [header, detect(header)])));
-    setResults([]);
-    dispatch(setImportWizardState({ fileName: file.name, step: 1, template: 'Opportunity CSV' }));
+    try {
+      const parsed = parseOpportunityCsv(await file.text());
+      if (!parsed.ok) {
+        setFileError(parsed.message);
+        return;
+      }
+      const nextSuggestions = Object.fromEntries(
+        parsed.headers.map((header) => [header, detectImportMapping(header)]),
+      );
+      setHeaders(parsed.headers);
+      setRows(parsed.rows);
+      setSuggestions(nextSuggestions);
+      setMappings(
+        Object.fromEntries(
+          parsed.headers.map((header) => [header, nextSuggestions[header]?.target ?? 'Ignore']),
+        ),
+      );
+      setConfirmations({});
+      setBlockedRowsAcknowledged(false);
+      setResults([]);
+      dispatch(setImportWizardState({ fileName: file.name, step: 1, template: 'Opportunity CSV' }));
+    } catch {
+      setFileError('The CSV could not be read. Choose the file again.');
+    }
   };
 
   const importRows = async () => {
-    if (!reference || issues.missingMappings.length || issues.rowIssues.length) return;
+    if (!reference || !quality || !importGatePass) return;
     const nextResults: Array<{ row: number; ok: boolean; message: string }> = [];
-    for (const [index, row] of rows.entries()) {
+    for (const index of quality.importableIndexes) {
+      const row = rows[index];
+      if (!row) continue;
       const customer = reference.customers.find(
         (item) => item.name.toLowerCase() === valueAt(row, 'Customer').toLowerCase(),
       );
@@ -140,7 +113,7 @@ export function ImportWorkspace() {
       const stage = reference.stages.find(
         (item) =>
           item.name.toLowerCase() === stageValue ||
-          String(item.code) === stageValue.replace('%', ''),
+          String(item.code).toLowerCase() === stageValue.replace('%', ''),
       );
       const brand = reference.brands.find(
         (item) => item.name.toLowerCase() === valueAt(row, 'Brand').toLowerCase(),
@@ -170,14 +143,14 @@ export function ImportWorkspace() {
             ? valueAt(row, 'Forecast category').toUpperCase().replaceAll(' ', '_')
             : 'PIPELINE',
           currency: reference.settings.currency,
-          estimatedAmount: valueAt(row, 'Amount').replaceAll(',', ''),
+          estimatedAmount: valueAt(row, 'Amount').replace(/[$,\s]/g, ''),
           expectedCloseDate: close.toISOString(),
           poNumber: valueAt(row, 'PO number') || undefined,
           lineItems: [
             {
               brandId: brand.id,
               description: valueAt(row, 'Description') || valueAt(row, 'Opportunity'),
-              amount: valueAt(row, 'Amount').replaceAll(',', ''),
+              amount: valueAt(row, 'Amount').replace(/[$,\s]/g, ''),
             },
           ],
         }).unwrap();
@@ -198,8 +171,12 @@ export function ImportWorkspace() {
     wizard.step === 0
       ? false
       : wizard.step === 2
-        ? issues.missingMappings.length === 0
-        : wizard.step < 7;
+        ? mappingValidation.status === 'PASS'
+        : wizard.step === 3
+          ? true
+          : wizard.step === 4
+            ? importGatePass
+            : wizard.step < 7;
   return (
     <div>
       <div className="mb-5">
@@ -238,25 +215,40 @@ export function ImportWorkspace() {
         </CardHeader>
         <CardContent>
           {wizard.step === 0 && (
-            <label className="grid min-h-64 cursor-pointer place-items-center rounded-2xl border-2 border-dashed p-8 text-center hover:border-primary">
-              <span>
-                <Upload className="mx-auto size-8 text-primary" />
-                <b className="mt-3 block">Upload opportunity CSV</b>
-                <span className="mt-2 block text-sm text-muted-foreground">
-                  Oppty CSV → Supported · Billing import → Coming next · Channel cutoff import →
-                  Coming next
+            <div>
+              <label className="grid min-h-64 cursor-pointer place-items-center rounded-2xl border-2 border-dashed p-8 text-center hover:border-primary">
+                <span>
+                  <Upload className="mx-auto size-8 text-primary" />
+                  <b className="mt-3 block">Upload opportunity CSV</b>
+                  <span className="mt-2 block text-sm text-muted-foreground">
+                    CSV up to 500 rows → Supported · Excel workbooks → Export to CSV first
+                  </span>
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept=".csv,text/csv"
+                    aria-describedby={fileError ? 'import-file-error' : undefined}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void loadFile(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
                 </span>
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept=".csv,.xlsx"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) loadFile(file);
-                  }}
-                />
-              </span>
-            </label>
+              </label>
+              {fileError ? (
+                <div
+                  id="import-file-error"
+                  role="alert"
+                  className="mt-4 rounded-xl bg-surface-danger-soft p-3 text-sm text-danger"
+                >
+                  <p>{fileError}</p>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFileError('')}>
+                    Choose another CSV
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           )}
           {wizard.step === 1 && (
             <div className="grid gap-4 sm:grid-cols-3">
@@ -279,70 +271,207 @@ export function ImportWorkspace() {
           )}
           {wizard.step === 2 && (
             <div className="space-y-2">
-              {headers.map((header) => (
+              {headers.map((header, headerIndex) => (
                 <div
                   key={header}
-                  className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center gap-3 rounded-xl border p-3"
+                  className="grid gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(0,1fr)_24px_minmax(0,1.2fr)] sm:items-center"
                 >
                   <span className="truncate text-sm font-semibold">{header}</span>
-                  <ArrowRight className="size-4 text-muted-foreground" />
-                  <select
-                    className="h-9 rounded-lg border bg-background px-2 text-sm"
-                    value={mappings[header]}
-                    onChange={(event) =>
-                      setMappings((current) => ({ ...current, [header]: event.target.value }))
-                    }
-                  >
-                    {fields.map((field) => (
-                      <option key={field}>{field}</option>
-                    ))}
-                  </select>
+                  <ArrowRight className="hidden size-4 text-muted-foreground sm:block" />
+                  <div>
+                    <label className="sr-only" htmlFor={`mapping-${headerIndex}`}>
+                      Map source column {header}
+                    </label>
+                    <select
+                      id={`mapping-${headerIndex}`}
+                      className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
+                      value={mappings[header] ?? 'Ignore'}
+                      onChange={(event) => {
+                        const target = event.target.value as ImportField;
+                        setMappings((current) => ({ ...current, [header]: target }));
+                        setConfirmations((current) => ({ ...current, [header]: true }));
+                        setBlockedRowsAcknowledged(false);
+                      }}
+                    >
+                      {IMPORT_FIELDS.map((field) => (
+                        <option key={field}>{field}</option>
+                      ))}
+                    </select>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <span
+                        className={cn(
+                          confirmations[header] ? 'text-success' : 'text-warning',
+                          mappings[header] === 'Ignore' && 'text-muted-foreground',
+                        )}
+                      >
+                        {mappings[header] === 'Ignore'
+                          ? 'Ignored source column'
+                          : confirmations[header]
+                            ? 'Mapping confirmed'
+                            : `${suggestions[header]?.confidence ?? 'LOW'} confidence suggestion · review required`}
+                      </span>
+                      {mappings[header] !== 'Ignore' && !confirmations[header] ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setConfirmations((current) => ({ ...current, [header]: true }));
+                            setBlockedRowsAcknowledged(false);
+                          }}
+                        >
+                          Confirm mapping
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               ))}
+              <div
+                className={cn(
+                  'rounded-xl p-3 text-sm',
+                  mappingValidation.status === 'PASS'
+                    ? 'bg-surface-success-soft text-success'
+                    : 'bg-surface-danger-soft text-danger',
+                )}
+                role={mappingValidation.status === 'PASS' ? 'status' : 'alert'}
+              >
+                <b>Mapping validation: {mappingValidation.status}</b>
+                {mappingValidation.issues.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {mappingValidation.issues.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1">Required destinations are unique and explicitly confirmed.</p>
+                )}
+              </div>
             </div>
           )}
           {wizard.step === 3 && (
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-surface-success-soft p-4">
-                <b className="text-success">{ready} ready</b>
-                <p className="mt-1 text-xs text-muted-foreground">Required values present</p>
+                <b className="text-success">Mapping validation PASS</b>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Required destinations are unique and confirmed
+                </p>
               </div>
               <div className="rounded-xl bg-surface-warning-soft p-4">
-                <b className="text-warning">{issues.rowIssues.length} field warnings</b>
-                <p className="mt-1 text-xs text-muted-foreground">Review before import</p>
+                <b className="text-warning">{rows.length} rows detected</b>
+                <p className="mt-1 text-xs text-muted-foreground">Quality review runs next</p>
               </div>
               <div className="rounded-xl bg-muted p-4">
-                <b>{issues.missingMappings.length} missing mappings</b>
+                <b>
+                  {referenceState.isLoading
+                    ? 'Reference data loading'
+                    : referenceState.isError
+                      ? 'Reference data unavailable'
+                      : 'Reference data ready'}
+                </b>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {issues.missingMappings.join(', ') || 'All required fields mapped'}
+                  Tenant customer, stage, brand and seller values are checked before mutation
                 </p>
               </div>
             </div>
           )}
           {wizard.step === 4 && (
             <div>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <Metric label="Ready" value={ready} tone="success" />
-                <Metric label="Warnings" value={issues.rowIssues.length} tone="warning" />
-                <Metric
-                  label="Invalid"
-                  value={issues.missingMappings.length ? rows.length : 0}
-                  tone="danger"
-                />
-                <Metric label="Duplicates" value={0} />
-              </div>
-              <div className="mt-4 max-h-64 overflow-auto divide-y rounded-xl border">
-                {issues.rowIssues.slice(0, 50).map((issue) => (
-                  <p key={`${issue.row}-${issue.message}`} className="p-3 text-sm">
-                    <b>Row {issue.row}</b> · {issue.message}
-                  </p>
-                ))}
-                {!issues.rowIssues.length && (
-                  <p className="p-6 text-center text-sm text-success">
-                    No row-level issues detected.
-                  </p>
-                )}
-              </div>
+              {!reference && referenceState.isLoading ? (
+                <div aria-busy="true" role="status" className="rounded-xl border p-6 text-sm">
+                  Loading tenant reference data for validation…
+                </div>
+              ) : !reference ? (
+                <div role="alert" className="rounded-xl bg-surface-danger-soft p-4 text-danger">
+                  <p className="text-sm">Tenant reference data could not be loaded.</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => void referenceState.refetch()}
+                  >
+                    Retry reference data
+                  </Button>
+                </div>
+              ) : quality ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p
+                      className={cn(
+                        'text-sm font-semibold',
+                        quality.status === 'PASS'
+                          ? 'text-success'
+                          : quality.status === 'WARNING'
+                            ? 'text-warning'
+                            : 'text-danger',
+                      )}
+                      role="status"
+                    >
+                      Data quality: {quality.status}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBlockedRowsAcknowledged(false);
+                        setValidationRevision((revision) => revision + 1);
+                      }}
+                    >
+                      Revalidate file
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                    <Metric label="Ready" value={quality.ready} tone="success" />
+                    <Metric label="Warnings" value={quality.warning} tone="warning" />
+                    <Metric label="Blocked" value={quality.blocked} tone="danger" />
+                    <Metric label="Duplicates" value={quality.duplicates} tone="danger" />
+                  </div>
+                  <div className="mt-4 max-h-72 overflow-auto divide-y rounded-xl border">
+                    {quality.rows
+                      .filter(({ status }) => status !== 'READY')
+                      .slice(0, 50)
+                      .map((row) => (
+                        <div key={row.rowNumber} className="p-3 text-sm">
+                          <b className={row.status === 'BLOCKED' ? 'text-danger' : 'text-warning'}>
+                            Row {row.rowNumber} · {row.status}
+                          </b>
+                          <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                            {[...row.blockingReasons, ...row.warnings].map((message) => (
+                              <li key={message}>{message}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    {quality.rows.every(({ status }) => status === 'READY') ? (
+                      <p className="p-6 text-center text-sm text-success">
+                        All rows passed validation without warnings.
+                      </p>
+                    ) : null}
+                  </div>
+                  {quality.blocked > 0 && quality.importableIndexes.length > 0 ? (
+                    <label className="mt-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-surface-warning-soft p-4 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={blockedRowsAcknowledged}
+                        onChange={(event) => setBlockedRowsAcknowledged(event.target.checked)}
+                      />
+                      <span>
+                        Import only the {quality.importableIndexes.length} READY/WARNING rows. Skip{' '}
+                        {quality.blocked} BLOCKED rows without sending them to the API.
+                      </span>
+                    </label>
+                  ) : null}
+                  {quality.blocked > 0 && quality.importableIndexes.length === 0 ? (
+                    <p role="alert" className="mt-4 text-sm text-danger">
+                      Every row is BLOCKED. Correct the CSV and upload it again; no mutation is
+                      allowed.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
             </div>
           )}
           {wizard.step === 5 && (
@@ -350,6 +479,7 @@ export function ImportWorkspace() {
               <table className="w-full min-w-[720px] text-left text-xs">
                 <thead className="border-b uppercase text-muted-foreground">
                   <tr>
+                    <th className="p-2">Status</th>
                     {headers.map((header) => (
                       <th key={header} className="p-2">
                         {mappings[header] === 'Ignore' ? header : mappings[header]}
@@ -360,6 +490,9 @@ export function ImportWorkspace() {
                 <tbody className="divide-y">
                   {rows.slice(0, 10).map((row, index) => (
                     <tr key={index}>
+                      <td className="p-2 font-semibold">
+                        {quality?.rows[index]?.status ?? 'BLOCKED'}
+                      </td>
                       {headers.map((header, cell) => (
                         <td key={header} className="max-w-48 truncate p-2">
                           {row[cell]}
@@ -377,30 +510,41 @@ export function ImportWorkspace() {
           {wizard.step === 6 && (
             <div className="rounded-2xl border p-6">
               <h2 className="font-semibold">
-                Ready to create {rows.length} tenant-scoped opportunities
+                Ready to create {quality?.importableIndexes.length ?? 0} tenant-scoped opportunities
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Each row uses the existing authenticated POST endpoint, CSRF protection, RBAC and
                 audit trail. No direct database write is used.
               </p>
-              {issues.rowIssues.length || issues.missingMappings.length ? (
-                <p role="alert" className="mt-3 text-sm text-danger">
-                  Resolve validation issues before importing.
+              {quality?.blocked ? (
+                <p className="mt-3 text-sm text-warning">
+                  {quality.blocked} BLOCKED rows will be skipped under your confirmed
+                  valid-rows-only choice.
                 </p>
-              ) : (
-                <Button
-                  className="mt-4"
-                  disabled={!reference || createState.isLoading}
-                  onClick={importRows}
-                >
+              ) : null}
+              <p
+                role="status"
+                className={cn(
+                  'mt-3 text-sm font-semibold',
+                  importGatePass ? 'text-success' : 'text-danger',
+                )}
+              >
+                Import gate: {importGatePass ? 'PASS' : 'BLOCKED'}
+              </p>
+              {importGatePass ? (
+                <Button className="mt-4" disabled={createState.isLoading} onClick={importRows}>
                   {createState.isLoading ? 'Importing…' : 'Import now'}
                 </Button>
+              ) : (
+                <p role="alert" className="mt-2 text-sm text-danger">
+                  Return to validation and resolve or explicitly handle every blocking row.
+                </p>
               )}
             </div>
           )}
           {wizard.step === 7 && (
             <div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-4">
                 <Metric
                   label="Imported"
                   value={results.filter((result) => result.ok).length}
@@ -411,7 +555,8 @@ export function ImportWorkspace() {
                   value={results.filter((result) => !result.ok).length}
                   tone="danger"
                 />
-                <Metric label="Total" value={results.length} />
+                <Metric label="Skipped" value={quality?.blocked ?? 0} tone="warning" />
+                <Metric label="Attempted" value={results.length} />
               </div>
               <div className="mt-4 max-h-72 overflow-auto divide-y rounded-xl border">
                 {results.map((result) => (
@@ -429,14 +574,6 @@ export function ImportWorkspace() {
                 ))}
               </div>
             </div>
-          )}
-          {results[0]?.row === 0 && (
-            <p
-              role="alert"
-              className="mt-4 rounded-xl bg-surface-danger-soft p-3 text-sm text-danger"
-            >
-              {results[0].message}
-            </p>
           )}
           <div className="mt-6 flex items-center justify-between border-t pt-4">
             <Button
