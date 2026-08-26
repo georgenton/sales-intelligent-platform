@@ -67,14 +67,20 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
     wasOpenRef.current = open;
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      dispatch(setCopilotPanelOpen(false));
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [dispatch, open]);
+
   const closePanel = () => dispatch(setCopilotPanelOpen(false));
 
   const handlePanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      closePanel();
-      return;
-    }
     if (event.key !== 'Tab' || !modal) return;
     const focusable = Array.from(
       panelRef.current?.querySelectorAll<HTMLElement>(

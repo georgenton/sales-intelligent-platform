@@ -111,9 +111,7 @@ test('manager review advances only after an explicit decision', async ({ page })
   await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(headingBefore ?? '');
 });
 
-test('Copilot traps and restores focus, preserves a failed question and retries', async ({
-  page,
-}) => {
+test('critical Copilot and import contracts block unsafe interaction', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 900 });
   let requests = 0;
   await page.route('**/backend/ai/manager-brief', async (route) => {
@@ -126,7 +124,9 @@ test('Copilot traps and restores focus, preserves a failed question and retries'
   });
   await signIn(page, adminEmail, adminPassword!);
 
-  const launcher = page.getByRole('button', { name: 'Open contextual Copilot' });
+  const launcher = page.locator(
+    'button[aria-controls="contextual-copilot-panel"][aria-expanded="false"]',
+  );
   await expect(launcher).toBeVisible();
   await launcher.click();
   const panel = page.getByRole('dialog', { name: 'Contextual Copilot' });
@@ -148,11 +148,7 @@ test('Copilot traps and restores focus, preserves a failed question and retries'
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();
   await expect(launcher).toBeFocused();
-});
 
-test('import rejects workbooks and blocks unconfirmed or invalid rows before mutation', async ({
-  page,
-}) => {
   let opportunityPosts = 0;
   page.on('request', (request) => {
     if (
@@ -162,7 +158,6 @@ test('import rejects workbooks and blocks unconfirmed or invalid rows before mut
       opportunityPosts += 1;
     }
   });
-  await signIn(page, adminEmail, adminPassword!);
   await page.goto('/app/import');
 
   const fileInput = page.locator('input[type="file"]');
@@ -171,7 +166,7 @@ test('import rejects workbooks and blocks unconfirmed or invalid rows before mut
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: Buffer.from('not-an-excel-workbook'),
   });
-  await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+  await expect(page.locator('#import-file-error')).toContainText('Unsupported file type');
   await expect(page.getByText('Upload', { exact: true }).last()).toBeVisible();
 
   await fileInput.setInputFiles({
@@ -198,6 +193,25 @@ test('import rejects workbooks and blocks unconfirmed or invalid rows before mut
   await expect(page.getByText('Every row is BLOCKED')).toBeVisible();
   await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
   expect(opportunityPosts).toBe(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/app/dashboard');
+  const mobileLauncher = page.locator(
+    'button[aria-controls="contextual-copilot-panel"][aria-expanded="false"]',
+  );
+  await mobileLauncher.click();
+  const mobilePanel = page.getByRole('dialog', { name: 'Contextual Copilot' });
+  await expect(mobilePanel).toBeVisible();
+  await expect
+    .poll(async () => mobilePanel.boundingBox())
+    .toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
+  await page.keyboard.press('Escape');
+  await expect(mobileLauncher).toBeFocused();
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.getByRole('region', { name: 'Contextual Copilot' })).toBeVisible();
+  await page.getByRole('button', { name: 'Forecast review' }).click();
+  await expect(page.getByText('System confidence not yet computed').first()).toBeVisible();
 });
 
 test('appearance cycles through Light, Dark and System and persists', async ({ page }) => {
