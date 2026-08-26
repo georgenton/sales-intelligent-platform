@@ -120,23 +120,30 @@ synthetic data only.
 
 ### Vercel
 
-Set the project root to `apps/web`, use the detected Next.js build and configure the server-only
-`API_ORIGIN` for Preview and Production. Pull requests produce previews; production should deploy
-only from a green `main`. Browser traffic uses `/backend/*`, so session cookies stay same-origin.
+The dedicated staging project is `sales-intelligence-staging-georgenton`; its protected stable URL is
+<https://sales-intelligence-staging-georgenton.vercel.app>. The project root is `apps/web`, the
+framework preset is Next.js and the sensitive, server-only `API_ORIGIN` is configured separately for
+Preview and Production. Staging pushes create immutable previews. Promote only a green `staging`
+deployment to the stable staging alias; production remains out of scope. Browser traffic uses a
+validated `/backend/*` Route Handler, so session cookies remain same-origin and the upstream API
+origin is not exposed to client bundles.
 
 ### Railway
 
-Use the repository root and `railway.toml`. Configure `MIGRATION_DATABASE_URL` for the pre-deploy
-owner workflow and `DATABASE_URL` for the restricted runtime login, plus `RUNTIME_DATABASE_USER`,
-`RUNTIME_DATABASE_PASSWORD`, `APP_ENV`, `APP_URL`, `PORT`, `SESSION_TTL_HOURS`, `AI_PROVIDER=mock`
-and `LOG_LEVEL`. The pre-deploy command applies migrations and idempotently provisions the runtime
-login without `SUPERUSER` or `BYPASSRLS`. Enable **Wait for CI** before autodeploy. Health check:
-`/health/ready`.
+Railway staging is declared in [`.railway/railway.ts`](.railway/railway.ts) and applied with
+`pnpm railway-iac-ts apply -p <project-id> -e staging`. The project contains a PostgreSQL service and
+`api-staging`, sourced from the `staging` branch with **Wait for CI**. Configure
+`MIGRATION_DATABASE_URL` for the owner-only pre-deploy workflow and `DATABASE_URL` for the restricted
+runtime login, plus `RUNTIME_DATABASE_USER`, `RUNTIME_DATABASE_PASSWORD`, `APP_ENV`, `APP_URL`,
+`PORT`, `SESSION_TTL_HOURS`, `AI_PROVIDER=mock` and `LOG_LEVEL`. The pre-deploy command applies
+migrations and idempotently provisions a runtime login without `SUPERUSER` or `BYPASSRLS`. Health
+check: `/health/ready`; public staging API: <https://api-staging-staging-96fd.up.railway.app>.
 
 The staging bootstrap is an explicit one-shot operation. It requires `APP_ENV=staging`,
 `ALLOW_STAGING_BOOTSTRAP=true`, a strong `STAGING_ADMIN_PASSWORD`, and the migration credential.
 Remove both bootstrap variables immediately after it succeeds. Never use the local demonstration
-password in a hosted environment.
+password in a hosted environment. Hosted operators run the compiled `/app/dist/scripts/seed.js`
+inside the API container so the owner connection remains on Railway's private network.
 
 No production deployment is performed by this repository bootstrap.
 

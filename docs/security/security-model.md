@@ -26,8 +26,9 @@ sets `app.current_tenant_id` with transaction-local scope. RLS policies use that
 and `WITH CHECK`, and tables use `FORCE ROW LEVEL SECURITY`. The role has no `BYPASSRLS`.
 
 Identity bootstrap tables are deliberately outside business RLS; access to them is confined to auth
-services. Production should use separate migration and runtime login roles. The migration creates a
-NOLOGIN capability role; the platform operator grants it to the runtime login.
+services. Hosted environments use separate migration and runtime login roles. The migration creates
+a NOLOGIN capability role; Railway staging grants it to a restricted `NOINHERIT`, `NOSUPERUSER`,
+`NOCREATEDB`, `NOCREATEROLE`, `NOBYPASSRLS` runtime login.
 
 ## Application controls
 
@@ -40,8 +41,14 @@ NOLOGIN capability role; the platform operator grants it to the runtime login.
 - Consistent error envelopes with no production stack traces.
 - Frozen lockfile, Dependabot, dependency audit and Gitleaks CI.
 
-## Known boundary
+## Hosted verification
 
 The local compose connection uses the owner account for migrations and then adopts `app_runtime`
-inside business transactions. Hosted environments must provision a genuinely separate runtime login;
-that infrastructure action cannot be completed without platform credentials.
+inside business transactions. Railway staging additionally runs with a genuinely separate runtime
+login. Verification covers restricted role attributes, RLS SELECT/INSERT/UPDATE enforcement and
+public authenticated attempts to read and update a foreign tenant UUID. Login cookies are checked for
+`Secure`/`SameSite=Lax`, the session cookie for `HttpOnly`, and mutations for CSRF rejection.
+
+Vercel staging keeps platform deployment protection enabled. The API trusts exactly one reverse proxy
+hop for Express attribution. Its throttle tracker uses Railway's overwritten `X-Real-IP` only when
+Railway request markers are also present, and otherwise falls back to the adapter-derived address.

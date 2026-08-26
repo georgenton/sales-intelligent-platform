@@ -27,6 +27,7 @@
     "db:provision:runtime": "pnpm --filter @sip/api db:provision:runtime",
     "db:seed": "pnpm --filter @sip/api db:seed",
     "db:bootstrap:staging": "pnpm --filter @sip/api db:bootstrap:staging",
+    "db:rotate:staging-admin": "pnpm --filter @sip/api db:rotate:staging-admin",
     "import:excel": "pnpm --filter @sip/api import:excel",
     "security:audit": "pnpm audit --audit-level high"
   },
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "prettier": "3.9.6",
+    "railway": "^3.11.0",
     "turbo": "2.10.11"
   }
 }

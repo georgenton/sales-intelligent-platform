@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && tsc -p tsconfig.seed.json",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "lint": "eslint src test prisma --max-warnings=0",
@@ -17,6 +17,8 @@
     "db:provision:runtime": "tsx src/scripts/provision-runtime-role.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap:staging": "tsx prisma/seed.ts --staging",
+    "db:rotate:staging-admin": "tsx prisma/rotate-staging-admin-password.ts",
+    "db:verify:staging-security": "tsx src/scripts/verify-staging-security.ts --staging",
     "import:excel": "tsx src/modules/imports/excel-importer.cli.ts"
   },
   "dependencies": {

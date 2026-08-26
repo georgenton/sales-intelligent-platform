@@ -24,9 +24,9 @@
 | `prisma migrate dev`         | Passed; initial migration applied                                    |
 | `pnpm db:seed`               | Passed; 40 synthetic opportunities                                   |
 | `prisma migrate status`      | Passed; one migration, schema up to date                             |
-| `pnpm test:tenant-isolation` | Passed; 3/3 tests                                                    |
+| `pnpm test:tenant-isolation` | Passed; 4/4 tests                                                    |
 | `pnpm test:integration`      | Passed; 5/5 tests                                                    |
-| `pnpm test`                  | Passed; 5 API + 1 shared unit tests                                  |
+| `pnpm test`                  | Passed; 8 API + 1 shared unit tests                                  |
 | `pnpm typecheck`             | Passed for API, web and shared packages                              |
 | `pnpm lint`                  | Passed with zero warnings                                            |
 | `pnpm format:check`          | Passed                                                               |
@@ -56,10 +56,16 @@
   Docker build now generates the client inside the final `/app` artifact.
 - The RLS fixture originally pushed tenant IDs from parallel promises in nondeterministic order; it
   now records IDs from the resolved named fixtures and passes repeatedly.
+- External rewrites from Vercel could not reach the Railway hostname reliably; a validated,
+  server-only Next.js Route Handler now proxies `/backend/*` and preserves session cookies.
+- Railway proxy addresses initially prevented the per-IP login throttle from converging; the tracker
+  now uses Railway's overwritten real-IP header only when platform request markers are present, with
+  adapter-IP fallback elsewhere.
 
 ## Risks and accepted debt
 
-- Hosted runtime/migration roles require platform credentials and remain an operator deployment step.
+- GitHub branch rules for this private repository require a paid plan; CI is green but enforcement is
+  not active on the current Free account.
 - OIDC/SAML, OpenAI adapter, automatic weekly snapshots, channel-cutoff evaluation and advanced
   forecast accuracy are intentionally deferred.
 - The importer maps the `Oppty` vertical slice; other workbook sheets are detected but not yet
