@@ -100,4 +100,60 @@ describe('safe import contract', () => {
       }),
     ).toBe(true);
   });
+
+  it('passes an all-valid row without converting it into a warning', () => {
+    const completeHeaders = [...headers, 'Seller', 'Forecast category', 'Description'];
+    const completeMappings = Object.fromEntries(
+      completeHeaders.map((header) => [header, header]),
+    ) as Record<string, ImportField>;
+    const quality = validateImportRows({
+      headers: completeHeaders,
+      mappings: completeMappings,
+      reference,
+      rows: [
+        [
+          'Renewal',
+          'Acme',
+          'Commit',
+          '1000',
+          '2026-09-30',
+          'Contoso',
+          'Alex Seller',
+          'COMMIT',
+          'Verified renewal scope',
+        ],
+      ],
+    });
+
+    expect(quality).toMatchObject({
+      status: 'PASS',
+      ready: 1,
+      warning: 0,
+      blocked: 0,
+      importableIndexes: [0],
+    });
+  });
+
+  it('allows warnings-only data through the import gate', () => {
+    const quality = validateImportRows({
+      headers,
+      mappings,
+      reference,
+      rows: [['Renewal', 'Acme', 'Commit', '1000', '2026-09-30', 'Contoso']],
+    });
+    const validMappings = validateImportMappings(
+      headers,
+      mappings,
+      Object.fromEntries(headers.map((header) => [header, true])),
+    );
+
+    expect(quality).toMatchObject({ status: 'WARNING', warning: 1, blocked: 0 });
+    expect(
+      canPassImportGate({
+        mappingValidation: validMappings,
+        quality,
+        blockedRowsAcknowledged: false,
+      }),
+    ).toBe(true);
+  });
 });

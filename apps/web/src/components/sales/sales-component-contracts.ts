@@ -55,7 +55,12 @@ export function resolveQuotaProgress(input: QuotaProgressState): ResolvedQuotaPr
 }
 
 export type ForecastConfidenceState =
-  | { state: 'AVAILABLE'; confidence: number; alignment: 'ALIGNED' | 'DIVERGES' }
+  | {
+      state: 'AVAILABLE';
+      confidence: number;
+      range: { min: number; max: number };
+      alignment: 'ALIGNED' | 'DIVERGES';
+    }
   | {
       state: 'LOADING' | 'INSUFFICIENT_DATA' | 'UNAVAILABLE' | 'ERROR';
       confidence?: never;
@@ -66,6 +71,7 @@ export type ResolvedForecastConfidence =
   | {
       state: 'AVAILABLE';
       confidence: number;
+      range: { min: number; max: number };
       relationship: 'Aligned with seller call' | 'Differs from seller call';
     }
   | {
@@ -90,9 +96,12 @@ export function resolveForecastConfidence(
     };
   }
 
+  const firstBound = Math.min(100, Math.max(0, input.range.min));
+  const secondBound = Math.min(100, Math.max(0, input.range.max));
   return {
     state: input.state,
     confidence: Math.min(100, Math.max(0, input.confidence)),
+    range: { min: Math.min(firstBound, secondBound), max: Math.max(firstBound, secondBound) },
     relationship:
       input.alignment === 'ALIGNED' ? 'Aligned with seller call' : 'Differs from seller call',
   };

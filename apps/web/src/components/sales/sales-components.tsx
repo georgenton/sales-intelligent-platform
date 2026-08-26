@@ -446,11 +446,11 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
     );
   }
 
-  const { confidence, relationship } = resolved;
+  const { confidence, range, relationship } = resolved;
   return (
     <div
       className="rounded-xl border p-3"
-      aria-label={`Seller forecast ${sellerCall}. System confidence ${confidence} percent. ${relationship}.`}
+      aria-label={`Seller forecast ${sellerCall}. System confidence ${confidence} percent. Range ${range.min} to ${range.max} percent. ${relationship}.`}
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold text-muted-foreground">
@@ -465,7 +465,9 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
           {confidence}% confidence
         </b>
       </div>
-      <p className="mt-1 text-[11px] font-medium text-muted-foreground">{relationship}</p>
+      <p className="mt-1 text-[11px] font-medium text-muted-foreground">
+        {range.min}–{range.max}% confidence range · {relationship}
+      </p>
       <div className="mt-2 h-2 rounded-full bg-surface-sunken" aria-hidden="true">
         <span className="block h-2 rounded-full bg-primary" style={{ width: `${confidence}%` }} />
       </div>
