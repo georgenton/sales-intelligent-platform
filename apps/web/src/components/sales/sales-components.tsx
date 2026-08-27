@@ -611,29 +611,31 @@ export function SalesFunnel({
           );
         })}
       </div>
-      <table className="sr-only">
-        <caption>{t('funnelData')}</caption>
-        <thead>
-          <tr>
-            <th>{t('stage')}</th>
-            <th>{t('amount')}</th>
-            <th>{t('opportunities')}</th>
-            <th>{t('atRiskLabel')}</th>
-            <th>{t('avgDays')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {stages.map((stage) => (
-            <tr key={stage.stage}>
-              <td>{stage.stage}</td>
-              <td>{stage.amount}</td>
-              <td>{stage.count}</td>
-              <td>{stage.atRiskAmount ?? 0}</td>
-              <td>{stage.avgDaysInStage ?? tValue('notAvailable')}</td>
+      <div className="sr-only">
+        <table>
+          <caption>{t('funnelData')}</caption>
+          <thead>
+            <tr>
+              <th>{t('stage')}</th>
+              <th>{t('amount')}</th>
+              <th>{t('opportunities')}</th>
+              <th>{t('atRiskLabel')}</th>
+              <th>{t('avgDays')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {stages.map((stage) => (
+              <tr key={stage.stage}>
+                <td>{stage.stage}</td>
+                <td>{stage.amount}</td>
+                <td>{stage.count}</td>
+                <td>{stage.atRiskAmount ?? 0}</td>
+                <td>{stage.avgDaysInStage ?? tValue('notAvailable')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {selected && renderDetail && (
         <div className="mt-5 border-t pt-5">{renderDetail(selected)}</div>
       )}
