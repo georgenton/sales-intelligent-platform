@@ -13,4 +13,9 @@ describe('message catalog contract', () => {
   it('keeps English and Spanish namespaces in parity', () => {
     expect(leafKeys(spanish)).toEqual(leafKeys(english));
   });
+
+  it('includes shared sales labels used by compact KPI contracts', () => {
+    expect(english.sales.remainingGap).toBe('Remaining gap');
+    expect(spanish.sales.remainingGap).toBe('Brecha restante');
+  });
 });

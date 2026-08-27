@@ -257,9 +257,9 @@ function ManagerStandard({
           </>
         }
       />
-      <div className="grid gap-density-grid xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.9fr)]">
+      <div className="grid gap-density-grid xl:grid-cols-[minmax(0,1.7fr)_minmax(260px,0.82fr)]">
         <div className="space-y-density-grid">
-          <div className="grid gap-density-grid sm:grid-cols-3">
+          <div className="grid gap-density-grid sm:grid-cols-[1.35fr_1fr_1fr]">
             <RevenueKPI
               hero
               label={t('forecast')}

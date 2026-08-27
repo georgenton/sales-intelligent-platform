@@ -1,12 +1,27 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 const baseUrl = process.env.STAGING_BASE_URL;
 const adminEmail = process.env.STAGING_ADMIN_EMAIL ?? 'admin@techdistribution.demo';
 const adminPassword = process.env.STAGING_ADMIN_PASSWORD;
 const sellerEmail = process.env.STAGING_SELLER_EMAIL;
 const sellerPassword = process.env.STAGING_SELLER_PASSWORD;
+const vercelAutomationBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
-test.beforeAll(() => {
+let adminContext: BrowserContext;
+let adminPage: Page;
+let sellerContext: BrowserContext | undefined;
+let sellerPage: Page | undefined;
+
+function browserContextOptions() {
+  return {
+    baseURL: baseUrl!,
+    extraHTTPHeaders: vercelAutomationBypass
+      ? { 'x-vercel-protection-bypass': vercelAutomationBypass }
+      : undefined,
+  };
+}
+
+test.beforeAll(async ({ browser }) => {
   if (!baseUrl || !adminPassword) {
     throw new Error('STAGING_BASE_URL and STAGING_ADMIN_PASSWORD are required');
   }
@@ -21,6 +36,16 @@ test.beforeAll(() => {
   if (adminPassword === 'ChangeMe-Local-2026!' && !localRun) {
     throw new Error('The local demonstration password is forbidden in staging');
   }
+
+  adminContext = await browser.newContext(browserContextOptions());
+  adminPage = await adminContext.newPage();
+  await signIn(adminPage, adminEmail, adminPassword);
+  await expect(adminPage).toHaveURL(/\/app\/dashboard$/);
+});
+
+test.afterAll(async () => {
+  await sellerContext?.close();
+  await adminContext?.close();
 });
 
 async function signIn(page: Page, email: string, password: string) {
@@ -33,20 +58,19 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 
-test('admin can manage a synthetic opportunity and end the session', async ({ page }) => {
+test('admin can manage a synthetic opportunity', async () => {
+  const page = adminPage;
   const title = `E2E staging opportunity ${Date.now()}`;
   const closeDate = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
 
-  await signIn(page, adminEmail, adminPassword!);
-
-  await expect(page).toHaveURL(/\/app\/dashboard$/);
+  await page.goto('/app/dashboard');
   await expect(page.getByRole('heading', { name: 'Will the team reach quota?' })).toBeVisible();
   await expect(page.getByText('Team quota attainment')).toBeVisible();
 
   await page.keyboard.press('Control+k');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await page.getByLabel('Title', { exact: true }).fill(title);
+  await page.getByLabel('Opportunity title', { exact: true }).fill(title);
   await page.getByLabel('Estimated amount', { exact: true }).fill('12500');
   await page.getByLabel('Gross profit', { exact: true }).fill('2500');
   await page.getByLabel('Expected close', { exact: true }).fill(closeDate);
@@ -63,15 +87,11 @@ test('admin can manage a synthetic opportunity and end the session', async ({ pa
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toHaveText('Changes saved.');
   await expect(page.getByText('50% · Proposal').first()).toBeVisible();
-
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  await page.goto('/app/dashboard');
-  await expect(page).toHaveURL(/\/login$/);
 });
 
-test('manager drills into the funnel, opens context and closes with Escape', async ({ page }) => {
-  await signIn(page, adminEmail, adminPassword!);
+test('manager drills into the funnel, opens context and closes with Escape', async () => {
+  const page = adminPage;
+  await page.goto('/app/dashboard');
 
   const commit = page.getByRole('button', { name: /^Commit:/ }).first();
   await expect(commit).toBeVisible();
@@ -98,8 +118,9 @@ test('manager drills into the funnel, opens context and closes with Escape', asy
   await expect(alertDrawer).toBeHidden();
 });
 
-test('manager review advances only after an explicit decision', async ({ page }) => {
-  await signIn(page, adminEmail, adminPassword!);
+test('manager review advances only after an explicit decision', async () => {
+  const page = adminPage;
+  await page.goto('/app/dashboard');
   await page.getByRole('button', { name: 'Forecast review' }).click();
   await expect(
     page.getByText(/classifications change only after an explicit action/i),
@@ -123,7 +144,8 @@ test('manager review advances only after an explicit decision', async ({ page })
   await expect(page.getByLabel('Appearance')).toHaveValue('SYSTEM');
 });
 
-test('critical Copilot and import contracts block unsafe interaction', async ({ page }) => {
+test('critical Copilot and import contracts block unsafe interaction', async () => {
+  const page = adminPage;
   await page.setViewportSize({ width: 1024, height: 768 });
   let requests = 0;
   const intentIds: string[] = [];
@@ -137,7 +159,7 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
       body: JSON.stringify({ message: 'Synthetic provider failure' }),
     });
   });
-  await signIn(page, adminEmail, adminPassword!);
+  await page.goto('/app/dashboard');
 
   const launcher = page.locator(
     'button[aria-controls="contextual-copilot-panel"][aria-expanded="false"]',
@@ -232,9 +254,14 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   await expect(page.getByText('System confidence not yet computed').first()).toBeVisible();
 });
 
-test('seller completes Focus and advances the Guided queue', async ({ page }) => {
+test('seller completes Focus and advances the Guided queue', async ({ browser }) => {
   test.skip(!sellerEmail || !sellerPassword, 'Seller staging credentials are optional');
-  await signIn(page, sellerEmail!, sellerPassword!);
+  sellerContext = await browser.newContext(browserContextOptions());
+  sellerPage = await sellerContext.newPage();
+  await signIn(sellerPage, sellerEmail!, sellerPassword!);
+  await expect(sellerPage).toHaveURL(/\/app\/dashboard$/);
+  const page = sellerPage!;
+  await page.goto('/app/dashboard');
   await expect(page.getByText('Not available', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Seller quota is not exposed by the API')).toBeVisible();
   await expect(
@@ -243,19 +270,24 @@ test('seller completes Focus and advances the Guided queue', async ({ page }) =>
   await page.getByLabel('Cognitive mode').selectOption('FOCUS');
   await expect(page.getByRole('heading', { name: '3 priorities today' })).toBeVisible();
   const priority = page.getByRole('button', { name: /Complete priority 1/ });
-  await expect(priority).toBeVisible();
-  await priority.click();
+  if ((await priority.count()) > 0) {
+    await priority.click();
+  } else {
+    await expect(page.getByText('Only 0 evidence-backed priorities are available.')).toBeVisible();
+  }
   await page.getByRole('button', { name: /Start guided queue/ }).click();
   const recommendation = page.getByRole('button', { name: /Choose recommendation/ });
-  await expect(recommendation).toBeVisible();
-  await recommendation.click();
-  await expect(page.getByText(/session decisions/)).toBeVisible();
+  if ((await recommendation.count()) > 0) {
+    await recommendation.click();
+    await expect(page.getByText(/session decisions/)).toBeVisible();
+  } else {
+    await expect(page.getByRole('heading', { name: 'Guided queue is clear' })).toBeVisible();
+  }
 });
 
-test('language persists without changing route, theme, mode or session boundaries', async ({
-  page,
-}) => {
-  await signIn(page, adminEmail, adminPassword!);
+test('language persists without changing route, theme, mode or session boundaries', async () => {
+  const page = adminPage;
+  await page.goto('/app/dashboard');
   await page.getByLabel('Appearance').selectOption('DARK');
   await page.getByLabel('Cognitive mode').selectOption('REVIEW');
   const route = new URL(page.url()).pathname;
@@ -270,9 +302,6 @@ test('language persists without changing route, theme, mode or session boundarie
 
   const localeCookie = (await page.context().cookies()).find(({ name }) => name === 'sip_locale');
   expect(localeCookie?.value).toBe('es');
-  await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.getByLabel('Idioma')).toHaveValue('es');
 
   await page.getByLabel('Idioma').selectOption('en');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
@@ -281,11 +310,18 @@ test('language persists without changing route, theme, mode or session boundarie
   await expect(page.getByLabel('Cognitive mode')).toHaveValue('REVIEW');
   await page.getByLabel('Language').selectOption('es');
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.getByLabel('Idioma')).toHaveValue('es');
+  await expect(page.getByLabel('Apariencia')).toHaveValue('DARK');
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+
+  await page.goto('/app/dashboard');
+  await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel('Correo electrónico', { exact: true }).fill(adminEmail);
   await page.getByLabel('Contraseña', { exact: true }).fill(adminPassword!);

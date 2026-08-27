@@ -214,6 +214,7 @@
     "billed": "Facturado",
     "forecast": "Pronóstico",
     "gap": "Brecha",
+    "remainingGap": "Brecha restante",
     "drivers": "Impulsores principales",
     "forecastAbove": "El pronóstico supera la cuota.",
     "pipelineAction": "Todavía se requiere acción en el pipeline para proteger el cumplimiento.",

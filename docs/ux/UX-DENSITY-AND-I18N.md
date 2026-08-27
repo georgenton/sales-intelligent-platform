@@ -43,7 +43,7 @@ The source of truth is `apps/web/src/app/globals.css`.
 | `--density-control-height`   | 42 px         | Buttons, inputs, selects  |
 | `--density-table-row-height` | 44 px         | Data tables               |
 | `--type-page-title`          | 28–32 px      | Page questions and titles |
-| `--type-kpi-primary`         | 36–44 px      | Primary revenue KPI       |
+| `--type-kpi-primary`         | 36–40 px      | Primary revenue KPI       |
 | `--type-kpi-secondary`       | 24–28 px      | Secondary KPIs            |
 | `--type-section-title`       | 18–22 px      | Section titles            |
 | `--type-body`                | 14 px         | Product body copy         |

@@ -214,6 +214,7 @@
     "billed": "Billed",
     "forecast": "Forecast",
     "gap": "Gap",
+    "remainingGap": "Remaining gap",
     "drivers": "Primary drivers",
     "forecastAbove": "Forecast is above quota.",
     "pipelineAction": "Pipeline action is still required to protect attainment.",
