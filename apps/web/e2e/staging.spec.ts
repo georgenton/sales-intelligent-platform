@@ -193,6 +193,104 @@ test('manager drills into the funnel, opens context and closes with Escape', asy
   await expect(alertDrawer).toBeHidden();
 });
 
+test('funnel semantics stay accessible without horizontal page overflow', async () => {
+  const page = adminPage;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/app/dashboard', { waitUntil: 'networkidle' });
+
+  const scenarios = [
+    { width: 390, height: 844, locale: 'es', appearance: 'LIGHT' },
+    { width: 390, height: 844, locale: 'es', appearance: 'DARK' },
+    { width: 390, height: 844, locale: 'en', appearance: 'LIGHT' },
+    { width: 375, height: 812, locale: 'es', appearance: 'LIGHT' },
+    { width: 360, height: 800, locale: 'es', appearance: 'LIGHT' },
+    { width: 1024, height: 768, locale: 'es', appearance: 'LIGHT' },
+    { width: 1440, height: 1024, locale: 'es', appearance: 'LIGHT' },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    await page.setViewportSize({ width: scenario.width, height: scenario.height });
+    const currentLocale = await page.locator('html').getAttribute('lang');
+    await page
+      .getByLabel(currentLocale === 'es' ? 'Idioma' : 'Language')
+      .selectOption(scenario.locale);
+    await expect(page.locator('html')).toHaveAttribute('lang', scenario.locale);
+    await page.evaluate(
+      (appearance) => localStorage.setItem('sip-appearance', appearance),
+      scenario.appearance,
+    );
+    await page.reload({ waitUntil: 'networkidle' });
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-theme',
+      scenario.appearance.toLowerCase(),
+    );
+
+    const widths = await page.evaluate(() => ({
+      innerWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+    }));
+    expect(widths.documentWidth).toBeLessThanOrEqual(widths.innerWidth);
+    expect(widths.bodyWidth).toBeLessThanOrEqual(widths.innerWidth);
+  }
+
+  const semanticTable = page.getByRole('table', { name: 'Datos del embudo de ventas' });
+  await expect(semanticTable).toBeAttached();
+  await expect(semanticTable.getByRole('row')).toHaveCount(5);
+  await expect(semanticTable.getByRole('cell', { name: 'Commit', exact: true })).toBeAttached();
+  expect(
+    await semanticTable
+      .locator('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      .count(),
+  ).toBe(0);
+
+  const hiddenContainer = semanticTable.locator('..');
+  const hiddenContainerStyles = await hiddenContainer.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      position: style.position,
+      width: style.width,
+      height: style.height,
+      padding: style.padding,
+      margin: style.margin,
+      overflow: style.overflow,
+      clip: style.clip,
+      clipPath: style.clipPath,
+      whiteSpace: style.whiteSpace,
+      borderWidth: style.borderWidth,
+    };
+  });
+  expect(hiddenContainerStyles).toMatchObject({
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: '0px',
+    margin: '-1px',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    borderWidth: '0px',
+  });
+  expect(hiddenContainerStyles.clip !== 'auto' || hiddenContainerStyles.clipPath !== 'none').toBe(
+    true,
+  );
+  await expect
+    .poll(async () => hiddenContainer.boundingBox())
+    .toMatchObject({ width: 1, height: 1 });
+
+  const commit = page.getByRole('button', { name: /^Commit:/ }).first();
+  await commit.focus();
+  await expect(commit).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText(/Commit · \d+ oportunidades/)).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText(/Commit · \d+ oportunidades/)).toBeHidden();
+
+  await page.getByLabel('Apariencia').selectOption('SYSTEM');
+  await page.getByLabel('Idioma').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await page.setViewportSize({ width: 1440, height: 1024 });
+});
+
 test('manager review advances only after an explicit decision', async () => {
   const page = adminPage;
   await page.goto('/app/dashboard');
