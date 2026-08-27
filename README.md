@@ -147,6 +147,12 @@ inside the API container so the owner connection remains on Railway's private ne
 
 No production deployment is performed by this repository bootstrap.
 
+## User Acceptance Testing
+
+Manual staging UAT procedures are documented in:
+
+[UAT Testing Guide](docs/uat/UAT-TESTING-GUIDE.md)
+
 ## Security notes
 
 Do not commit secrets, real spreadsheets, tokens or credentials. `data/private/` and all real env
