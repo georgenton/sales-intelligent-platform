@@ -14,6 +14,7 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { CreateSnapshotButton } from '@/components/forecast/create-snapshot-button';
 import {
@@ -30,8 +31,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import type { AppLocale } from '@/i18n/config';
 import type { AlertData, DashboardData, OpportunityData } from '@/lib/types';
-import { cn, formatCurrency, formatDateOnly } from '@/lib/utils';
+import { cn, formatCurrency, formatDateOnly, formatNumber } from '@/lib/utils';
 import { useUpdateOpportunityMutation } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
@@ -64,10 +66,10 @@ function ScreenHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.13em] text-primary">{eyebrow}</p>
-        <h1 className="mt-1 text-balance text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
+        <h1 className="mt-1 text-balance text-page-title font-semibold tracking-[-0.04em]">
           {title}
         </h1>
         <p className="mt-2 text-xs text-muted-foreground sm:text-sm">{meta}</p>
@@ -78,13 +80,14 @@ function ScreenHeader({
 }
 
 function FilterBar({ data }: { data: DashboardData }) {
+  const t = useTranslations();
   const dispatch = useAppDispatch();
   const search = useAppSelector((state) => state.productUi.dashboardFilters.search);
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2 shadow-[var(--shadow-card)]">
       <label className="flex h-8 items-center gap-2 rounded-lg bg-muted px-3 text-xs">
         <CalendarCheck2 className="size-3.5 text-primary" />
-        <span className="sr-only">Active fiscal period</span>
+        <span className="sr-only">{t('accessibility.activeFiscalPeriod')}</span>
         <select className="bg-transparent font-semibold outline-none">
           <option>{data.period.label}</option>
         </select>
@@ -97,15 +100,20 @@ function FilterBar({ data }: { data: DashboardData }) {
             dispatch(setDashboardFilter({ key: 'search', value: event.target.value }))
           }
           className="h-8 border-0 bg-muted pl-8 text-xs"
-          placeholder="Filter this view"
+          placeholder={t('accessibility.filterView')}
         />
       </label>
-      <Badge className="ml-auto bg-secondary text-secondary-foreground">Live tenant data</Badge>
+      <Badge className="ml-auto bg-secondary text-secondary-foreground">
+        {t('common.liveTenantData')}
+      </Badge>
     </div>
   );
 }
 
 function OpportunityRow({ opportunity }: { opportunity: OpportunityData }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('opportunities');
+  const tSales = useTranslations('sales');
   const dispatch = useAppDispatch();
   return (
     <button
@@ -125,15 +133,17 @@ function OpportunityRow({ opportunity }: { opportunity: OpportunityData }) {
           )}
         </span>
         <span className="mt-1 block text-xs text-muted-foreground">
-          {opportunity.stage.name} · {opportunity.seller.name} · closes{' '}
-          {formatDateOnly(opportunity.expectedCloseDate)}
+          {opportunity.stage.name} · {opportunity.seller.name} · {t('expectedClose')}{' '}
+          {formatDateOnly(opportunity.expectedCloseDate, locale)}
         </span>
       </span>
       <span className="text-right">
         <b className="tnum block text-sm">
-          {formatCurrency(opportunity.estimatedAmount, opportunity.currency)}
+          {formatCurrency(opportunity.estimatedAmount, opportunity.currency, locale)}
         </b>
-        <span className="text-[11px] text-muted-foreground">Health {opportunity.health.score}</span>
+        <span className="text-[11px] text-muted-foreground">
+          {tSales('health')} {opportunity.health.score}
+        </span>
       </span>
     </button>
   );
@@ -146,6 +156,9 @@ function FunnelCard({
   data: DashboardData;
   opportunities: OpportunityData[];
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('sales');
+  const tCommon = useTranslations('common');
   const dispatch = useAppDispatch();
   const selectedStage = useAppSelector((state) => state.productUi.expandedFunnelStage);
   const stages = useMemo<FunnelStageDatum[]>(
@@ -172,12 +185,10 @@ function FunnelCard({
     <Card>
       <CardHeader className="flex-row items-start justify-between">
         <div>
-          <CardTitle>Sales funnel</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Focus for mechanics; select to expand inline.
-          </p>
+          <CardTitle>{t('salesFunnel')}</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">{t('funnelHint')}</p>
         </div>
-        <RiskBadge severity="HIGH" label={`${data.kpis.atRisk} at risk`} />
+        <RiskBadge severity="HIGH" label={t('atRisk', { count: data.kpis.atRisk })} />
       </CardHeader>
       <CardContent>
         <SalesFunnel
@@ -193,10 +204,10 @@ function FunnelCard({
               <div>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold">
-                    {stage?.stage} · {stage?.count} opportunities
+                    {stage?.stage} · {tCommon('opportunityCount', { count: stage?.count ?? 0 })}
                   </h3>
-                  <Badge>{formatCurrency(stage?.amount ?? 0, data.currency)}</Badge>
-                  <RiskBadge severity="HIGH" label={`${stage?.atRisk ?? 0} at risk`} />
+                  <Badge>{formatCurrency(stage?.amount ?? 0, data.currency, locale)}</Badge>
+                  <RiskBadge severity="HIGH" label={t('atRisk', { count: stage?.atRisk ?? 0 })} />
                 </div>
                 <div className="grid gap-2 lg:grid-cols-2">
                   {rows.slice(0, 6).map((opportunity) => (
@@ -204,9 +215,7 @@ function FunnelCard({
                   ))}
                 </div>
                 {!rows.length && (
-                  <p className="text-xs text-muted-foreground">
-                    No row in the current permission scope is available for drilldown.
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t('drilldownEmpty')}</p>
                 )}
               </div>
             );
@@ -224,6 +233,8 @@ function ManagerStandard({
   data: DashboardData;
   opportunities: OpportunityData[];
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('manager');
   const dispatch = useAppDispatch();
   const [expandedSeller, setExpandedSeller] = useState<string | null>(null);
   const risky = opportunities
@@ -233,47 +244,49 @@ function ManagerStandard({
   return (
     <>
       <ScreenHeader
-        eyebrow="Revenue command center"
-        title="Will the team reach quota?"
-        meta={`${data.period.label} · forecast confidence based on current tenant data`}
+        eyebrow={t('eyebrow')}
+        title={t('question')}
+        meta={t('periodMeta', { period: data.period.label })}
         actions={
           <>
             <CreateSnapshotButton />
             <Button size="sm" onClick={() => dispatch(setExperienceMode('REVIEW'))}>
               <ClipboardCheck className="size-4" />
-              Forecast review
+              {t('forecastReview')}
             </Button>
           </>
         }
       />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.9fr)]">
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-density-grid xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.9fr)]">
+        <div className="space-y-density-grid">
+          <div className="grid gap-density-grid sm:grid-cols-3">
             <RevenueKPI
               hero
-              label="Forecast"
+              label={t('forecast')}
               value={data.kpis.forecast}
               currency={data.currency}
-              detail={`${attainment.toFixed(1)}% likely attainment`}
+              detail={t('likelyAttainment', {
+                value: formatNumber(attainment, locale, { maximumFractionDigits: 1 }),
+              })}
               icon={<TrendingUp className="size-4" />}
             />
             <RevenueKPI
-              label="Quota"
+              label={t('quota')}
               value={data.kpis.quota}
               currency={data.currency}
               detail={data.period.label}
             />
             <RevenueKPI
-              label="Gap"
+              label={t('gap')}
               value={data.kpis.gap}
               currency={data.currency}
               tone="risk"
-              detail="remaining to quota"
+              detail={t('remainingToQuota')}
               icon={<Target className="size-4" />}
             />
           </div>
           <Card>
-            <CardContent className="p-5">
+            <CardContent className="p-density-card">
               {data.kpis.quota > 0 ? (
                 <QuotaProgress
                   state="AVAILABLE"
@@ -281,53 +294,59 @@ function ManagerStandard({
                   billed={data.kpis.billed}
                   forecast={Math.max(0, data.kpis.forecast - data.kpis.billed)}
                   currency={data.currency}
-                  label="Team quota attainment"
+                  label={t('teamQuotaAttainment')}
                 />
               ) : (
                 <QuotaProgress
                   state="NOT_CONFIGURED"
                   currency={data.currency}
-                  label="Team quota attainment"
+                  label={t('teamQuotaAttainment')}
                 />
               )}
             </CardContent>
           </Card>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-density-grid sm:grid-cols-3">
             <RevenueKPI
-              label="Billed"
+              label={t('billed')}
               value={data.kpis.billed}
               currency={data.currency}
               tone="positive"
-              detail={`${data.kpis.billingAttainment.toFixed(1)}% of quota`}
+              detail={t('ofQuota', {
+                value: formatNumber(data.kpis.billingAttainment, locale, {
+                  maximumFractionDigits: 1,
+                }),
+              })}
             />
             <RevenueKPI
-              label="Commit"
+              label={t('commit')}
               value={data.kpis.commit}
               currency={data.currency}
-              detail="current quarter"
+              detail={t('currentQuarter')}
             />
             <RevenueKPI
-              label="Coverage"
+              label={t('coverage')}
               value={data.kpis.pipelineCoverage}
               format="multiple"
-              detail="pipeline / gap"
+              detail={t('pipelineGap')}
             />
           </div>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-density-grid">
           <Card className="border-primary/25 bg-copilot text-sidebar-foreground">
-            <CardContent className="p-5">
+            <CardContent className="p-density-card">
               <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-copilot-accent">
                 <Sparkles className="size-4" />
-                Command insight
+                {t('commandInsight')}
               </p>
               <p className="mt-3 text-lg font-semibold">
                 {data.kpis.gap > 0
-                  ? `${formatCurrency(data.kpis.gap, data.currency)} remains to quota.`
-                  : 'Forecast currently covers quota.'}
+                  ? t('gapRemains', {
+                      amount: formatCurrency(data.kpis.gap, data.currency, locale),
+                    })
+                  : t('forecastCovers')}
               </p>
               <p className="mt-2 text-sm leading-6 text-sidebar-muted">
-                {data.kpis.atRisk} open signals can change the current position.
+                {t('openSignals', { count: data.kpis.atRisk })}
               </p>
               <Button
                 size="sm"
@@ -335,14 +354,14 @@ function ManagerStandard({
                 onClick={() => dispatch(setCopilotPanelOpen(true))}
               >
                 <Bot className="size-4" />
-                Explain position
+                {t('explainPosition')}
               </Button>
             </CardContent>
           </Card>
           <QuotaGap
             gap={data.kpis.gap}
             currency={data.currency}
-            interpretation={`${risky.length} visible deals carry active risk evidence.`}
+            interpretation={t('riskEvidence', { count: risky.length })}
             drivers={risky.slice(0, 3).map((opportunity) => ({
               label: opportunity.customer.name,
               amount: opportunity.estimatedAmount,
@@ -356,22 +375,20 @@ function ManagerStandard({
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
         <Card>
           <CardHeader>
-            <CardTitle>High-risk opportunities</CardTitle>
-            <p className="text-xs text-muted-foreground">Current evidence-backed signals.</p>
+            <CardTitle>{t('highRisk')}</CardTitle>
+            <p className="text-xs text-muted-foreground">{t('evidenceSignals')}</p>
           </CardHeader>
           <CardContent className="space-y-2">
             {risky.slice(0, 6).map((opportunity) => (
               <OpportunityRow key={opportunity.id} opportunity={opportunity} />
             ))}
-            {!risky.length && (
-              <p className="text-sm text-muted-foreground">No open risk signals.</p>
-            )}
+            {!risky.length && <p className="text-sm text-muted-foreground">{t('noRisk')}</p>}
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Brands</CardTitle>
-            <p className="text-xs text-muted-foreground">Pipeline contribution.</p>
+            <CardTitle>{t('brands')}</CardTitle>
+            <p className="text-xs text-muted-foreground">{t('pipelineContribution')}</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.byBrand.slice(0, 6).map((brand) => (
@@ -388,7 +405,7 @@ function ManagerStandard({
                     }}
                   />
                 </span>
-                <b className="tnum">{formatCurrency(brand.amount, data.currency)}</b>
+                <b className="tnum">{formatCurrency(brand.amount, data.currency, locale)}</b>
               </div>
             ))}
           </CardContent>
@@ -396,10 +413,8 @@ function ManagerStandard({
       </div>
       <Card className="mt-4">
         <CardHeader>
-          <CardTitle>Seller performance</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Quota, accuracy and trend appear only when the API exposes them.
-          </p>
+          <CardTitle>{t('sellerPerformance')}</CardTitle>
+          <p className="text-xs text-muted-foreground">{t('sellerDataNote')}</p>
         </CardHeader>
         <CardContent>
           <SellerPerformance
@@ -414,16 +429,11 @@ function ManagerStandard({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold">{expandedSeller}</p>
-                  <p className="text-xs text-muted-foreground">Expanded inline · no navigation</p>
+                  <p className="text-xs text-muted-foreground">{t('expandedInline')}</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled
-                  title="Seller messaging is not available in the current backend"
-                >
+                <Button size="sm" variant="outline" disabled title={t('messagingUnavailable')}>
                   <MessageSquare className="size-4" />
-                  Ask seller
+                  {t('askSeller')}
                 </Button>
               </div>
               <div className="mt-3 grid gap-2 lg:grid-cols-2">
@@ -453,6 +463,9 @@ function SellerStandard({
   opportunities: OpportunityData[];
   profile: ProfileSummary;
 }) {
+  const t = useTranslations('seller');
+  const tCommon = useTranslations('common');
+  const tValue = useTranslations('common.value');
   const dispatch = useAppDispatch();
   const pipeline = opportunities.reduce(
     (total, opportunity) => total + opportunity.estimatedAmount,
@@ -484,38 +497,38 @@ function SellerStandard({
   return (
     <>
       <ScreenHeader
-        eyebrow="My quarter"
-        title={`What should I do today, ${profile.user.name.split(' ')[0]}?`}
-        meta={`${data.period.label} · personal opportunity scope`}
+        eyebrow={t('eyebrow')}
+        title={t('todayQuestion', { name: profile.user.name.split(' ')[0] ?? profile.user.name })}
+        meta={t('periodMeta', { period: data.period.label })}
         actions={
           <Button size="sm" onClick={() => dispatch(setExperienceMode('FOCUS'))}>
             <Target className="size-4" />
-            Start focus
+            {t('startFocus')}
           </Button>
         }
       />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-density-grid lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+        <div className="space-y-density-grid">
+          <div className="grid gap-density-grid sm:grid-cols-3">
             <RevenueKPI
               hero
-              label="Likely attainment"
-              value="Not available"
+              label={t('likelyAttainment')}
+              value={tValue('notAvailable')}
               format="raw"
-              detail="Seller quota is not exposed by the API"
+              detail={t('quotaUnavailable')}
               icon={<Gauge className="size-4" />}
             />
             <RevenueKPI
-              label="My pipeline"
+              label={t('myPipeline')}
               value={pipeline}
               currency={data.currency}
-              detail={`${opportunities.length} opportunities`}
+              detail={tCommon('opportunityCount', { count: opportunities.length })}
             />
             <RevenueKPI
-              label="My commit"
+              label={t('myCommit')}
               value={commit}
               currency={data.currency}
-              detail="explicit seller category"
+              detail={t('explicitCategory')}
             />
           </div>
           <FunnelCard
@@ -523,24 +536,22 @@ function SellerStandard({
             opportunities={opportunities}
           />
         </div>
-        <div className="space-y-4">
+        <div className="space-y-density-grid">
           <QuotaGap
             gap={null}
             currency={data.currency}
-            interpretation="A personal quota is required before a reliable gap can be calculated."
+            interpretation={t('personalQuotaRequired')}
           />
           <Card>
             <CardHeader>
-              <CardTitle>Focus today</CardTitle>
-              <p className="text-xs text-muted-foreground">Highest-value evidence gaps.</p>
+              <CardTitle>{t('focusToday')}</CardTitle>
+              <p className="text-xs text-muted-foreground">{t('highestValueGaps')}</p>
             </CardHeader>
             <CardContent className="space-y-2">
               {risky.slice(0, 3).map((opportunity) => (
                 <OpportunityRow key={opportunity.id} opportunity={opportunity} />
               ))}
-              {!risky.length && (
-                <p className="text-sm text-muted-foreground">No current risk signals.</p>
-              )}
+              {!risky.length && <p className="text-sm text-muted-foreground">{t('noRisk')}</p>}
             </CardContent>
           </Card>
         </div>
@@ -556,6 +567,9 @@ function SellerFocus({
   data: DashboardData;
   opportunities: OpportunityData[];
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('seller.focus');
+  const tAlertMessages = useTranslations('alerts.messages');
   const dispatch = useAppDispatch();
   const completed = useAppSelector((state) => state.productUi.completedPriorities);
   const priorities = opportunities.filter((opportunity) => opportunity.alerts.length).slice(0, 3);
@@ -565,9 +579,12 @@ function SellerFocus({
   return (
     <>
       <ScreenHeader
-        eyebrow="Focus mode"
-        title="3 priorities today"
-        meta={`${completed.length} completed · ${formatCurrency(impacted, data.currency)} pipeline impacted today`}
+        eyebrow={t('eyebrow')}
+        title={t('title')}
+        meta={t('meta', {
+          completed: completed.length,
+          amount: formatCurrency(impacted, data.currency, locale),
+        })}
         actions={
           <>
             <Button
@@ -575,10 +592,10 @@ function SellerFocus({
               size="sm"
               onClick={() => dispatch(setExperienceMode('STANDARD'))}
             >
-              Leave focus
+              {t('leave')}
             </Button>
             <Button size="sm" onClick={() => dispatch(setExperienceMode('GUIDED'))}>
-              Start guided queue <ChevronRight className="size-4" />
+              {t('startGuided')} <ChevronRight className="size-4" />
             </Button>
           </>
         }
@@ -591,9 +608,11 @@ function SellerFocus({
               key={opportunity.id}
               className={cn(done && 'border-success/30 bg-surface-success-soft')}
             >
-              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+              <CardContent className="flex flex-col gap-3 p-density-card sm:flex-row sm:items-center">
                 <button
-                  aria-label={`${done ? 'Reopen' : 'Complete'} priority ${index + 1}`}
+                  aria-label={t(done ? 'reopenPriority' : 'completePriority', {
+                    number: index + 1,
+                  })}
                   aria-pressed={done}
                   onClick={() => dispatch(togglePriority(opportunity.id))}
                   className={cn(
@@ -618,19 +637,21 @@ function SellerFocus({
                     )}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {opportunity.alerts[0]?.message}
+                    {opportunity.alerts[0] && tAlertMessages.has(opportunity.alerts[0].code)
+                      ? tAlertMessages(opportunity.alerts[0].code)
+                      : opportunity.alerts[0]?.message}
                   </p>
                 </div>
                 <div className="text-left sm:text-right">
                   <b className="tnum block">
-                    {formatCurrency(opportunity.estimatedAmount, opportunity.currency)}
+                    {formatCurrency(opportunity.estimatedAmount, opportunity.currency, locale)}
                   </b>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => dispatch(selectOpportunity(opportunity.id))}
                   >
-                    Open context
+                    {t('openContext')}
                   </Button>
                 </div>
               </CardContent>
@@ -641,7 +662,7 @@ function SellerFocus({
           <Card>
             <CardContent className="p-8 text-center text-sm text-muted-foreground">
               <CheckCircle2 className="mx-auto mb-2 size-6 text-success" />
-              Only {priorities.length} evidence-backed priorities are available.
+              {t('available', { count: priorities.length })}
             </CardContent>
           </Card>
         )}
@@ -651,6 +672,9 @@ function SellerFocus({
 }
 
 function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('guided');
+  const tAlertMessages = useTranslations('alerts.messages');
   const dispatch = useAppDispatch();
   const decisions = useAppSelector((state) => state.productUi.guidedReviewProgress);
   const [index, setIndex] = useState(0);
@@ -668,25 +692,39 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
       <Card>
         <CardContent className="p-10 text-center">
           <CheckCircle2 className="mx-auto size-8 text-success" />
-          <h1 className="mt-3 text-xl font-semibold">Guided queue is clear</h1>
+          <h1 className="mt-3 text-xl font-semibold">{t('clear')}</h1>
         </CardContent>
       </Card>
     );
   const alert = opportunity.alerts[0];
-  const recommended = alert?.code.includes('PO')
-    ? 'Request purchase order'
+  const recommendedId = alert?.code.includes('PO')
+    ? 'REQUEST_PO'
     : alert?.code.includes('MARGIN')
-      ? 'Review commercial margin'
-      : 'Contact customer';
+      ? 'REVIEW_MARGIN'
+      : 'CONTACT_CUSTOMER';
+  const actions = [
+    {
+      id: recommendedId,
+      label:
+        recommendedId === 'REQUEST_PO'
+          ? t('requestPo')
+          : recommendedId === 'REVIEW_MARGIN'
+            ? t('reviewMargin')
+            : t('contactCustomer'),
+    },
+    { id: 'UPDATE_NEXT_STEP', label: t('updateNextStep') },
+    { id: 'SCHEDULE_REVIEW', label: t('scheduleReview') },
+    { id: 'ASK_MANAGER', label: t('askManager') },
+  ];
   return (
     <>
       <ScreenHeader
-        eyebrow="Guided mode"
-        title={`${index + 1} of ${queue.length}`}
-        meta={`${Object.keys(decisions).length} session decisions · no forecast changed automatically`}
+        eyebrow={t('title')}
+        title={t('position', { current: index + 1, total: queue.length })}
+        meta={t('meta', { count: Object.keys(decisions).length })}
         actions={
           <Button variant="ghost" size="sm" onClick={() => dispatch(setExperienceMode('STANDARD'))}>
-            Leave guided
+            {t('leave')}
           </Button>
         }
       />
@@ -698,11 +736,12 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
                 {opportunity.customer.name} · {opportunity.title}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                {opportunity.stage.name} · closes {formatDateOnly(opportunity.expectedCloseDate)}
+                {opportunity.stage.name} ·{' '}
+                {t('closes', { date: formatDateOnly(opportunity.expectedCloseDate, locale) })}
               </p>
             </div>
             <b className="tnum text-xl">
-              {formatCurrency(opportunity.estimatedAmount, opportunity.currency)}
+              {formatCurrency(opportunity.estimatedAmount, opportunity.currency, locale)}
             </b>
           </CardHeader>
           <CardContent>
@@ -712,41 +751,46 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
                 code={alert?.code ?? 'EVIDENCE_CHECK'}
               />
               <p className="mt-2 text-sm text-muted-foreground">
-                {alert?.message ?? 'Evidence needs review.'}
+                {alert && tAlertMessages.has(alert.code)
+                  ? tAlertMessages(alert.code)
+                  : (alert?.message ?? t('evidenceReview'))}
               </p>
             </div>
             <p className="mt-5 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Choose the next action
+              {t('chooseAction')}
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {[recommended, 'Update next step', 'Schedule customer review', 'Ask manager'].map(
-                (action) => (
-                  <button
-                    key={action}
-                    onClick={() => decide(action)}
-                    className={cn(
-                      'rounded-xl border p-3 text-left text-sm font-semibold hover:border-primary',
-                      action === recommended && 'border-primary bg-surface-brand-soft text-primary',
-                    )}
-                  >
-                    <span className="block">{action}</span>
-                    {action === recommended && (
-                      <span className="mt-1 block text-[10px] uppercase tracking-[0.1em]">
-                        Recommended
-                      </span>
-                    )}
-                  </button>
-                ),
-              )}
+              {actions.map((action) => (
+                <button
+                  key={action.id}
+                  onClick={() => decide(action.id)}
+                  className={cn(
+                    'rounded-xl border p-3 text-left text-sm font-semibold hover:border-primary',
+                    action.id === recommendedId &&
+                      'border-primary bg-surface-brand-soft text-primary',
+                  )}
+                >
+                  <span className="block">{action.label}</span>
+                  {action.id === recommendedId && (
+                    <span className="mt-1 block text-[10px] uppercase tracking-[0.1em]">
+                      {t('recommended')}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
             <div className="mt-3 flex gap-2">
               <Input
                 value={other}
                 onChange={(event) => setOther(event.target.value)}
-                placeholder="Other action…"
+                placeholder={t('other')}
               />
-              <Button variant="outline" disabled={!other.trim()} onClick={() => decide(other)}>
-                Record
+              <Button
+                variant="outline"
+                disabled={!other.trim()}
+                onClick={() => decide(`CUSTOM:${other}`)}
+              >
+                {t('record')}
               </Button>
             </div>
             <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
@@ -755,7 +799,7 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
                 size="sm"
                 onClick={() => setIndex((value) => Math.min(queue.length - 1, value + 1))}
               >
-                Skip
+                {t('skip')}
               </Button>
               <div className="flex gap-2">
                 <Button
@@ -767,10 +811,10 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
                   }}
                 >
                   <Bot className="size-4" />
-                  Ask Copilot
+                  {t('askCopilot')}
                 </Button>
-                <Button size="sm" onClick={() => decide(recommended)}>
-                  Choose recommendation <ChevronRight className="size-4" />
+                <Button size="sm" onClick={() => decide(recommendedId)}>
+                  {t('chooseRecommendation')} <ChevronRight className="size-4" />
                 </Button>
               </div>
             </div>
@@ -778,23 +822,25 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
         </Card>
         <Card className="h-fit">
           <CardHeader>
-            <CardTitle>Coaching context</CardTitle>
+            <CardTitle>{t('coachingContext')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm leading-6">
-              Open evidence gaps reduce confidence in the current forecast call.
-            </p>
+            <p className="text-sm leading-6">{t('coachingCopy')}</p>
             <ForecastConfidence
               sellerCategory={opportunity.forecastCategory}
               state="INSUFFICIENT_DATA"
-              rationale={opportunity.health.factors[0]?.message}
+              rationale={
+                alert && tAlertMessages.has(alert.code)
+                  ? tAlertMessages(alert.code)
+                  : opportunity.health.factors[0]?.message
+              }
             />
             <Button
               variant="outline"
               className="w-full"
               onClick={() => dispatch(selectOpportunity(opportunity.id))}
             >
-              Open opportunity context
+              {t('openOpportunity')}
             </Button>
           </CardContent>
         </Card>
@@ -810,6 +856,11 @@ function ForecastReview({
   data: DashboardData;
   opportunities: OpportunityData[];
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('review');
+  const tAction = useTranslations('common.action');
+  const tMode = useTranslations('common.mode');
+  const tAlertMessages = useTranslations('alerts.messages');
   const dispatch = useAppDispatch();
   const decisions = useAppSelector((state) => state.productUi.forecastReviewProgress);
   const [updateOpportunity, mutation] = useUpdateOpportunityMutation();
@@ -819,14 +870,14 @@ function ForecastReview({
     .filter((opportunity) => opportunity.forecastCategory === 'COMMIT' || opportunity.alerts.length)
     .sort((a, b) => b.estimatedAmount - a.estimatedAmount);
   const opportunity = queue[index];
-  const decide = async (action: string) => {
+  const decide = async (action: 'KEEP_COMMIT' | 'MOVE_UPSIDE' | 'ASK_SELLER' | 'ADD_NOTE') => {
     if (!opportunity) return;
-    if (action === 'Move to Upside')
+    if (action === 'MOVE_UPSIDE')
       await updateOpportunity({
         id: opportunity.id,
         changes: { forecastCategory: 'BEST_CASE' },
       }).unwrap();
-    if (action === 'Add Note' && note.trim())
+    if (action === 'ADD_NOTE' && note.trim())
       await updateOpportunity({ id: opportunity.id, changes: { notes: note.trim() } }).unwrap();
     dispatch(recordForecastDecision({ opportunityId: opportunity.id, action }));
     setNote('');
@@ -837,24 +888,28 @@ function ForecastReview({
       <Card>
         <CardContent className="p-10 text-center">
           <CheckCircle2 className="mx-auto size-8 text-success" />
-          <h1 className="mt-3 text-xl font-semibold">Forecast review is clear</h1>
+          <h1 className="mt-3 text-xl font-semibold">{t('clear')}</h1>
         </CardContent>
       </Card>
     );
   return (
     <>
       <ScreenHeader
-        eyebrow="Forecast review"
-        title={`${data.period.label} · ${index + 1} of ${queue.length}`}
-        meta={`${Object.keys(decisions).length} decided · explicit actions only`}
+        eyebrow={t('title')}
+        title={t('position', {
+          period: data.period.label,
+          current: index + 1,
+          total: queue.length,
+        })}
+        meta={t('meta', { count: Object.keys(decisions).length })}
         actions={
           <Button variant="ghost" size="sm" onClick={() => dispatch(setExperienceMode('STANDARD'))}>
-            Leave review
+            {t('leave')}
           </Button>
         }
       />
       <div className="mb-4 rounded-xl border border-primary/25 bg-surface-brand-soft px-4 py-3 text-sm">
-        <b>Review mode</b> · classifications change only after an explicit action.
+        <b>{tMode('REVIEW')}</b> · {t('guard')}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
         <Card>
@@ -868,66 +923,70 @@ function ForecastReview({
               </p>
             </div>
             <b className="tnum text-2xl">
-              {formatCurrency(opportunity.estimatedAmount, opportunity.currency)}
+              {formatCurrency(opportunity.estimatedAmount, opportunity.currency, locale)}
             </b>
           </CardHeader>
           <CardContent className="space-y-4">
             <ForecastConfidence
               sellerCategory={opportunity.forecastCategory}
               state="INSUFFICIENT_DATA"
-              rationale={opportunity.health.factors.map((factor) => factor.message).join(' ')}
+              rationale={opportunity.alerts
+                .map((alert) =>
+                  tAlertMessages.has(alert.code) ? tAlertMessages(alert.code) : alert.message,
+                )
+                .join(' ')}
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border p-3">
-                <p className="text-xs font-semibold text-success">Evidence</p>
+                <p className="text-xs font-semibold text-success">{t('evidence')}</p>
                 <p className="mt-2 text-sm">
                   {opportunity.poNumber
-                    ? `PO ${opportunity.poNumber} recorded.`
-                    : 'Expected close date and stage are recorded.'}
+                    ? t('poRecorded', { po: opportunity.poNumber })
+                    : t('stageRecorded')}
                 </p>
               </div>
               <div className="rounded-xl border p-3">
-                <p className="text-xs font-semibold text-warning">Missing evidence</p>
+                <p className="text-xs font-semibold text-warning">{t('missingEvidence')}</p>
                 <p className="mt-2 text-sm">
-                  {opportunity.poNumber
-                    ? 'Validate latest customer activity.'
-                    : 'Purchase order is not recorded.'}
+                  {opportunity.poNumber ? t('validateActivity') : t('poMissing')}
                 </p>
               </div>
             </div>
             {opportunity.alerts.map((alert) => (
               <div key={alert.id} className="rounded-xl bg-surface-danger-soft p-3">
                 <RiskBadge severity={alert.severity} code={alert.code} />
-                <p className="mt-2 text-xs text-muted-foreground">{alert.message}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {tAlertMessages.has(alert.code) ? tAlertMessages(alert.code) : alert.message}
+                </p>
               </div>
             ))}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={mutation.isLoading} onClick={() => decide('Keep Commit')}>
-                Keep Commit
+              <Button size="sm" disabled={mutation.isLoading} onClick={() => decide('KEEP_COMMIT')}>
+                {t('keepCommit')}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={mutation.isLoading}
-                onClick={() => decide('Move to Upside')}
+                onClick={() => decide('MOVE_UPSIDE')}
               >
-                Move to Upside
+                {t('moveUpside')}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => decide('Ask Seller')}>
+              <Button variant="outline" size="sm" onClick={() => decide('ASK_SELLER')}>
                 <MessageSquare className="size-4" />
-                Ask Seller
+                {t('askSeller')}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIndex((value) => Math.min(queue.length - 1, value + 1))}
               >
-                Next
+                {tAction('next')}
               </Button>
             </div>
             {mutation.isError && (
               <p role="alert" className="text-sm text-danger">
-                The forecast change could not be saved.
+                {t('saveError')}
               </p>
             )}
           </CardContent>
@@ -935,39 +994,37 @@ function ForecastReview({
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Manager note</CardTitle>
+              <CardTitle>{t('managerNote')}</CardTitle>
             </CardHeader>
             <CardContent>
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 className="min-h-28 w-full rounded-xl border bg-background p-3 text-sm"
-                placeholder="Evidence-backed review note"
+                placeholder={t('notePlaceholder')}
               />
               <Button
                 className="mt-2 w-full"
                 variant="outline"
                 disabled={!note.trim() || mutation.isLoading}
-                onClick={() => decide('Add Note')}
+                onClick={() => decide('ADD_NOTE')}
               >
-                Add Note and next
+                {t('addNote')}
               </Button>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Stage history</CardTitle>
+              <CardTitle>{t('stageHistory')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Open the drawer for server-sourced history and audit evidence.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('historyHint')}</p>
               <Button
                 variant="outline"
                 className="mt-3 w-full"
                 onClick={() => dispatch(selectOpportunity(opportunity.id))}
               >
-                Open evidence drawer
+                {t('openDrawer')}
               </Button>
             </CardContent>
           </Card>

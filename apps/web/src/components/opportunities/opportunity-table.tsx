@@ -11,11 +11,13 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { ArrowUpDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { OpportunityHealth, RiskBadge } from '@/components/sales/sales-components';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { AppLocale } from '@/i18n/config';
 import type { OpportunityData } from '@/lib/types';
 import { cn, formatCurrency, formatDateOnly } from '@/lib/utils';
 import { useAppDispatch } from '@/store/hooks';
@@ -25,13 +27,17 @@ const column = createColumnHelper<OpportunityData>();
 const tabletHiddenColumns = new Set(['status', 'seller', 'brand', 'expectedCloseDate']);
 
 export function OpportunityTable({ data }: { data: OpportunityData[] }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('opportunities');
+  const tCommon = useTranslations('common');
+  const tStatus = useTranslations('common.status');
   const dispatch = useAppDispatch();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const columns = useMemo(
     () => [
       column.accessor('title', {
-        header: 'Opportunity',
+        header: t('columns.opportunity'),
         cell: ({ row }) => (
           <div>
             <button
@@ -46,7 +52,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
       }),
       column.accessor('stage.probability', {
         id: 'stage',
-        header: 'Stage',
+        header: t('columns.stage'),
         cell: ({ row }) => (
           <Badge className="bg-secondary text-secondary-foreground">
             {row.original.stage.code}% · {row.original.stage.name}
@@ -54,28 +60,28 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         ),
       }),
       column.accessor('status', {
-        header: 'Status',
-        cell: ({ getValue }) => <Badge>{getValue()}</Badge>,
+        header: t('columns.status'),
+        cell: ({ getValue }) => <Badge>{tStatus(getValue())}</Badge>,
       }),
-      column.accessor('seller.name', { id: 'seller', header: 'Seller' }),
+      column.accessor('seller.name', { id: 'seller', header: t('columns.seller') }),
       column.accessor((row) => row.lineItems[0]?.brand.name ?? '—', {
         id: 'brand',
-        header: 'Brand',
+        header: t('columns.brand'),
       }),
       column.accessor('estimatedAmount', {
-        header: 'Amount',
+        header: t('columns.amount'),
         cell: ({ row }) => (
           <span className="font-semibold tabular-nums">
-            {formatCurrency(row.original.estimatedAmount, row.original.currency)}
+            {formatCurrency(row.original.estimatedAmount, row.original.currency, locale)}
           </span>
         ),
       }),
       column.accessor('expectedCloseDate', {
-        header: 'Expected close',
-        cell: ({ getValue }) => formatDateOnly(getValue()),
+        header: t('columns.expectedClose'),
+        cell: ({ getValue }) => formatDateOnly(getValue(), locale),
       }),
       column.accessor('health.score', {
-        header: 'Health',
+        header: t('columns.health'),
         cell: ({ row }) => (
           <OpportunityHealth
             score={row.original.health.score}
@@ -85,7 +91,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         ),
       }),
     ],
-    [dispatch],
+    [dispatch, locale, t, tStatus],
   );
   // TanStack Table intentionally returns mutable table helpers; React Compiler skips this component.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -109,22 +115,22 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Search title, customer or seller"
+            placeholder={t('search')}
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
           />
         </div>
         <select
-          aria-label="Filter by status"
-          className="h-10 rounded-lg border bg-background px-3 text-sm"
+          aria-label={t('filterStatus')}
+          className="h-density-control rounded-lg border bg-background px-3 text-sm"
           onChange={(event) =>
             table.getColumn('status')?.setFilterValue(event.target.value || undefined)
           }
         >
-          <option value="">All statuses</option>
-          <option value="OPEN">Open</option>
-          <option value="WON">Won</option>
-          <option value="LOST">Lost</option>
+          <option value="">{t('allStatuses')}</option>
+          <option value="OPEN">{tStatus('OPEN')}</option>
+          <option value="WON">{tStatus('WON')}</option>
+          <option value="LOST">{tStatus('LOST')}</option>
         </select>
       </div>
       <div className="grid gap-2 p-3 sm:hidden">
@@ -142,7 +148,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
                 </span>
               </span>
               <b className="tnum text-sm">
-                {formatCurrency(original.estimatedAmount, original.currency)}
+                {formatCurrency(original.estimatedAmount, original.currency, locale)}
               </b>
             </span>
             <span className="mt-3 flex flex-wrap items-center gap-2">
@@ -170,7 +176,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
                   <th
                     key={header.id}
                     className={cn(
-                      'px-4 py-3 font-semibold',
+                      'h-density-row px-4 py-2 font-semibold',
                       tabletHiddenColumns.has(header.column.id) && 'hidden xl:table-cell',
                     )}
                   >
@@ -193,7 +199,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
                   <td
                     key={cell.id}
                     className={cn(
-                      'px-4 py-4 align-middle',
+                      'h-density-row px-4 py-2 align-middle',
                       tabletHiddenColumns.has(cell.column.id) && 'hidden xl:table-cell',
                     )}
                   >
@@ -206,15 +212,20 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         </table>
       </div>
       <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
-        <span>{table.getFilteredRowModel().rows.length} opportunities</span>
+        <span>
+          {tCommon('opportunityCount', { count: table.getFilteredRowModel().rows.length })}
+        </span>
         <div className="flex items-center gap-2">
           <span>
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            {t('page', {
+              current: table.getState().pagination.pageIndex + 1,
+              total: table.getPageCount(),
+            })}
           </span>
           <Button
             size="icon"
             variant="outline"
-            aria-label="Previous page"
+            aria-label={t('previousPage')}
             disabled={!table.getCanPreviousPage()}
             onClick={() => table.previousPage()}
           >
@@ -223,7 +234,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
           <Button
             size="icon"
             variant="outline"
-            aria-label="Next page"
+            aria-label={t('nextPage')}
             disabled={!table.getCanNextPage()}
             onClick={() => table.nextPage()}
           >

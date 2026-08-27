@@ -2,11 +2,13 @@
 
 import { Camera } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { csrfToken } from '@/lib/utils';
 
 export function CreateSnapshotButton() {
+  const t = useTranslations('forecast');
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   return (
@@ -26,7 +28,7 @@ export function CreateSnapshotButton() {
       }}
     >
       <Camera className="size-4" />
-      {loading ? 'Capturing…' : 'Capture snapshot'}
+      {loading ? t('capturing') : t('capture')}
     </Button>
   );
 }

@@ -7,6 +7,7 @@ export type CopilotContext = {
   activePeriod?: string;
   opportunityId?: string;
   filters?: Record<string, string>;
+  intentId?: 'RISK' | 'COMMIT' | 'MISSING' | 'MEETING' | 'FOLLOW_UP';
 };
 
 interface ProductUiState {

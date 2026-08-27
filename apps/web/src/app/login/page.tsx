@@ -1,6 +1,8 @@
 import { LoginForm } from '@/components/auth/login-form';
+import { getTranslations } from 'next-intl/server';
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const t = await getTranslations('auth');
   return (
     <main className="relative grid min-h-screen overflow-hidden bg-sidebar lg:grid-cols-[1.15fr_0.85fr]">
       <div className="relative hidden flex-col justify-between overflow-hidden p-14 text-sidebar-foreground lg:flex">
@@ -13,18 +15,14 @@ export default function LoginPage() {
         </div>
         <div className="relative max-w-2xl">
           <p className="mb-5 text-sm font-semibold tracking-[0.24em] text-copilot-accent uppercase">
-            Revenue clarity, every day
+            {t('eyebrow')}
           </p>
           <h1 className="text-6xl leading-[1.02] font-semibold tracking-[-0.045em]">
-            Turn pipeline into predictable performance.
+            {t('headline')}
           </h1>
-          <p className="mt-7 max-w-xl text-lg leading-8 text-sidebar-muted">
-            A focused command center for forecast, margin, seller execution and commercial risk.
-          </p>
+          <p className="mt-7 max-w-xl text-lg leading-8 text-sidebar-muted">{t('description')}</p>
         </div>
-        <p className="relative text-sm text-sidebar-muted">
-          Synthetic demonstration environment · Multitenant by design
-        </p>
+        <p className="relative text-sm text-sidebar-muted">{t('environment')}</p>
       </div>
       <div className="flex items-center justify-center bg-background px-6 py-14">
         <LoginForm />

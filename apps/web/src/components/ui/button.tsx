@@ -13,7 +13,12 @@ const buttonVariants = cva(
         ghost: 'hover:bg-muted hover:text-foreground',
         danger: 'bg-danger text-on-strong hover:bg-danger/90',
       },
-      size: { default: 'h-10 px-4 py-2', sm: 'h-8 px-3', lg: 'h-12 px-6', icon: 'size-10' },
+      size: {
+        default: 'h-density-control px-4 py-2',
+        sm: 'h-10 px-3',
+        lg: 'h-11 px-6',
+        icon: 'size-density-control',
+      },
     },
     defaultVariants: { variant: 'default', size: 'default' },
   },

@@ -1,8 +1,10 @@
 'use client';
 
 import { Bot, ChevronLeft, ChevronRight, RefreshCw, Send, Sparkles } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import type { AppLocale } from '@/i18n/config';
 import { useManagerBriefMutation } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setCopilotPanelOpen } from '@/store/ui-slice';
@@ -10,18 +12,23 @@ import {
   completeCopilotRequest,
   failCopilotRequest,
   startCopilotRequest,
+  type CopilotIntentId,
   type CopilotRequestState,
 } from './copilot-contracts';
 
-const prompts = [
-  'Why is this deal at risk?',
-  'Is Commit justified?',
-  'What information is missing?',
-  'Prepare next meeting',
-  'Draft follow-up',
+const prompts: Array<{ id: Exclude<CopilotIntentId, 'CUSTOM'>; key: string }> = [
+  { id: 'RISK', key: 'risk' },
+  { id: 'COMMIT', key: 'commit' },
+  { id: 'MISSING', key: 'missing' },
+  { id: 'MEETING', key: 'meeting' },
+  { id: 'FOLLOW_UP', key: 'followUp' },
 ];
 
 export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: boolean }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('copilot');
+  const tNavigation = useTranslations('navigation');
+  const tAction = useTranslations('common.action');
   const dispatch = useAppDispatch();
   const open = useAppSelector((state) => state.productUi.copilotPanelOpen);
   const context = useAppSelector((state) => state.productUi.copilotContext);
@@ -99,25 +106,31 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
     }
   };
 
-  const ask = async (selectedPrompt = prompt) => {
-    const loading = startCopilotRequest(selectedPrompt);
+  const ask = async (
+    selection: { prompt: string; intentId: CopilotIntentId } = {
+      prompt,
+      intentId: 'CUSTOM',
+    },
+  ) => {
+    const loading = startCopilotRequest(selection.prompt, selection.intentId);
     if (!loading || loading.status !== 'LOADING') return;
     setRequest(loading);
     if (context.opportunityId) {
       setRequest(
         completeCopilotRequest(
           loading.prompt,
-          `${loading.prompt} Review the active risk signals, stage evidence and last customer activity for this opportunity before changing its forecast category.`,
+          `${loading.prompt} ${t('localAnswer')}`,
+          loading.intentId,
         ),
       );
       setPrompt('');
     } else {
       try {
-        const result = await managerBrief().unwrap();
-        setRequest(completeCopilotRequest(loading.prompt, result.summary));
+        const result = await managerBrief({ locale, intentId: loading.intentId }).unwrap();
+        setRequest(completeCopilotRequest(loading.prompt, result.summary, loading.intentId));
         setPrompt('');
       } catch {
-        setRequest(failCopilotRequest(loading.prompt));
+        setRequest(failCopilotRequest(loading.prompt, loading.intentId, t('error')));
         setPrompt(loading.prompt);
       }
     }
@@ -129,7 +142,7 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
         type="button"
         aria-controls="contextual-copilot-panel"
         aria-expanded="false"
-        aria-label="Open contextual Copilot"
+        aria-label={tNavigation('openCopilot')}
         onClick={() => dispatch(setCopilotPanelOpen(true))}
         className="fixed right-4 bottom-20 z-40 grid size-12 place-items-center rounded-full bg-copilot text-sidebar-foreground shadow-[var(--shadow-overlay)] lg:bottom-5"
       >
@@ -142,7 +155,7 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
     <>
       <button
         type="button"
-        aria-label="Close contextual Copilot"
+        aria-label={t('close')}
         tabIndex={-1}
         onClick={closePanel}
         className="fixed inset-0 z-[55] bg-foreground/30 backdrop-blur-[1px] xl:hidden"
@@ -154,23 +167,25 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
         aria-modal={modal || undefined}
         onKeyDown={handlePanelKeyDown}
         className="fixed inset-y-0 right-0 z-[60] flex w-full shrink-0 flex-col border-l bg-copilot text-sidebar-foreground shadow-[var(--shadow-overlay)] sm:w-[min(420px,94vw)] xl:static xl:z-auto xl:w-[330px] xl:shadow-none"
-        aria-label="Contextual Copilot"
+        aria-label={t('title')}
       >
         <div className="flex h-16 items-center gap-3 border-b border-sidebar-foreground/10 px-4">
           <span className="grid size-8 place-items-center rounded-lg bg-sidebar-foreground/10 text-copilot-accent">
             <Sparkles className="size-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Sales Copilot</p>
+            <p className="text-sm font-semibold">{t('title')}</p>
             <p className="truncate text-[11px] text-sidebar-foreground/55">
-              {context.opportunityId ? `Opportunity ${context.opportunityId}` : 'Workspace context'}
+              {context.opportunityId
+                ? t('opportunityContext', { id: context.opportunityId })
+                : t('workspaceContext')}
             </p>
           </div>
           <Button
             variant="ghost"
             size="icon"
             className="text-sidebar-foreground hover:bg-sidebar-foreground/10"
-            aria-label="Collapse Copilot"
+            aria-label={t('collapse')}
             aria-controls="contextual-copilot-panel"
             aria-expanded="true"
             data-copilot-initial-focus
@@ -182,23 +197,21 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
           <div className="rounded-2xl border border-sidebar-foreground/10 bg-sidebar-foreground/5 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-copilot-accent">
-              Context
+              {t('context')}
             </p>
             <p className="mt-2 text-sm leading-6 text-sidebar-foreground/75">
-              {context.opportunityId
-                ? 'Reason about this deal using verified commercial evidence.'
-                : 'Ask for a deterministic view of the current revenue position.'}
+              {context.opportunityId ? t('dealContext') : t('workspaceDescription')}
             </p>
           </div>
           <div className="space-y-2">
             {prompts.slice(0, context.opportunityId ? 5 : 3).map((item) => (
               <button
-                key={item}
+                key={item.id}
                 className="flex w-full items-center justify-between rounded-xl border border-sidebar-foreground/10 px-3 py-2.5 text-left text-xs text-sidebar-foreground/75 hover:bg-sidebar-foreground/10"
                 disabled={request.status === 'LOADING'}
-                onClick={() => ask(item)}
+                onClick={() => ask({ prompt: t(`prompts.${item.key}`), intentId: item.id })}
               >
-                {item}
+                {t(`prompts.${item.key}`)}
                 <ChevronLeft className="size-3 rotate-180" />
               </button>
             ))}
@@ -209,7 +222,7 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
               aria-live="polite"
               className="rounded-2xl bg-sidebar-foreground px-4 py-4 text-sm leading-6 text-copilot"
             >
-              Working…
+              {t('working')}
             </div>
           )}
           {request.status === 'SUCCESS' && (
@@ -227,15 +240,15 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
               aria-live="polite"
               className="rounded-2xl border border-sidebar-foreground/15 p-4 text-sm leading-6"
             >
-              <p>No answer was returned for this request.</p>
+              <p>{t('empty')}</p>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="mt-2 text-sidebar-foreground hover:bg-sidebar-foreground/10"
-                onClick={() => ask(request.prompt)}
+                onClick={() => ask({ prompt: request.prompt, intentId: request.intentId })}
               >
-                <RefreshCw className="size-3.5" /> Retry
+                <RefreshCw className="size-3.5" /> {tAction('retry')}
               </Button>
             </div>
           )}
@@ -250,9 +263,9 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
                 variant="ghost"
                 size="sm"
                 className="mt-2 text-sidebar-foreground hover:bg-sidebar-foreground/10"
-                onClick={() => ask(request.prompt)}
+                onClick={() => ask({ prompt: request.prompt, intentId: request.intentId })}
               >
-                <RefreshCw className="size-3.5" /> Retry question
+                <RefreshCw className="size-3.5" /> {t('retryQuestion')}
               </Button>
             </div>
           )}
@@ -261,11 +274,11 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
           className="border-t border-sidebar-foreground/10 p-4"
           onSubmit={(event) => {
             event.preventDefault();
-            ask();
+            void ask();
           }}
         >
           <label className="sr-only" htmlFor="copilot-prompt">
-            Ask Sales Copilot
+            {t('askLabel')}
           </label>
           <div className="flex items-center gap-2 rounded-xl bg-sidebar-foreground p-2 text-copilot">
             <input
@@ -273,12 +286,12 @@ export function CopilotPanel({ compactByDefault = false }: { compactByDefault?: 
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               disabled={request.status === 'LOADING'}
-              placeholder="Ask about this context…"
+              placeholder={t('placeholder')}
               className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none"
             />
             <button
               type="submit"
-              aria-label="Send to Copilot"
+              aria-label={t('send')}
               disabled={request.status === 'LOADING' || !prompt.trim()}
               className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground"
             >

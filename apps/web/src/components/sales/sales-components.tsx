@@ -11,9 +11,11 @@ import {
   OctagonAlert,
   ShieldAlert,
 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import type { AppLocale } from '@/i18n/config';
 import { cn, formatCurrency } from '@/lib/utils';
 import {
   resolveForecastConfidence,
@@ -46,6 +48,7 @@ export function RevenueKPI({
   hero?: boolean;
   icon?: ReactNode;
 }) {
+  const locale = useLocale() as AppLocale;
   const rendered =
     typeof value === 'string' || format === 'raw'
       ? value
@@ -53,18 +56,18 @@ export function RevenueKPI({
         ? `${value.toFixed(1)}%`
         : format === 'multiple'
           ? `${value.toFixed(1)}×`
-          : formatCurrency(value, currency);
+          : formatCurrency(value, currency, locale);
   return (
     <Card className={cn(hero && 'border-primary/30 bg-surface-brand-soft', className)}>
-      <CardContent className={cn('p-4', hero && 'p-5')}>
+      <CardContent className="p-density-card">
         <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           <span>{label}</span>
           {icon && <span className="text-primary">{icon}</span>}
         </div>
         <p
           className={cn(
-            'tnum mt-2 text-2xl font-semibold tracking-[-0.035em]',
-            hero && 'text-4xl',
+            'tnum mt-1.5 text-kpi-secondary font-semibold tracking-[-0.035em]',
+            hero && 'text-kpi-primary',
             tone === 'positive' && 'text-success',
             tone === 'warning' && 'text-warning',
             tone === 'risk' && 'text-danger',
@@ -88,7 +91,7 @@ export function RevenueKPI({
                 ) : (
                   <Minus className="size-3" />
                 )}
-                {formatCurrency(Math.abs(delta), currency)}
+                {formatCurrency(Math.abs(delta), currency, locale)}
               </span>
             )}
             <span>{deltaLabel ?? detail}</span>
@@ -107,13 +110,15 @@ type QuotaProgressProps = {
 } & QuotaProgressState;
 
 export function QuotaProgress(props: QuotaProgressProps) {
-  const { currency = 'USD', label = 'Quota attainment', compact, onRetry } = props;
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('sales');
+  const { currency = 'USD', label = t('quotaAttainment'), compact, onRetry } = props;
 
   const resolved = resolveQuotaProgress(props);
   if (resolved.state === 'LOADING') {
     return (
       <div className="space-y-2" aria-busy="true" aria-label={`${label} is loading`}>
-        <span className="sr-only">Loading quota attainment…</span>
+        <span className="sr-only">{t('loadingQuota')}</span>
         <div className="flex items-end justify-between gap-4">
           <span className="h-4 w-32 animate-pulse rounded bg-surface-sunken" />
           <span className="h-4 w-40 animate-pulse rounded bg-surface-sunken" />
@@ -126,21 +131,27 @@ export function QuotaProgress(props: QuotaProgressProps) {
   }
 
   if (resolved.state !== 'AVAILABLE') {
+    const message =
+      resolved.state === 'NOT_CONFIGURED'
+        ? t('quotaNotConfigured')
+        : resolved.state === 'ERROR'
+          ? t('quotaError')
+          : t('quotaUnavailable');
     return (
       <div
         className="rounded-xl border border-dashed p-3"
         role={resolved.state === 'ERROR' ? 'alert' : 'status'}
-        aria-label={`${label}: ${resolved.message}`}
+        aria-label={`${label}: ${message}`}
       >
         <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{resolved.message}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{message}</p>
         {resolved.state === 'ERROR' && onRetry ? (
           <button
             type="button"
             className="mt-2 text-xs font-semibold text-primary"
             onClick={onRetry}
           >
-            Retry quota
+            {t('retryQuota')}
           </button>
         ) : null}
       </div>
@@ -151,12 +162,13 @@ export function QuotaProgress(props: QuotaProgressProps) {
   return (
     <div
       className="space-y-2"
-      aria-label={`${label}: ${billedPct.toFixed(1)} percent billed, ${forecastPct.toFixed(1)} percent additional forecast, ${projectedPct.toFixed(1)} percent projected against ${formatCurrency(quota, currency)} quota`}
+      aria-label={`${label}: ${billedPct.toFixed(1)}%, ${forecastPct.toFixed(1)}%, ${projectedPct.toFixed(1)}%, ${formatCurrency(quota, currency, locale)}`}
     >
       <div className="flex items-end justify-between gap-4">
         <span className="text-xs font-semibold text-muted-foreground">{label}</span>
         <span className="tnum text-xs font-semibold">
-          {formatCurrency(billed + forecast, currency)} / {formatCurrency(quota, currency)}
+          {formatCurrency(billed + forecast, currency, locale)} /{' '}
+          {formatCurrency(quota, currency, locale)}
         </span>
       </div>
       <div
@@ -166,18 +178,22 @@ export function QuotaProgress(props: QuotaProgressProps) {
         )}
         aria-hidden="true"
       >
-        <span className="bg-success" style={{ width: `${billedPct}%` }} title="Billed" />
-        <span className="bg-primary/45" style={{ width: `${forecastPct}%` }} title="Forecast" />
+        <span className="bg-success" style={{ width: `${billedPct}%` }} title={t('billed')} />
+        <span
+          className="bg-primary/45"
+          style={{ width: `${forecastPct}%` }}
+          title={t('forecast')}
+        />
       </div>
       {!compact && (
         <div className="flex gap-4 text-[11px] text-muted-foreground">
           <span>
             <i className="mr-1 inline-block size-2 rounded-full bg-success" />
-            Billed
+            {t('billed')}
           </span>
           <span>
             <i className="mr-1 inline-block size-2 rounded-full bg-primary/45" />
-            Forecast
+            {t('forecast')}
           </span>
         </div>
       )}
@@ -198,6 +214,9 @@ export function QuotaGap({
   drivers?: Array<{ label: string; amount: number }>;
   action?: ReactNode;
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('sales');
+  const tValue = useTranslations('common.value');
   const available = gap !== null;
   const above = available && gap <= 0;
   return (
@@ -207,7 +226,7 @@ export function QuotaGap({
         available && (above ? 'border-success/30' : 'border-warning/35'),
       )}
     >
-      <CardContent className="p-5">
+      <CardContent className="p-density-card">
         <div className="flex items-start gap-3">
           <span
             className={cn(
@@ -227,25 +246,25 @@ export function QuotaGap({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Remaining gap
+              {t('remainingGap')}
             </p>
             <p className="tnum mt-1 text-3xl font-semibold tracking-[-0.035em]">
-              {available ? formatCurrency(Math.abs(gap), currency) : 'Not available'}
+              {available ? formatCurrency(Math.abs(gap), currency, locale) : tValue('notAvailable')}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {interpretation ??
                 (!available
-                  ? 'Quota data is not available.'
+                  ? t('quotaDataUnavailable')
                   : above
-                    ? 'Forecast is above quota.'
-                    : 'Pipeline action is still required to protect attainment.')}
+                    ? t('forecastAbove')
+                    : t('pipelineAction'))}
             </p>
             {drivers.length > 0 && (
               <ul className="mt-3 space-y-1 text-xs">
                 {drivers.slice(0, 3).map((driver) => (
                   <li key={driver.label} className="flex justify-between gap-4">
                     <span className="truncate text-muted-foreground">{driver.label}</span>
-                    <b className="tnum">{formatCurrency(driver.amount, currency)}</b>
+                    <b className="tnum">{formatCurrency(driver.amount, currency, locale)}</b>
                   </li>
                 ))}
               </ul>
@@ -269,7 +288,9 @@ export function RiskBadge({
   code?: string;
   className?: string;
 }) {
-  const text = label ?? code?.replaceAll('_', ' ') ?? severity;
+  const tStatus = useTranslations('common.status');
+  const tCodes = useTranslations('alerts.codes');
+  const text = label ?? (code && tCodes.has(code) ? tCodes(code) : undefined) ?? tStatus(severity);
   const severityIcon =
     severity === 'CRITICAL' ? (
       <OctagonAlert className="size-3" />
@@ -309,6 +330,7 @@ export function OpportunityHealth({
   showFactors?: boolean;
   size?: 'sm' | 'md' | 'lg';
 }) {
+  const tStatus = useTranslations('common.status');
   const resolved = status ?? (score >= 70 ? 'HEALTHY' : score >= 45 ? 'AT_RISK' : 'CRITICAL');
   return (
     <div>
@@ -327,9 +349,7 @@ export function OpportunityHealth({
         >
           {score}
         </span>
-        <span className="text-[11px] font-medium text-muted-foreground">
-          {resolved.replaceAll('_', ' ')}
-        </span>
+        <span className="text-[11px] font-medium text-muted-foreground">{tStatus(resolved)}</span>
       </div>
       {showFactors && factors?.length ? (
         <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
@@ -351,24 +371,27 @@ export function StageVelocity({
   daysInStage: number;
   benchmarkDays?: number;
 }) {
+  const t = useTranslations('sales');
   const pace = benchmarkDays ? daysInStage / benchmarkDays : null;
   const ratio = pace === null ? 0 : Math.min(100, (pace / 1.5) * 100);
-  const verdict =
-    pace === null ? null : pace <= 1 ? 'On pace' : pace <= 1.5 ? 'Slowing' : 'Stalled';
+  const verdict = pace === null ? null : pace <= 1 ? 'onPace' : pace <= 1.5 ? 'slowing' : 'stalled';
   return (
     <div
-      aria-label={`${stage}: ${daysInStage} days${benchmarkDays ? `, benchmark ${benchmarkDays} days, ${verdict}` : ''}`}
+      aria-label={`${stage}: ${t('daysInStage', { count: daysInStage })}${benchmarkDays ? `, ${benchmarkDays}, ${verdict ? t(verdict) : ''}` : ''}`}
     >
       <div className="flex justify-between text-xs">
-        <span className="font-semibold">{stage} velocity</span>
+        <span className="font-semibold">
+          {stage} · {t('stageVelocity')}
+        </span>
         <span
           className={cn(
-            verdict === 'On pace' && 'text-success',
-            verdict === 'Slowing' && 'text-warning',
-            verdict === 'Stalled' && 'text-danger',
+            verdict === 'onPace' && 'text-success',
+            verdict === 'slowing' && 'text-warning',
+            verdict === 'stalled' && 'text-danger',
           )}
         >
-          {daysInStage}d{benchmarkDays ? ` · ${verdict} · benchmark ${benchmarkDays}d` : ''}
+          {t('daysInStage', { count: daysInStage })}
+          {benchmarkDays && verdict ? ` · ${t(verdict)} · ${benchmarkDays}` : ''}
         </span>
       </div>
       {benchmarkDays ? (
@@ -376,9 +399,9 @@ export function StageVelocity({
           <span
             className={cn(
               'block h-2 rounded-full',
-              verdict === 'On pace'
+              verdict === 'onPace'
                 ? 'bg-success'
-                : verdict === 'Slowing'
+                : verdict === 'slowing'
                   ? 'bg-warning'
                   : 'bg-danger',
             )}
@@ -398,18 +421,18 @@ type ForecastConfidenceProps = {
 } & ForecastConfidenceState;
 
 export function ForecastConfidence(props: ForecastConfidenceProps) {
+  const t = useTranslations('sales');
+  const tCategory = useTranslations('common.forecastCategory');
   const { sellerCategory = 'PIPELINE', rationale, onRetry } = props;
-  const sellerCall = sellerCategory.replaceAll('_', ' ');
+  const sellerCall = tCategory.has(sellerCategory)
+    ? tCategory(sellerCategory)
+    : sellerCategory.replaceAll('_', ' ');
 
   const resolved = resolveForecastConfidence(props);
   if (resolved.state === 'LOADING') {
     return (
-      <div
-        className="rounded-xl border p-3"
-        aria-busy="true"
-        aria-label="Forecast confidence is loading"
-      >
-        <span className="sr-only">Loading forecast confidence…</span>
+      <div className="rounded-xl border p-3" aria-busy="true" aria-label={t('loadingConfidence')}>
+        <span className="sr-only">{t('loadingConfidence')}</span>
         <div className="flex items-center justify-between gap-3">
           <span className="h-4 w-44 animate-pulse rounded bg-surface-sunken" />
           <span className="h-4 w-24 animate-pulse rounded bg-surface-sunken" />
@@ -420,16 +443,22 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
   }
 
   if (resolved.state !== 'AVAILABLE') {
+    const message =
+      resolved.state === 'INSUFFICIENT_DATA'
+        ? t('insufficientConfidence')
+        : resolved.state === 'ERROR'
+          ? t('confidenceError')
+          : t('confidenceUnavailable');
     return (
       <div
         className="rounded-xl border p-3"
         role={resolved.state === 'ERROR' ? 'alert' : 'status'}
-        aria-label={`Seller forecast ${sellerCall}. ${resolved.message}`}
+        aria-label={`${t('sellerForecast', { category: sellerCall })}. ${message}`}
       >
         <p className="text-xs font-semibold text-muted-foreground">
-          Seller forecast · {sellerCall}
+          {t('sellerForecast', { category: sellerCall })}
         </p>
-        <p className="mt-2 text-sm font-semibold">{resolved.message}</p>
+        <p className="mt-2 text-sm font-semibold">{message}</p>
         {rationale ? (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{rationale}</p>
         ) : null}
@@ -439,7 +468,7 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
             className="mt-2 text-xs font-semibold text-primary"
             onClick={onRetry}
           >
-            Retry confidence
+            {t('retryConfidence')}
           </button>
         ) : null}
       </div>
@@ -447,14 +476,16 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
   }
 
   const { confidence, range, relationship } = resolved;
+  const relationshipLabel =
+    relationship === 'Aligned with seller call' ? t('aligned') : t('diverges');
   return (
     <div
       className="rounded-xl border p-3"
-      aria-label={`Seller forecast ${sellerCall}. System confidence ${confidence} percent. Range ${range.min} to ${range.max} percent. ${relationship}.`}
+      aria-label={`${t('sellerForecast', { category: sellerCall })}. ${t('confidenceValue', { value: confidence })}. ${t('confidenceRange', { min: range.min, max: range.max, relationship: relationshipLabel })}.`}
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold text-muted-foreground">
-          Seller forecast · {sellerCall}
+          {t('sellerForecast', { category: sellerCall })}
         </span>
         <b
           className={cn(
@@ -462,11 +493,15 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
             confidence >= 65 ? 'text-success' : confidence >= 40 ? 'text-warning' : 'text-danger',
           )}
         >
-          {confidence}% confidence
+          {t('confidenceValue', { value: confidence })}
         </b>
       </div>
       <p className="mt-1 text-[11px] font-medium text-muted-foreground">
-        {range.min}–{range.max}% confidence range · {relationship}
+        {t('confidenceRange', {
+          min: range.min,
+          max: range.max,
+          relationship: relationshipLabel,
+        })}
       </p>
       <div className="mt-2 h-2 rounded-full bg-surface-sunken" aria-hidden="true">
         <span className="block h-2 rounded-full bg-primary" style={{ width: `${confidence}%` }} />
@@ -510,10 +545,14 @@ export function SalesFunnel({
   onSelectStage?: (stage: string | null) => void;
   renderDetail?: (stage: FunnelStageDatum | undefined) => ReactNode;
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('sales');
+  const tCommon = useTranslations('common');
+  const tValue = useTranslations('common.value');
   const selected = stages.find((stage) => stage.stage === selectedStage);
   return (
     <div>
-      <div className="space-y-1.5" aria-label="Sales funnel">
+      <div className="space-y-1.5" aria-label={t('salesFunnel')}>
         {stages.map((stage, index) => {
           const width = Math.max(34, 100 - index * (58 / Math.max(stages.length - 1, 1)));
           const active = selectedStage === stage.stage;
@@ -526,7 +565,7 @@ export function SalesFunnel({
               <button
                 type="button"
                 aria-pressed={active}
-                aria-label={`${stage.stage}: ${formatCurrency(stage.amount, currency)}, ${stage.count} opportunities, ${stage.atRisk ?? 0} at risk`}
+                aria-label={`${stage.stage}: ${formatCurrency(stage.amount, currency, locale)}, ${tCommon('opportunityCount', { count: stage.count })}, ${t('atRisk', { count: stage.atRisk ?? 0 })}`}
                 onClick={() => onSelectStage?.(active ? null : stage.stage)}
                 className={cn(
                   'relative flex h-11 w-full items-center justify-between gap-3 rounded-lg px-4 text-left text-xs font-semibold text-sidebar transition-[filter,outline-color] hover:brightness-[1.08] focus-visible:z-20',
@@ -536,7 +575,7 @@ export function SalesFunnel({
               >
                 <span>{stage.stage}</span>
                 <span className="tnum">
-                  {formatCurrency(stage.amount, currency)} · {stage.count}
+                  {formatCurrency(stage.amount, currency, locale)} · {stage.count}
                 </span>
               </button>
               <div
@@ -545,20 +584,26 @@ export function SalesFunnel({
               >
                 <p className="font-semibold">{stage.stage}</p>
                 <p className="tnum mt-1 text-lg font-semibold">
-                  {formatCurrency(stage.amount, currency)}
+                  {formatCurrency(stage.amount, currency, locale)}
                 </p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-muted-foreground">
-                  <span>{stage.count} opportunities</span>
-                  <span>{formatCurrency(stage.atRiskAmount ?? 0, currency)} at risk</span>
+                  <span>{tCommon('opportunityCount', { count: stage.count })}</span>
+                  <span>
+                    {t('atRiskAmount', {
+                      amount: formatCurrency(stage.atRiskAmount ?? 0, currency, locale),
+                    })}
+                  </span>
                   <span>
                     {stage.avgDaysInStage === undefined
-                      ? 'Days unavailable'
-                      : `${stage.avgDaysInStage} days average`}
+                      ? t('daysUnavailable')
+                      : t('daysAverage', { count: stage.avgDaysInStage })}
                   </span>
                   <span>
                     {stage.likelyToSlip === undefined
-                      ? 'Slippage unavailable'
-                      : `${formatCurrency(stage.likelyToSlip, currency)} likely slip`}
+                      ? t('slippageUnavailable')
+                      : t('likelySlip', {
+                          amount: formatCurrency(stage.likelyToSlip, currency, locale),
+                        })}
                   </span>
                 </div>
               </div>
@@ -567,14 +612,14 @@ export function SalesFunnel({
         })}
       </div>
       <table className="sr-only">
-        <caption>Sales funnel data</caption>
+        <caption>{t('funnelData')}</caption>
         <thead>
           <tr>
-            <th>Stage</th>
-            <th>Amount</th>
-            <th>Opportunities</th>
-            <th>At risk</th>
-            <th>Average days</th>
+            <th>{t('stage')}</th>
+            <th>{t('amount')}</th>
+            <th>{t('opportunities')}</th>
+            <th>{t('atRiskLabel')}</th>
+            <th>{t('avgDays')}</th>
           </tr>
         </thead>
         <tbody>
@@ -584,7 +629,7 @@ export function SalesFunnel({
               <td>{stage.amount}</td>
               <td>{stage.count}</td>
               <td>{stage.atRiskAmount ?? 0}</td>
-              <td>{stage.avgDaysInStage ?? 'Unavailable'}</td>
+              <td>{stage.avgDaysInStage ?? tValue('notAvailable')}</td>
             </tr>
           ))}
         </tbody>
@@ -614,14 +659,18 @@ export function ForecastMovement({
     opportunityId?: string;
   }) => void;
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('sales');
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Since {since ?? 'last snapshot'}</span>
+        <span className="text-xs text-muted-foreground">
+          {t('since', { value: since ?? t('lastSnapshot') })}
+        </span>
         {net !== undefined && (
           <b className={cn('tnum text-sm', net < 0 ? 'text-danger' : 'text-success')}>
             {net >= 0 ? '+' : '−'}
-            {formatCurrency(Math.abs(net), currency)}
+            {formatCurrency(Math.abs(net), currency, locale)}
           </b>
         )}
       </div>
@@ -648,7 +697,7 @@ export function ForecastMovement({
             </span>
             <b className="tnum">
               {item.delta >= 0 ? '+' : '−'}
-              {formatCurrency(Math.abs(item.delta), currency)}
+              {formatCurrency(Math.abs(item.delta), currency, locale)}
             </b>
           </button>
         ))}
@@ -678,24 +727,28 @@ export function SellerPerformance({
     quota?: number;
   }) => void;
 }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('sales');
+  const tRole = useTranslations('common.role');
+  const tValue = useTranslations('common.value');
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[700px] text-left text-sm">
         <thead className="border-b text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
           <tr>
-            <th className="py-3">Seller</th>
-            <th>Quota</th>
-            <th>Pipeline</th>
-            <th>Commit</th>
-            <th>Coverage</th>
-            <th>At risk</th>
-            <th>Trend</th>
+            <th className="h-density-row py-2">{tRole('SELLER')}</th>
+            <th>{t('quota')}</th>
+            <th>{t('pipeline')}</th>
+            <th>{t('commit')}</th>
+            <th>{t('coverage')}</th>
+            <th>{t('atRiskLabel')}</th>
+            <th>{t('trend')}</th>
           </tr>
         </thead>
         <tbody className="divide-y">
           {sellers.map((seller) => (
             <tr key={seller.seller}>
-              <td className="py-3">
+              <td className="h-density-row py-2">
                 <button
                   className="font-semibold hover:text-primary"
                   onClick={() => onSelect?.(seller)}
@@ -704,18 +757,20 @@ export function SellerPerformance({
                 </button>
               </td>
               <td className="tnum">
-                {seller.quota ? formatCurrency(seller.quota, currency) : 'Not available'}
+                {seller.quota
+                  ? formatCurrency(seller.quota, currency, locale)
+                  : tValue('notAvailable')}
               </td>
-              <td className="tnum">{formatCurrency(seller.pipeline, currency)}</td>
-              <td className="tnum">{formatCurrency(seller.commit, currency)}</td>
+              <td className="tnum">{formatCurrency(seller.pipeline, currency, locale)}</td>
+              <td className="tnum">{formatCurrency(seller.commit, currency, locale)}</td>
               <td className="tnum">
                 {seller.quota ? `${(seller.pipeline / seller.quota).toFixed(1)}×` : '—'}
               </td>
-              <td>See deals</td>
+              <td>{t('seeDeals')}</td>
               <td>
                 <span className="inline-flex items-center gap-1 text-muted-foreground">
                   <Minus className="size-3" />
-                  No history
+                  {t('noHistory')}
                 </span>
               </td>
             </tr>

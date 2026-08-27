@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -51,9 +52,12 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 const selectClass =
-  'h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring';
+  'h-density-control w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring';
 
 export function OpportunityForm({ reference }: { reference: ReferenceData }) {
+  const t = useTranslations('opportunities.form');
+  const tOpportunities = useTranslations('opportunities');
+  const tCategory = useTranslations('common.forecastCategory');
   const router = useRouter();
   const [serverError, setServerError] = useState('');
   const defaultStage = reference.stages.find((stage) => stage.code === '25') ?? reference.stages[0];
@@ -102,10 +106,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as {
-        error?: { message?: string };
-      } | null;
-      setServerError(body?.error?.message ?? 'Opportunity could not be created.');
+      setServerError(t('createError'));
       return;
     }
     const created = (await response.json()) as { id: string };
@@ -114,7 +115,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
   });
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-density-section">
       <div className="flex items-center gap-3">
         <Link
           href="/app/opportunities"
@@ -123,23 +124,23 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
           <ArrowLeft className="size-4" />
         </Link>
         <div>
-          <p className="text-sm font-semibold text-primary">Portfolio</p>
-          <h1 className="text-3xl font-semibold tracking-tight">New opportunity</h1>
+          <p className="text-sm font-semibold text-primary">{t('portfolio')}</p>
+          <h1 className="text-page-title font-semibold tracking-tight">{tOpportunities('new')}</h1>
         </div>
       </div>
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>Commercial context</CardTitle>
+              <CardTitle>{t('commercialContext')}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <label className="sm:col-span-2 text-sm font-medium">
-                Title
+                {t('title')}
                 <Input className="mt-2" {...register('title')} />
               </label>
               <label className="text-sm font-medium">
-                Customer
+                {t('customer')}
                 <select className={`${selectClass} mt-2`} {...register('customerId')}>
                   {reference.customers.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -149,9 +150,9 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                 </select>
               </label>
               <label className="text-sm font-medium">
-                Partner
+                {t('partner')}
                 <select className={`${selectClass} mt-2`} {...register('partnerId')}>
-                  <option value="">No partner</option>
+                  <option value="">{t('noPartner')}</option>
                   {reference.partners.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -160,7 +161,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                 </select>
               </label>
               <label className="text-sm font-medium">
-                Seller
+                {t('seller')}
                 <select className={`${selectClass} mt-2`} {...register('sellerId')}>
                   {sellers.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -170,7 +171,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                 </select>
               </label>
               <label className="text-sm font-medium">
-                Stage
+                {t('stage')}
                 <select className={`${selectClass} mt-2`} {...register('stageId')}>
                   {reference.stages.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -183,7 +184,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
           </Card>
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Line items</CardTitle>
+              <CardTitle>{t('lineItems')}</CardTitle>
               <Button
                 type="button"
                 size="sm"
@@ -198,7 +199,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                 }
               >
                 <Plus className="size-4" />
-                Add item
+                {t('addItem')}
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -208,7 +209,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                   className="grid gap-3 rounded-xl border p-3 sm:grid-cols-[0.8fr_1.4fr_0.7fr_0.7fr_auto]"
                 >
                   <select
-                    aria-label={`Brand ${index + 1}`}
+                    aria-label={`${t('brand')} ${index + 1}`}
                     className={selectClass}
                     {...register(`lineItems.${index}.brandId`)}
                   >
@@ -219,24 +220,24 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                     ))}
                   </select>
                   <Input
-                    aria-label={`Description ${index + 1}`}
-                    placeholder="Product or service"
+                    aria-label={`${t('description')} ${index + 1}`}
+                    placeholder={t('productPlaceholder')}
                     {...register(`lineItems.${index}.description`)}
                   />
                   <Input
-                    aria-label={`Amount ${index + 1}`}
+                    aria-label={`${t('amount')} ${index + 1}`}
                     inputMode="decimal"
-                    placeholder="Amount"
+                    placeholder={t('amount')}
                     {...register(`lineItems.${index}.amount`)}
                   />
                   <Input
-                    aria-label={`Cost ${index + 1}`}
+                    aria-label={`${t('cost')} ${index + 1}`}
                     inputMode="decimal"
-                    placeholder="Cost"
+                    placeholder={t('cost')}
                     {...register(`lineItems.${index}.cost`)}
                   />
                   <Button
-                    aria-label={`Remove item ${index + 1}`}
+                    aria-label={`${t('removeLine')} ${index + 1}`}
                     type="button"
                     variant="ghost"
                     size="icon"
@@ -251,7 +252,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Notes</CardTitle>
+              <CardTitle>{t('notes')}</CardTitle>
             </CardHeader>
             <CardContent>
               <textarea
@@ -263,41 +264,41 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
         </div>
         <Card className="h-fit">
           <CardHeader>
-            <CardTitle>Forecast details</CardTitle>
+            <CardTitle>{t('forecastDetails')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <label className="block text-sm font-medium">
-              Category
+              {t('category')}
               <select className={`${selectClass} mt-2`} {...register('forecastCategory')}>
-                <option value="PIPELINE">Pipeline</option>
-                <option value="BEST_CASE">Best case</option>
-                <option value="COMMIT">Commit</option>
-                <option value="CLOSED">Closed</option>
-                <option value="OMITTED">Omitted</option>
+                <option value="PIPELINE">{tCategory('PIPELINE')}</option>
+                <option value="BEST_CASE">{tCategory('BEST_CASE')}</option>
+                <option value="COMMIT">{tCategory('COMMIT')}</option>
+                <option value="CLOSED">{tCategory('CLOSED')}</option>
+                <option value="OMITTED">{tCategory('OMITTED')}</option>
               </select>
             </label>
             <label className="block text-sm font-medium">
-              Estimated amount
+              {t('estimatedAmount')}
               <Input className="mt-2" inputMode="decimal" {...register('estimatedAmount')} />
             </label>
             <label className="block text-sm font-medium">
-              Gross profit
+              {t('grossProfit')}
               <Input className="mt-2" inputMode="decimal" {...register('grossProfit')} />
             </label>
             <label className="block text-sm font-medium">
-              Expected close
+              {t('expectedClose')}
               <Input className="mt-2" type="date" {...register('expectedCloseDate')} />
             </label>
             <label className="block text-sm font-medium">
-              Expected billing
+              {t('expectedBilling')}
               <Input className="mt-2" type="date" {...register('expectedBillingDate')} />
             </label>
             <label className="block text-sm font-medium">
-              PO number
+              {t('poNumber')}
               <Input className="mt-2" {...register('poNumber')} />
             </label>
             {Object.keys(errors).length > 0 && (
-              <p className="text-sm text-danger">Review the required fields and numeric values.</p>
+              <p className="text-sm text-danger">{t('reviewFields')}</p>
             )}
             {serverError && (
               <p role="alert" className="text-sm text-danger">
@@ -305,7 +306,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
               </p>
             )}
             <Button className="w-full" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating…' : 'Create opportunity'}
+              {isSubmitting ? t('creating') : t('create')}
             </Button>
           </CardContent>
         </Card>

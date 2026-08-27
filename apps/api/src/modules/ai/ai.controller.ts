@@ -19,6 +19,9 @@ export class AiController {
   @UseGuards(CsrfGuard)
   @RequirePermissions(PERMISSIONS.ANALYTICS_READ)
   managerBrief(@CurrentAuth() auth: RequestAuth, @Req() request: AuthenticatedRequest) {
-    return this.ai.managerBrief(auth, request.requestId);
+    const requestedLocale = request.headers['accept-language'];
+    const locale =
+      typeof requestedLocale === 'string' && requestedLocale.startsWith('es') ? 'es' : 'en';
+    return this.ai.managerBrief(auth, request.requestId, locale);
   }
 }

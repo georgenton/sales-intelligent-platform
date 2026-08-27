@@ -12,5 +12,5 @@ export interface ManagerBriefContext {
 }
 
 export interface AiProvider {
-  generateManagerBrief(context: ManagerBriefContext): Promise<string>;
+  generateManagerBrief(context: ManagerBriefContext, locale?: 'en' | 'es'): Promise<string>;
 }

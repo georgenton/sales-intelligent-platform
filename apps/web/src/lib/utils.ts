@@ -1,21 +1,43 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { AppLocale } from '@/i18n/config';
+import {
+  formatRelativeTime as formatRelativeTimeValue,
+  formatSalesCurrency,
+  formatSalesDate,
+  formatSalesNumber,
+} from '@/i18n/formatters';
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(value: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    notation: Math.abs(value) >= 100_000 ? 'compact' : 'standard',
-    maximumFractionDigits: 1,
-  }).format(value);
+export function formatCurrency(value: number, currency = 'USD', locale: AppLocale = 'en'): string {
+  return formatSalesCurrency(value, locale, currency);
 }
 
-export function formatDateOnly(value: string | Date): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' }).format(new Date(value));
+export function formatDateOnly(value: string | Date, locale: AppLocale = 'en'): string {
+  return formatSalesDate(value, locale);
+}
+
+export function formatDateTime(value: string | Date, locale: AppLocale = 'en'): string {
+  return formatSalesDate(value, locale, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+export function formatNumber(
+  value: number,
+  locale: AppLocale = 'en',
+  options?: Intl.NumberFormatOptions,
+): string {
+  return formatSalesNumber(value, locale, options);
+}
+
+export function formatRelativeTime(
+  value: string | Date,
+  locale: AppLocale = 'en',
+  now?: Date,
+): string {
+  return formatRelativeTimeValue(value, locale, now);
 }
 
 export function csrfToken(): string {
