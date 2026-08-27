@@ -56,11 +56,11 @@ No density selector or alternative density state exists.
 
 - Library: `next-intl` 4.14.0 with the Next.js 16 App Router plugin.
 - Routes: unchanged. Locale prefixes are intentionally not used.
-- Default: English (`en`). Supported locales are `en` and `es`.
+- Default for the current demo: Spanish (`es`). Supported locales are `en` and `es`. A future tenant-specific default locale remains a possible enhancement and is not implemented in this sprint.
 - Request configuration: `apps/web/src/i18n/request.ts` reads `sip_locale` on the server and loads one catalog.
 - Provider: the root layout resolves the request locale, sets `<html lang>`, and provides messages and `America/Guayaquil` to client components.
 - Persistence: the authenticated shell invokes a validated Server Action that writes only the `sip_locale` preference cookie for one year. The cookie is independent of `sip_session` and `sip_csrf`, so logout does not remove it.
-- Selector: text-only English/Español selector in the authenticated shell. It calls `router.refresh()`, preserving the URL and mounted client state rather than navigating to a locale route.
+- Selector: text-only Español/English selector on login and in the authenticated shell. It calls `router.refresh()`, preserving the URL and mounted client state rather than navigating to a locale route.
 - Catalogs: `apps/web/messages/en.json` and `apps/web/messages/es.json`, organized by common, navigation, auth, seller, manager, opportunities, forecast, alerts, copilot, import, guided, review, validation, errors, and accessibility namespaces.
 
 ## Presentation boundaries

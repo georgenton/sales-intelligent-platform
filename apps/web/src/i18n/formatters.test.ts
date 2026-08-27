@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LOCALE, isAppLocale } from './config';
+import { DEFAULT_LOCALE, isAppLocale, resolveAppLocale } from './config';
 import {
   formatRelativeTime,
   formatSalesCurrency,
@@ -8,11 +8,18 @@ import {
 } from './formatters';
 
 describe('locale contracts', () => {
-  it('accepts only supported locales and defaults to English', () => {
-    expect(DEFAULT_LOCALE).toBe('en');
+  it('accepts only supported locales and defaults the current demo to Spanish', () => {
+    expect(DEFAULT_LOCALE).toBe('es');
     expect(isAppLocale('en')).toBe(true);
     expect(isAppLocale('es')).toBe(true);
     expect(isAppLocale('fr')).toBe(false);
+  });
+
+  it('resolves a missing or invalid cookie to Spanish and respects explicit preferences', () => {
+    expect(resolveAppLocale(undefined)).toBe('es');
+    expect(resolveAppLocale('es')).toBe('es');
+    expect(resolveAppLocale('en')).toBe('en');
+    expect(resolveAppLocale('fr')).toBe('es');
   });
 
   it('formats compact and full USD amounts for English and Spanish', () => {
