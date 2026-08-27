@@ -18,4 +18,13 @@ describe('message catalog contract', () => {
     expect(english.sales.remainingGap).toBe('Remaining gap');
     expect(spanish.sales.remainingGap).toBe('Brecha restante');
   });
+
+  it('keeps the approved bilingual login contract', () => {
+    expect(spanish.auth.headline).toBe(
+      'Convierte tu pipeline en decisiones comerciales más claras.',
+    );
+    expect(spanish.auth.welcome).toBe('Bienvenido');
+    expect(english.auth.headline).toBe('Turn your pipeline into clearer commercial decisions.');
+    expect(english.auth.welcome).toBe('Welcome');
+  });
 });

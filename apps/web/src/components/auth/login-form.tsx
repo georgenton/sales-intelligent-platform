@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, LockKeyhole } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -43,17 +43,13 @@ export function LoginForm() {
   });
 
   return (
-    <Card className="w-full max-w-md border-0 shadow-none">
-      <CardHeader className="px-0 pb-8">
-        <div className="mb-7 grid size-12 place-items-center rounded-2xl bg-secondary text-primary lg:hidden">
-          <LockKeyhole />
-        </div>
-        <p className="text-sm font-semibold text-primary">{t('secureWorkspace')}</p>
-        <h2 className="mt-2 text-4xl font-semibold tracking-[-0.04em]">{t('welcome')}</h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('prompt')}</p>
+    <Card className="w-full max-w-sm border-0 shadow-none">
+      <CardHeader className="px-0 pb-6">
+        <h2 className="text-3xl font-semibold tracking-[-0.035em]">{t('welcome')}</h2>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('prompt')}</p>
       </CardHeader>
       <CardContent className="px-0">
-        <form className="space-y-5" onSubmit={submit} noValidate>
+        <form className="space-y-4" onSubmit={submit} noValidate>
           <label className="block text-sm font-medium">
             {t('email')}
             <Input className="mt-2" autoComplete="email" {...register('email')} />
@@ -77,7 +73,7 @@ export function LoginForm() {
               {error}
             </p>
           )}
-          <Button className="h-12 w-full" type="submit" disabled={isSubmitting}>
+          <Button className="h-density-control w-full" type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               t('signingIn')
             ) : (

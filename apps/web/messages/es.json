@@ -124,13 +124,27 @@
     }
   },
   "auth": {
-    "eyebrow": "Claridad de ingresos, todos los días",
-    "headline": "Convierte el pipeline en desempeño predecible.",
-    "description": "Un centro de comando enfocado en pronóstico, margen, ejecución del vendedor y riesgo comercial.",
+    "eyebrow": "Inteligencia comercial para equipos de ventas",
+    "headline": "Convierte tu pipeline en decisiones comerciales más claras.",
+    "description": "Centraliza oportunidades, forecast, cuotas y riesgos en un solo lugar. Sales Intelligence Platform ayuda a vendedores y gerentes a saber qué atender, dónde intervenir y cómo avanzar hacia sus objetivos.",
+    "values": {
+      "forecast": {
+        "title": "Forecast y cumplimiento",
+        "description": "Entiende cuánto has vendido, qué puedes cerrar y qué falta para alcanzar la cuota."
+      },
+      "opportunities": {
+        "title": "Oportunidades y riesgos",
+        "description": "Prioriza negocios, detecta estancamientos y revisa rápidamente lo que requiere atención."
+      },
+      "assistance": {
+        "title": "Asistencia comercial",
+        "description": "Obtén recomendaciones contextuales para preparar reuniones, revisar oportunidades y tomar mejores decisiones."
+      }
+    },
     "environment": "Entorno de demostración sintético · Multi-tenant por diseño",
     "secureWorkspace": "Espacio de trabajo seguro",
-    "welcome": "Bienvenido de nuevo",
-    "prompt": "Inicia sesión para revisar la posición comercial de tu equipo.",
+    "welcome": "Bienvenido",
+    "prompt": "Ingresa a tu espacio comercial.",
     "email": "Correo electrónico",
     "password": "Contraseña",
     "signIn": "Iniciar sesión",

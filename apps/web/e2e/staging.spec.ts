@@ -48,15 +48,90 @@ test.afterAll(async () => {
   await adminContext?.close();
 });
 
-async function signIn(page: Page, email: string, password: string) {
+async function signIn(page: Page, email: string, password: string, locale: 'en' | 'es' = 'en') {
+  await page.context().addCookies([{ name: 'sip_locale', value: locale, url: baseUrl! }]);
   await page.goto('/login', { waitUntil: 'networkidle' });
-  const emailInput = page.getByLabel('Email', { exact: true });
-  const passwordInput = page.getByLabel('Password', { exact: true });
+  const emailInput = page.getByLabel(locale === 'es' ? 'Correo electrónico' : 'Email', {
+    exact: true,
+  });
+  const passwordInput = page.getByLabel(locale === 'es' ? 'Contraseña' : 'Password', {
+    exact: true,
+  });
   await emailInput.fill(email);
   await passwordInput.fill(password);
   await expect(emailInput).toHaveValue(email);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page
+    .getByRole('button', { name: locale === 'es' ? 'Iniciar sesión' : 'Sign in', exact: true })
+    .click();
 }
+
+test('login defaults to Spanish and preserves locale, route, theme and authentication', async ({
+  browser,
+}) => {
+  const context = await browser.newContext(browserContextOptions());
+  const page = await context.newPage();
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/login', { waitUntil: 'networkidle' });
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(
+    page.getByRole('heading', {
+      name: 'Convierte tu pipeline en decisiones comerciales más claras.',
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bienvenido', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Idioma')).toHaveValue('es');
+  await expect(page.getByText('Forecast y cumplimiento')).toBeHidden();
+  expect(
+    await page.evaluate(() => ({
+      width: window.innerWidth,
+      scrollWidth: document.body.scrollWidth,
+    })),
+  ).toMatchObject({ width: 390, scrollWidth: 390 });
+
+  await page.evaluate(() => localStorage.setItem('sip-appearance', 'DARK'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByLabel('Idioma').selectOption('en');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('heading', { name: 'Welcome', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('sip-appearance'))).toBe('DARK');
+
+  await page.evaluate(() => localStorage.setItem('sip-appearance', 'LIGHT'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByLabel('Language').selectOption('es');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByLabel('Idioma').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/dashboard$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('heading', { name: 'Welcome', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  const localeCookie = (await context.cookies()).find(({ name }) => name === 'sip_locale');
+  expect(localeCookie?.value).toBe('en');
+  expect(consoleErrors).toEqual([]);
+
+  await context.close();
+});
 
 test('admin can manage a synthetic opportunity', async () => {
   const page = adminPage;
@@ -317,7 +392,7 @@ test('language persists without changing route, theme, mode or session boundarie
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bienvenido', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
 
   await page.goto('/app/dashboard');

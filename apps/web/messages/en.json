@@ -124,13 +124,27 @@
     }
   },
   "auth": {
-    "eyebrow": "Revenue clarity, every day",
-    "headline": "Turn pipeline into predictable performance.",
-    "description": "A focused command center for forecast, margin, seller execution and commercial risk.",
+    "eyebrow": "Sales intelligence for commercial teams",
+    "headline": "Turn your pipeline into clearer commercial decisions.",
+    "description": "Bring opportunities, forecast, quota and risk into one place. Sales Intelligence Platform helps sellers and managers understand what needs attention, where to intervene and how to move toward their goals.",
+    "values": {
+      "forecast": {
+        "title": "Forecast and attainment",
+        "description": "Understand what you have sold, what can still close and what remains to reach quota."
+      },
+      "opportunities": {
+        "title": "Opportunities and risk",
+        "description": "Prioritize deals, spot stalled momentum and quickly review what needs attention."
+      },
+      "assistance": {
+        "title": "Sales assistance",
+        "description": "Get contextual guidance to prepare meetings, review opportunities and make better decisions."
+      }
+    },
     "environment": "Synthetic demonstration environment · Multitenant by design",
     "secureWorkspace": "Secure workspace",
-    "welcome": "Welcome back",
-    "prompt": "Sign in to review your team’s commercial position.",
+    "welcome": "Welcome",
+    "prompt": "Sign in to your commercial workspace.",
     "email": "Email",
     "password": "Password",
     "signIn": "Sign in",
