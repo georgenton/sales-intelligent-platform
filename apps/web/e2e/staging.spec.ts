@@ -126,8 +126,11 @@ test('manager review advances only after an explicit decision', async ({ page })
 test('critical Copilot and import contracts block unsafe interaction', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   let requests = 0;
+  const intentIds: string[] = [];
   await page.route('**/backend/ai/manager-brief', async (route) => {
     requests += 1;
+    const body = route.request().postDataJSON() as { intentId?: string };
+    intentIds.push(body.intentId ?? '');
     await route.fulfill({
       status: 503,
       contentType: 'application/json',
@@ -141,7 +144,7 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   );
   await expect(launcher).toBeVisible();
   await launcher.click();
-  const panel = page.getByRole('dialog', { name: 'Contextual Copilot' });
+  const panel = page.getByRole('dialog', { name: 'Sales Copilot' });
   await expect(panel).toBeVisible();
   const collapse = panel.getByRole('button', { name: 'Collapse Copilot' });
   await expect(collapse).toBeFocused();
@@ -155,6 +158,7 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   await expect(prompt).toHaveValue('Summarize current risk');
   await panel.getByRole('button', { name: 'Retry question' }).click();
   await expect.poll(() => requests).toBe(2);
+  expect(intentIds).toEqual(['CUSTOM', 'CUSTOM']);
   await expect(panel.getByRole('alert')).toBeVisible();
 
   await page.keyboard.press('Escape');
@@ -193,18 +197,18 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   });
   await expect(page.getByText('Template detection', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: /Continue/ }).click();
-  await expect(page.getByText('Mapping validation: BLOCKED')).toBeVisible();
+  await expect(page.getByText('Mapping validation: Blocked')).toBeVisible();
   await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
 
   const confirm = page.getByRole('button', { name: 'Confirm mapping' });
   while ((await confirm.count()) > 0) await confirm.first().click();
-  await expect(page.getByText('Mapping validation: PASS')).toBeVisible();
+  await expect(page.getByText('Mapping validation: Pass')).toBeVisible();
   await page.getByRole('button', { name: /Continue/ }).click();
   await page.getByRole('button', { name: /Continue/ }).click();
-  await expect(page.getByText('Data quality: BLOCKED')).toBeVisible();
+  await expect(page.getByText('Data quality: Blocked')).toBeVisible();
   await expect(page.getByText('Every row is BLOCKED')).toBeVisible();
   await page.getByRole('button', { name: 'Revalidate file' }).click();
-  await expect(page.getByText('Data quality: BLOCKED')).toBeVisible();
+  await expect(page.getByText('Data quality: Blocked')).toBeVisible();
   await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
   expect(opportunityPosts).toBe(0);
 
@@ -214,7 +218,7 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
     'button[aria-controls="contextual-copilot-panel"][aria-expanded="false"]',
   );
   await mobileLauncher.click();
-  const mobilePanel = page.getByRole('dialog', { name: 'Contextual Copilot' });
+  const mobilePanel = page.getByRole('dialog', { name: 'Sales Copilot' });
   await expect(mobilePanel).toBeVisible();
   await expect
     .poll(async () => mobilePanel.boundingBox())
@@ -223,7 +227,7 @@ test('critical Copilot and import contracts block unsafe interaction', async ({ 
   await expect(mobileLauncher).toBeFocused();
 
   await page.setViewportSize({ width: 1440, height: 1024 });
-  await expect(page.getByRole('region', { name: 'Contextual Copilot' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Sales Copilot' })).toBeVisible();
   await page.getByRole('button', { name: 'Forecast review' }).click();
   await expect(page.getByText('System confidence not yet computed').first()).toBeVisible();
 });
@@ -246,4 +250,47 @@ test('seller completes Focus and advances the Guided queue', async ({ page }) =>
   await expect(recommendation).toBeVisible();
   await recommendation.click();
   await expect(page.getByText(/session decisions/)).toBeVisible();
+});
+
+test('language persists without changing route, theme, mode or session boundaries', async ({
+  page,
+}) => {
+  await signIn(page, adminEmail, adminPassword!);
+  await page.getByLabel('Appearance').selectOption('DARK');
+  await page.getByLabel('Cognitive mode').selectOption('REVIEW');
+  const route = new URL(page.url()).pathname;
+
+  await page.getByLabel('Language').selectOption('es');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page).toHaveURL(new RegExp(`${route}$`));
+  await expect(page.getByRole('heading', { name: /Q\d .* \d+ de \d+/ })).toBeVisible();
+  await expect(page.getByLabel('Apariencia')).toHaveValue('DARK');
+  await expect(page.getByLabel('Modo cognitivo')).toHaveValue('REVIEW');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  const localeCookie = (await page.context().cookies()).find(({ name }) => name === 'sip_locale');
+  expect(localeCookie?.value).toBe('es');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.getByLabel('Idioma')).toHaveValue('es');
+
+  await page.getByLabel('Idioma').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page).toHaveURL(new RegExp(`${route}$`));
+  await expect(page.getByLabel('Appearance')).toHaveValue('DARK');
+  await expect(page.getByLabel('Cognitive mode')).toHaveValue('REVIEW');
+  await page.getByLabel('Language').selectOption('es');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+
+  await page.getByLabel('Correo electrónico', { exact: true }).fill(adminEmail);
+  await page.getByLabel('Contraseña', { exact: true }).fill(adminPassword!);
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/dashboard$/);
+  await expect(page.getByRole('heading', { name: '¿Alcanzará el equipo la cuota?' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
 });
