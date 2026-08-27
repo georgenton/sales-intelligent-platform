@@ -12,7 +12,7 @@ export class AiService {
     private readonly provider: MockAiProvider,
   ) {}
 
-  async managerBrief(auth: RequestAuth, requestId: string) {
+  async managerBrief(auth: RequestAuth, requestId: string, locale: 'en' | 'es' = 'en') {
     const dashboard = await this.analytics.dashboard(auth);
     const details = await this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const [risks, opportunities] = await Promise.all([
@@ -50,7 +50,7 @@ export class AiService {
       })),
       sellerSummary: dashboard.sellerPerformance,
     };
-    const summary = await this.provider.generateManagerBrief(context);
+    const summary = await this.provider.generateManagerBrief(context, locale);
     await this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       await Promise.all([
         transaction.aiInteraction.create({

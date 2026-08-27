@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   Upload,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,16 +29,21 @@ import {
 } from './import-contracts';
 
 const steps = [
-  'Upload',
-  'Template detection',
-  'Column mapping',
-  'Validation',
-  'Data quality',
-  'Preview',
-  'Import',
-  'Results',
-];
+  'upload',
+  'detection',
+  'mapping',
+  'validation',
+  'quality',
+  'preview',
+  'import',
+  'results',
+] as const;
+
 export function ImportWorkspace() {
+  const t = useTranslations('import');
+  const tAction = useTranslations('common.action');
+  const tStatus = useTranslations('common.status');
+  const tValidation = useTranslations('validation');
   const dispatch = useAppDispatch();
   const wizard = useAppSelector((state) => state.productUi.importWizardState);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -67,11 +73,52 @@ export function ImportWorkspace() {
   const importGatePass = Boolean(
     reference && canPassImportGate({ mappingValidation, quality, blockedRowsAcknowledged }),
   );
+  const fieldLabel = (field: string) => (t.has(`fields.${field}`) ? t(`fields.${field}`) : field);
+  const validationMessage = (message: string) => {
+    const exact: Record<string, string> = {
+      'The CSV contains an unclosed quoted value.': tValidation('unclosedQuote'),
+      'The CSV must have a non-empty header for every column.': tValidation('emptyHeader'),
+      'The CSV contains duplicate column headers.': tValidation('duplicateHeader'),
+      'The CSV does not contain any data rows.': tValidation('noRows'),
+      'The CSV exceeds the 500-row limit. Split it before importing.': tValidation('rowLimit'),
+      'At least one CSV row has more values than the header.': tValidation('extraValues'),
+      'Amount must be a positive number.': tValidation('positiveAmount'),
+      'Expected close must be a valid date.': tValidation('validDate'),
+      'Customer does not match tenant reference data.': tValidation('customerReference'),
+      'Stage does not match tenant reference data.': tValidation('stageReference'),
+      'Brand does not match tenant reference data.': tValidation('brandReference'),
+      'Seller does not match tenant reference data.': tValidation('sellerReference'),
+      'Forecast category is not recognized.': tValidation('forecastUnknown'),
+      'Seller is blank; the authenticated user will own the row.': tValidation('sellerBlank'),
+      'Forecast category is blank; PIPELINE will be used.': tValidation('forecastBlank'),
+      'Description is blank; the opportunity title will be used.': tValidation('descriptionBlank'),
+      'Duplicate row detected within this CSV.': tValidation('duplicate'),
+    };
+    if (exact[message]) return exact[message];
+    const required = message.match(/^Required destination "(.+)" is not mapped\.$/);
+    if (required)
+      return tValidation('requiredDestination', { field: fieldLabel(required[1] ?? '') });
+    const duplicate = message.match(/^Destination "(.+)" is mapped from multiple columns: (.+)\.$/);
+    if (duplicate)
+      return tValidation('duplicateDestination', {
+        field: fieldLabel(duplicate[1] ?? ''),
+        sources: duplicate[2] ?? '',
+      });
+    const confirm = message.match(/^Confirm mapping from "(.+)" to "(.+)"\.$/);
+    if (confirm)
+      return tValidation('confirmMapping', {
+        header: confirm[1] ?? '',
+        field: fieldLabel(confirm[2] ?? ''),
+      });
+    const missing = message.match(/^Missing (.+)\.$/);
+    if (missing) return tValidation('missingField', { field: fieldLabel(missing[1] ?? '') });
+    return message;
+  };
 
   const loadFile = async (file: File) => {
     setFileError('');
     if (!isSupportedOpportunityCsvFileName(file.name)) {
-      setFileError('Unsupported file type. Export the opportunity sheet as a CSV and try again.');
+      setFileError('UNSUPPORTED');
       return;
     }
     try {
@@ -96,7 +143,7 @@ export function ImportWorkspace() {
       setResults([]);
       dispatch(setImportWizardState({ fileName: file.name, step: 1, template: 'Opportunity CSV' }));
     } catch {
-      setFileError('The CSV could not be read. Choose the file again.');
+      setFileError('READ_ERROR');
     }
   };
 
@@ -126,7 +173,7 @@ export function ImportWorkspace() {
         nextResults.push({
           row: index + 2,
           ok: false,
-          message: 'Customer, stage, brand or close date does not match tenant reference data.',
+          message: 'REFERENCE_MISMATCH',
         });
         continue;
       }
@@ -154,12 +201,12 @@ export function ImportWorkspace() {
             },
           ],
         }).unwrap();
-        nextResults.push({ row: index + 2, ok: true, message: 'Opportunity imported.' });
+        nextResults.push({ row: index + 2, ok: true, message: 'IMPORTED' });
       } catch {
         nextResults.push({
           row: index + 2,
           ok: false,
-          message: 'API validation rejected this row.',
+          message: 'REJECTED',
         });
       }
     }
@@ -181,16 +228,14 @@ export function ImportWorkspace() {
     <div>
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.13em] text-primary">
-          Data operations
+          {t('eyebrow')}
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Import opportunities</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          A transparent, tenant-scoped CSV workflow using the existing opportunity API.
-        </p>
+        <h1 className="mt-1 text-page-title font-semibold tracking-[-0.04em]">{t('title')}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t('workflowDescription')}</p>
       </div>
       <ol
         className="mb-5 grid grid-cols-4 gap-1 rounded-xl border bg-card p-2 sm:grid-cols-8"
-        aria-label="Import progress"
+        aria-label={t('progress')}
       >
         {steps.map((step, index) => (
           <li
@@ -204,14 +249,14 @@ export function ImportWorkspace() {
                   : 'text-muted-foreground',
             )}
           >
-            {index + 1}. {step}
+            {index + 1}. {t(`steps.${step}`)}
           </li>
         ))}
       </ol>
       <Card>
         <CardHeader>
-          <CardTitle>{steps[wizard.step]}</CardTitle>
-          <p className="text-xs text-muted-foreground">{wizard.fileName || 'No file selected'}</p>
+          <CardTitle>{t(`steps.${steps[wizard.step] ?? 'upload'}`)}</CardTitle>
+          <p className="text-xs text-muted-foreground">{wizard.fileName || t('noFile')}</p>
         </CardHeader>
         <CardContent>
           {wizard.step === 0 && (
@@ -219,9 +264,9 @@ export function ImportWorkspace() {
               <label className="grid min-h-64 cursor-pointer place-items-center rounded-2xl border-2 border-dashed p-8 text-center hover:border-primary">
                 <span>
                   <Upload className="mx-auto size-8 text-primary" />
-                  <b className="mt-3 block">Upload opportunity CSV</b>
+                  <b className="mt-3 block">{t('uploadCsv')}</b>
                   <span className="mt-2 block text-sm text-muted-foreground">
-                    CSV up to 500 rows → Supported · Excel workbooks → Export to CSV first
+                    {t('fileSupport')}
                   </span>
                   <input
                     className="sr-only"
@@ -242,9 +287,15 @@ export function ImportWorkspace() {
                   role="alert"
                   className="mt-4 rounded-xl bg-surface-danger-soft p-3 text-sm text-danger"
                 >
-                  <p>{fileError}</p>
+                  <p>
+                    {fileError === 'UNSUPPORTED'
+                      ? t('unsupported')
+                      : fileError === 'READ_ERROR'
+                        ? t('readError')
+                        : validationMessage(fileError)}
+                  </p>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setFileError('')}>
-                    Choose another CSV
+                    {t('chooseAnother')}
                   </Button>
                 </div>
               ) : null}
@@ -256,16 +307,16 @@ export function ImportWorkspace() {
                 <FileSpreadsheet className="size-5 text-primary" />
                 <p className="mt-3 font-semibold">Opportunity CSV</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Detected from {headers.length} columns · {rows.length} data rows
+                  {t('detectedFrom', { columns: headers.length, rows: rows.length })}
                 </p>
               </div>
               <div className="rounded-xl border p-4">
                 <p className="font-semibold">Oppty</p>
-                <p className="mt-1 text-xs text-success">Supported through current create API</p>
+                <p className="mt-1 text-xs text-success">{t('supportedApi')}</p>
               </div>
               <div className="rounded-xl border p-4 opacity-70">
-                <p className="font-semibold">Billing / Channel cutoff</p>
-                <p className="mt-1 text-xs text-muted-foreground">Coming next · not imported</p>
+                <p className="font-semibold">{t('billingCutoff')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('comingNext')}</p>
               </div>
             </div>
           )}
@@ -280,7 +331,7 @@ export function ImportWorkspace() {
                   <ArrowRight className="hidden size-4 text-muted-foreground sm:block" />
                   <div>
                     <label className="sr-only" htmlFor={`mapping-${headerIndex}`}>
-                      Map source column {header}
+                      {t('mapSource', { header })}
                     </label>
                     <select
                       id={`mapping-${headerIndex}`}
@@ -294,7 +345,9 @@ export function ImportWorkspace() {
                       }}
                     >
                       {IMPORT_FIELDS.map((field) => (
-                        <option key={field}>{field}</option>
+                        <option key={field} value={field}>
+                          {fieldLabel(field)}
+                        </option>
                       ))}
                     </select>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
@@ -305,10 +358,12 @@ export function ImportWorkspace() {
                         )}
                       >
                         {mappings[header] === 'Ignore'
-                          ? 'Ignored source column'
+                          ? t('ignored')
                           : confirmations[header]
-                            ? 'Mapping confirmed'
-                            : `${suggestions[header]?.confidence ?? 'LOW'} confidence suggestion · review required`}
+                            ? t('confirmed')
+                            : t('suggestion', {
+                                confidence: suggestions[header]?.confidence ?? 'LOW',
+                              })}
                       </span>
                       {mappings[header] !== 'Ignore' && !confirmations[header] ? (
                         <Button
@@ -320,7 +375,7 @@ export function ImportWorkspace() {
                             setBlockedRowsAcknowledged(false);
                           }}
                         >
-                          Confirm mapping
+                          {t('confirmMapping')}
                         </Button>
                       ) : null}
                     </div>
@@ -336,15 +391,15 @@ export function ImportWorkspace() {
                 )}
                 role={mappingValidation.status === 'PASS' ? 'status' : 'alert'}
               >
-                <b>Mapping validation: {mappingValidation.status}</b>
+                <b>{t('mappingValidation', { status: tStatus(mappingValidation.status) })}</b>
                 {mappingValidation.issues.length ? (
                   <ul className="mt-2 list-disc space-y-1 pl-5">
                     {mappingValidation.issues.map((issue) => (
-                      <li key={issue}>{issue}</li>
+                      <li key={issue}>{validationMessage(issue)}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-1">Required destinations are unique and explicitly confirmed.</p>
+                  <p className="mt-1">{t('mappingValid')}</p>
                 )}
               </div>
             </div>
@@ -352,26 +407,22 @@ export function ImportWorkspace() {
           {wizard.step === 3 && (
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-surface-success-soft p-4">
-                <b className="text-success">Mapping validation PASS</b>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Required destinations are unique and confirmed
-                </p>
+                <b className="text-success">{t('mappingPass')}</b>
+                <p className="mt-1 text-xs text-muted-foreground">{t('mappingValid')}</p>
               </div>
               <div className="rounded-xl bg-surface-warning-soft p-4">
-                <b className="text-warning">{rows.length} rows detected</b>
-                <p className="mt-1 text-xs text-muted-foreground">Quality review runs next</p>
+                <b className="text-warning">{t('rowsDetected', { count: rows.length })}</b>
+                <p className="mt-1 text-xs text-muted-foreground">{t('qualityNext')}</p>
               </div>
               <div className="rounded-xl bg-muted p-4">
                 <b>
                   {referenceState.isLoading
-                    ? 'Reference data loading'
+                    ? t('referenceLoading')
                     : referenceState.isError
-                      ? 'Reference data unavailable'
-                      : 'Reference data ready'}
+                      ? t('referenceUnavailable')
+                      : t('referenceReady')}
                 </b>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Tenant customer, stage, brand and seller values are checked before mutation
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('referenceChecked')}</p>
               </div>
             </div>
           )}
@@ -379,11 +430,11 @@ export function ImportWorkspace() {
             <div>
               {!reference && referenceState.isLoading ? (
                 <div aria-busy="true" role="status" className="rounded-xl border p-6 text-sm">
-                  Loading tenant reference data for validation…
+                  {t('referenceLoadingDetail')}
                 </div>
               ) : !reference ? (
                 <div role="alert" className="rounded-xl bg-surface-danger-soft p-4 text-danger">
-                  <p className="text-sm">Tenant reference data could not be loaded.</p>
+                  <p className="text-sm">{t('referenceLoadError')}</p>
                   <Button
                     type="button"
                     variant="ghost"
@@ -391,7 +442,7 @@ export function ImportWorkspace() {
                     className="mt-2"
                     onClick={() => void referenceState.refetch()}
                   >
-                    Retry reference data
+                    {t('retryReference')}
                   </Button>
                 </div>
               ) : quality ? (
@@ -408,7 +459,7 @@ export function ImportWorkspace() {
                       )}
                       role="status"
                     >
-                      Data quality: {quality.status}
+                      {t('dataQuality', { status: tStatus(quality.status) })}
                     </p>
                     <Button
                       type="button"
@@ -419,14 +470,14 @@ export function ImportWorkspace() {
                         setValidationRevision((revision) => revision + 1);
                       }}
                     >
-                      Revalidate file
+                      {t('revalidate')}
                     </Button>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                    <Metric label="Ready" value={quality.ready} tone="success" />
-                    <Metric label="Warnings" value={quality.warning} tone="warning" />
-                    <Metric label="Blocked" value={quality.blocked} tone="danger" />
-                    <Metric label="Duplicates" value={quality.duplicates} tone="danger" />
+                    <Metric label={t('ready')} value={quality.ready} tone="success" />
+                    <Metric label={t('warnings')} value={quality.warning} tone="warning" />
+                    <Metric label={t('blocked')} value={quality.blocked} tone="danger" />
+                    <Metric label={t('duplicates')} value={quality.duplicates} tone="danger" />
                   </div>
                   <div className="mt-4 max-h-72 overflow-auto divide-y rounded-xl border">
                     {quality.rows
@@ -435,19 +486,20 @@ export function ImportWorkspace() {
                       .map((row) => (
                         <div key={row.rowNumber} className="p-3 text-sm">
                           <b className={row.status === 'BLOCKED' ? 'text-danger' : 'text-warning'}>
-                            Row {row.rowNumber} · {row.status}
+                            {t('row', {
+                              number: row.rowNumber,
+                              status: tStatus(row.status),
+                            })}
                           </b>
                           <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
                             {[...row.blockingReasons, ...row.warnings].map((message) => (
-                              <li key={message}>{message}</li>
+                              <li key={message}>{validationMessage(message)}</li>
                             ))}
                           </ul>
                         </div>
                       ))}
                     {quality.rows.every(({ status }) => status === 'READY') ? (
-                      <p className="p-6 text-center text-sm text-success">
-                        All rows passed validation without warnings.
-                      </p>
+                      <p className="p-6 text-center text-sm text-success">{t('allRowsPass')}</p>
                     ) : null}
                   </div>
                   {quality.blocked > 0 && quality.importableIndexes.length > 0 ? (
@@ -459,15 +511,16 @@ export function ImportWorkspace() {
                         onChange={(event) => setBlockedRowsAcknowledged(event.target.checked)}
                       />
                       <span>
-                        Import only the {quality.importableIndexes.length} READY/WARNING rows. Skip{' '}
-                        {quality.blocked} BLOCKED rows without sending them to the API.
+                        {t('importValidRows', {
+                          ready: quality.importableIndexes.length,
+                          blocked: quality.blocked,
+                        })}
                       </span>
                     </label>
                   ) : null}
                   {quality.blocked > 0 && quality.importableIndexes.length === 0 ? (
                     <p role="alert" className="mt-4 text-sm text-danger">
-                      Every row is BLOCKED. Correct the CSV and upload it again; no mutation is
-                      allowed.
+                      {t('everyRowBlocked')}
                     </p>
                   ) : null}
                 </>
@@ -479,10 +532,12 @@ export function ImportWorkspace() {
               <table className="w-full min-w-[720px] text-left text-xs">
                 <thead className="border-b uppercase text-muted-foreground">
                   <tr>
-                    <th className="p-2">Status</th>
+                    <th className="h-density-row p-2">{t('status')}</th>
                     {headers.map((header) => (
                       <th key={header} className="p-2">
-                        {mappings[header] === 'Ignore' ? header : mappings[header]}
+                        {mappings[header] === 'Ignore'
+                          ? header
+                          : fieldLabel(mappings[header] ?? 'Ignore')}
                       </th>
                     ))}
                   </tr>
@@ -491,7 +546,7 @@ export function ImportWorkspace() {
                   {rows.slice(0, 10).map((row, index) => (
                     <tr key={index}>
                       <td className="p-2 font-semibold">
-                        {quality?.rows[index]?.status ?? 'BLOCKED'}
+                        {tStatus(quality?.rows[index]?.status ?? 'BLOCKED')}
                       </td>
                       {headers.map((header, cell) => (
                         <td key={header} className="max-w-48 truncate p-2">
@@ -503,23 +558,19 @@ export function ImportWorkspace() {
                 </tbody>
               </table>
               <p className="mt-3 text-xs text-muted-foreground">
-                Showing {Math.min(10, rows.length)} of {rows.length} rows.
+                {t('showingRows', { visible: Math.min(10, rows.length), total: rows.length })}
               </p>
             </div>
           )}
           {wizard.step === 6 && (
             <div className="rounded-2xl border p-6">
               <h2 className="font-semibold">
-                Ready to create {quality?.importableIndexes.length ?? 0} tenant-scoped opportunities
+                {t('readyCreate', { count: quality?.importableIndexes.length ?? 0 })}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Each row uses the existing authenticated POST endpoint, CSRF protection, RBAC and
-                audit trail. No direct database write is used.
-              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('securityCopy')}</p>
               {quality?.blocked ? (
                 <p className="mt-3 text-sm text-warning">
-                  {quality.blocked} BLOCKED rows will be skipped under your confirmed
-                  valid-rows-only choice.
+                  {t('blockedSkip', { count: quality.blocked })}
                 </p>
               ) : null}
               <p
@@ -529,15 +580,15 @@ export function ImportWorkspace() {
                   importGatePass ? 'text-success' : 'text-danger',
                 )}
               >
-                Import gate: {importGatePass ? 'PASS' : 'BLOCKED'}
+                {t('gate', { status: tStatus(importGatePass ? 'PASS' : 'BLOCKED') })}
               </p>
               {importGatePass ? (
                 <Button className="mt-4" disabled={createState.isLoading} onClick={importRows}>
-                  {createState.isLoading ? 'Importing…' : 'Import now'}
+                  {createState.isLoading ? t('importing') : t('importNow')}
                 </Button>
               ) : (
                 <p role="alert" className="mt-2 text-sm text-danger">
-                  Return to validation and resolve or explicitly handle every blocking row.
+                  {t('gateBlocked')}
                 </p>
               )}
             </div>
@@ -546,17 +597,17 @@ export function ImportWorkspace() {
             <div>
               <div className="grid gap-3 sm:grid-cols-4">
                 <Metric
-                  label="Imported"
+                  label={t('imported')}
                   value={results.filter((result) => result.ok).length}
                   tone="success"
                 />
                 <Metric
-                  label="Rejected"
+                  label={t('rejected')}
                   value={results.filter((result) => !result.ok).length}
                   tone="danger"
                 />
-                <Metric label="Skipped" value={quality?.blocked ?? 0} tone="warning" />
-                <Metric label="Attempted" value={results.length} />
+                <Metric label={t('skipped')} value={quality?.blocked ?? 0} tone="warning" />
+                <Metric label={t('attempted')} value={results.length} />
               </div>
               <div className="mt-4 max-h-72 overflow-auto divide-y rounded-xl border">
                 {results.map((result) => (
@@ -569,7 +620,12 @@ export function ImportWorkspace() {
                     ) : (
                       <AlertTriangle className="size-4 text-danger" />
                     )}
-                    <b>Row {result.row}</b> · {result.message}
+                    <b>{t('rowResult', { number: result.row })}</b> ·{' '}
+                    {result.message === 'IMPORTED'
+                      ? t('rowImported')
+                      : result.message === 'REJECTED'
+                        ? t('rowRejected')
+                        : tValidation('referenceMismatch')}
                   </p>
                 ))}
               </div>
@@ -582,14 +638,14 @@ export function ImportWorkspace() {
               onClick={() => dispatch(setImportWizardState({ step: Math.max(0, wizard.step - 1) }))}
             >
               <ArrowLeft className="size-4" />
-              Back
+              {tAction('back')}
             </Button>
             {wizard.step > 0 && wizard.step < 6 && (
               <Button
                 disabled={!canContinue || createState.isLoading}
                 onClick={() => dispatch(setImportWizardState({ step: wizard.step + 1 }))}
               >
-                Continue <ArrowRight className="size-4" />
+                {tAction('continue')} <ArrowRight className="size-4" />
               </Button>
             )}
           </div>

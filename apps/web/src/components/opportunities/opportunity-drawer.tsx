@@ -11,23 +11,36 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ForecastConfidence, RiskBadge, StageVelocity } from '@/components/sales/sales-components';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDateOnly } from '@/lib/utils';
+import type { AppLocale } from '@/i18n/config';
+import { formatCurrency, formatDateOnly, formatDateTime, formatRelativeTime } from '@/lib/utils';
 import { useOpportunityQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectOpportunity, setCopilotContext, setCopilotPanelOpen } from '@/store/ui-slice';
 
 const copilotPrompts = [
-  'Why is this deal at risk?',
-  'Is Commit justified?',
-  'What information is missing?',
-  'Prepare next meeting',
-  'Draft follow-up',
-];
+  { id: 'RISK', key: 'risk' },
+  { id: 'COMMIT', key: 'commit' },
+  { id: 'MISSING', key: 'missing' },
+  { id: 'MEETING', key: 'meeting' },
+  { id: 'FOLLOW_UP', key: 'followUp' },
+] as const;
+
+const lowerFirst = (value: string) =>
+  value.length ? `${value[0]?.toLocaleLowerCase()}${value.slice(1)}` : value;
 
 export function OpportunityDrawer() {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('opportunities.drawer');
+  const tOpportunities = useTranslations('opportunities');
+  const tValue = useTranslations('common.value');
+  const tStatus = useTranslations('common.status');
+  const tCategory = useTranslations('common.forecastCategory');
+  const tCopilot = useTranslations('copilot.prompts');
+  const tAlertMessages = useTranslations('alerts.messages');
   const dispatch = useAppDispatch();
   const selectedId = useAppSelector((state) => state.productUi.selectedOpportunityId);
   const {
@@ -50,18 +63,18 @@ export function OpportunityDrawer() {
   const evidence = useMemo(() => {
     if (!opportunity) return { present: [] as string[], missing: [] as string[] };
     const present = [
-      opportunity.poNumber ? 'Purchase order recorded' : null,
-      opportunity.partner ? 'Partner attached' : null,
-      opportunity.expectedBillingDate ? 'Billing date confirmed' : null,
-      opportunity.health.score >= 70 ? 'Health is above 70' : null,
+      opportunity.poNumber ? t('purchaseOrderRecorded') : null,
+      opportunity.partner ? t('partnerAttached') : null,
+      opportunity.expectedBillingDate ? t('billingDateConfirmed') : null,
+      opportunity.health.score >= 70 ? t('healthAbove') : null,
     ].filter(Boolean) as string[];
     const missing = [
-      !opportunity.poNumber ? 'Purchase order' : null,
-      !opportunity.expectedBillingDate ? 'Expected billing date' : null,
-      opportunity.health.score < 70 ? 'Health evidence above threshold' : null,
+      !opportunity.poNumber ? t('purchaseOrder') : null,
+      !opportunity.expectedBillingDate ? t('billingDate') : null,
+      opportunity.health.score < 70 ? t('healthEvidence') : null,
     ].filter(Boolean) as string[];
     return { present, missing };
-  }, [opportunity]);
+  }, [opportunity, t]);
 
   if (!selectedId) return null;
   const ageDays = opportunity
@@ -100,11 +113,11 @@ export function OpportunityDrawer() {
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
-              Opportunity context
+              {t('context')}
             </p>
-            <p className="text-xs text-muted-foreground">Dashboard remains in place</p>
+            <p className="text-xs text-muted-foreground">{t('dashboardInPlace')}</p>
           </div>
-          <Button variant="ghost" size="icon" aria-label="Close opportunity drawer" onClick={close}>
+          <Button variant="ghost" size="icon" aria-label={t('close')} onClick={close}>
             <X className="size-4" />
           </Button>
         </div>
@@ -113,7 +126,7 @@ export function OpportunityDrawer() {
             role="status"
             className="grid flex-1 place-items-center text-sm text-muted-foreground"
           >
-            Loading opportunity…
+            {t('loading')}
           </div>
         )}
         {isError && (
@@ -121,7 +134,7 @@ export function OpportunityDrawer() {
             role="alert"
             className="grid flex-1 place-items-center p-8 text-center text-sm text-danger"
           >
-            This opportunity could not be loaded.
+            {t('loadError')}
           </div>
         )}
         {opportunity && (
@@ -136,7 +149,7 @@ export function OpportunityDrawer() {
                         ? 'HIGH'
                         : 'INFO'
                   }
-                  label={opportunity.health.status.replaceAll('_', ' ')}
+                  label={tStatus(opportunity.health.status)}
                 />
                 <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
                   {opportunity.stage.code}% · {opportunity.stage.name}
@@ -153,14 +166,14 @@ export function OpportunityDrawer() {
                 {opportunity.partner ? ` · via ${opportunity.partner.name}` : ''}
               </p>
               <p className="tnum mt-4 text-3xl font-semibold tracking-[-0.04em]">
-                {formatCurrency(opportunity.estimatedAmount, opportunity.currency)}
+                {formatCurrency(opportunity.estimatedAmount, opportunity.currency, locale)}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link
                   href={`/app/opportunities/${opportunity.id}`}
                   className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
                 >
-                  Update forecast <ArrowUpRight className="size-3" />
+                  {t('updateForecast')} <ArrowUpRight className="size-3" />
                 </Link>
                 <Button
                   variant="outline"
@@ -168,7 +181,7 @@ export function OpportunityDrawer() {
                   onClick={() => dispatch(setCopilotPanelOpen(true))}
                 >
                   <Bot className="size-3.5" />
-                  Ask Copilot
+                  {t('askCopilot')}
                 </Button>
               </div>
             </header>
@@ -181,16 +194,18 @@ export function OpportunityDrawer() {
                   id="next-step-title"
                   className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
                 >
-                  Next step
+                  {t('nextStep')}
                 </p>
                 <p className="mt-2 text-sm font-semibold">
                   {evidence.missing[0]
-                    ? `Confirm ${evidence.missing[0].toLowerCase()} with the customer`
-                    : 'Validate the next customer commitment'}
+                    ? t('confirmWithCustomer', { item: lowerFirst(evidence.missing[0]) })
+                    : t('validateCommitment')}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Owner: {opportunity.seller.name} · before{' '}
-                  {formatDateOnly(opportunity.expectedCloseDate)}
+                  {t('owner', {
+                    name: opportunity.seller.name,
+                    date: formatDateOnly(opportunity.expectedCloseDate, locale),
+                  })}
                 </p>
               </section>
               <section aria-labelledby="activity-title">
@@ -199,14 +214,14 @@ export function OpportunityDrawer() {
                   className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground"
                 >
                   <Activity className="size-4" />
-                  Last meaningful customer activity
+                  {t('lastActivity')}
                 </h3>
                 <p className="mt-2 text-sm font-semibold">
-                  Opportunity updated {ageDays === 0 ? 'today' : `${ageDays} days ago`}
+                  {t('updated', {
+                    relative: formatRelativeTime(opportunity.updatedAt, locale, new Date(openedAt)),
+                  })}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The current API does not expose a separate customer-touch timeline.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('timelineUnavailable')}</p>
               </section>
               <section aria-labelledby="evidence-title">
                 <h3
@@ -214,20 +229,20 @@ export function OpportunityDrawer() {
                   className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground"
                 >
                   <FileQuestion className="size-4" />
-                  Why is this {opportunity.forecastCategory.replaceAll('_', ' ')}?
+                  {t('whyCategory', { category: tCategory(opportunity.forecastCategory) })}
                 </h3>
                 <ForecastConfidence
                   sellerCategory={opportunity.forecastCategory}
                   state="INSUFFICIENT_DATA"
                   rationale={
                     evidence.missing.length
-                      ? `${evidence.missing.join(', ')} still requires evidence.`
-                      : 'Current stage evidence supports the seller category.'
+                      ? t('requiresEvidence', { items: evidence.missing.join(', ') })
+                      : t('supportsCategory')
                   }
                 />
                 <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <p className="font-semibold text-success">Evidence present</p>
+                    <p className="font-semibold text-success">{t('evidencePresent')}</p>
                     <ul className="mt-1 space-y-1 text-muted-foreground">
                       {evidence.present.length ? (
                         evidence.present.map((item) => (
@@ -237,17 +252,17 @@ export function OpportunityDrawer() {
                           </li>
                         ))
                       ) : (
-                        <li>None recorded</li>
+                        <li>{tValue('noneRecorded')}</li>
                       )}
                     </ul>
                   </div>
                   <div>
-                    <p className="font-semibold text-warning">Missing</p>
+                    <p className="font-semibold text-warning">{t('missing')}</p>
                     <ul className="mt-1 space-y-1 text-muted-foreground">
                       {evidence.missing.length ? (
                         evidence.missing.map((item) => <li key={item}>{item}</li>)
                       ) : (
-                        <li>No critical gaps</li>
+                        <li>{t('noCriticalGaps')}</li>
                       )}
                     </ul>
                   </div>
@@ -258,29 +273,31 @@ export function OpportunityDrawer() {
                   id="facts-title"
                   className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground"
                 >
-                  Commercial facts
+                  {t('commercialFacts')}
                 </h3>
                 <dl className="mt-2 grid grid-cols-2 gap-3 rounded-xl border p-3 text-xs">
                   <div>
-                    <dt className="text-muted-foreground">Expected close</dt>
+                    <dt className="text-muted-foreground">{tOpportunities('expectedClose')}</dt>
                     <dd className="mt-1 font-semibold">
-                      {formatDateOnly(opportunity.expectedCloseDate)}
+                      {formatDateOnly(opportunity.expectedCloseDate, locale)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Margin</dt>
+                    <dt className="text-muted-foreground">{tOpportunities('margin')}</dt>
                     <dd className="tnum mt-1 font-semibold">
-                      {opportunity.margin?.toFixed(1) ?? 'Not available'}%
+                      {opportunity.margin?.toFixed(1) ?? tValue('notAvailable')}%
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">PO</dt>
-                    <dd className="mt-1 font-semibold">{opportunity.poNumber ?? 'Not recorded'}</dd>
+                    <dt className="text-muted-foreground">{t('po')}</dt>
+                    <dd className="mt-1 font-semibold">
+                      {opportunity.poNumber ?? tValue('notRecorded')}
+                    </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Brand</dt>
+                    <dt className="text-muted-foreground">{t('brand')}</dt>
                     <dd className="mt-1 font-semibold">
-                      {opportunity.lineItems[0]?.brand.name ?? 'Not recorded'}
+                      {opportunity.lineItems[0]?.brand.name ?? tValue('notRecorded')}
                     </dd>
                   </div>
                 </dl>
@@ -294,14 +311,16 @@ export function OpportunityDrawer() {
                     id="alerts-title"
                     className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground"
                   >
-                    Active alerts
+                    {t('activeAlerts')}
                   </h3>
                   <div className="mt-2 space-y-2">
                     {opportunity.alerts.map((alert) => (
                       <div key={alert.id} className="rounded-xl bg-surface-danger-soft p-3">
                         <RiskBadge severity={alert.severity} code={alert.code} />
                         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                          {alert.message}
+                          {tAlertMessages.has(alert.code)
+                            ? tAlertMessages(alert.code)
+                            : alert.message}
                         </p>
                       </div>
                     ))}
@@ -315,7 +334,7 @@ export function OpportunityDrawer() {
                     className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground"
                   >
                     <Landmark className="size-4" />
-                    Stage history
+                    {tOpportunities('stageHistory')}
                   </h3>
                   <ol className="mt-3 space-y-3">
                     {opportunity.stageHistory.slice(0, 4).map((entry) => (
@@ -325,7 +344,7 @@ export function OpportunityDrawer() {
                           {entry.toStage.name}
                         </b>
                         <p className="mt-1 text-muted-foreground">
-                          {entry.changedBy.name} · {new Date(entry.changedAt).toLocaleString()}
+                          {entry.changedBy.name} · {formatDateTime(entry.changedAt, locale)}
                         </p>
                       </li>
                     ))}
@@ -341,24 +360,25 @@ export function OpportunityDrawer() {
                   className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-copilot-accent"
                 >
                   <Bot className="size-4" />
-                  Copilot contextual actions
+                  {t('contextualActions')}
                 </h3>
                 <div className="mt-3 space-y-1.5">
                   {copilotPrompts.map((prompt) => (
                     <button
-                      key={prompt}
+                      key={prompt.id}
                       className="block w-full rounded-lg px-2 py-2 text-left text-xs text-sidebar-foreground/75 hover:bg-sidebar-foreground/10"
                       onClick={() => {
                         dispatch(
                           setCopilotContext({
                             page: 'opportunity-drawer',
                             opportunityId: opportunity.id,
+                            intentId: prompt.id,
                           }),
                         );
                         dispatch(setCopilotPanelOpen(true));
                       }}
                     >
-                      {prompt}
+                      {tCopilot(prompt.key)}
                     </button>
                   ))}
                 </div>
@@ -367,13 +387,13 @@ export function OpportunityDrawer() {
             <footer className="sticky bottom-0 flex items-center justify-between border-t bg-card p-4">
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Clock3 className="size-3" />
-                Esc closes and restores focus
+                {t('escapeHint')}
               </span>
               <Link
                 href={`/app/opportunities/${opportunity.id}`}
                 className="text-xs font-semibold text-primary"
               >
-                Open full record
+                {t('openRecord')}
               </Link>
             </footer>
           </div>

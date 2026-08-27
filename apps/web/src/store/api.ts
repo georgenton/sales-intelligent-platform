@@ -12,6 +12,8 @@ interface ManagerBrief {
   summary: string;
 }
 
+type ManagerBriefIntent = 'RISK' | 'COMMIT' | 'MISSING' | 'MEETING' | 'FOLLOW_UP' | 'CUSTOM';
+
 interface ReferenceData {
   stages: Array<{ id: string; name: string; code: string; probability: number }>;
   brands: Array<{ id: string; name: string }>;
@@ -72,8 +74,16 @@ export const productApi = createApi({
         'Alerts',
       ],
     }),
-    managerBrief: builder.mutation<ManagerBrief, void>({
-      query: () => ({ url: '/ai/manager-brief', method: 'POST' }),
+    managerBrief: builder.mutation<
+      ManagerBrief,
+      { locale: 'en' | 'es'; intentId: ManagerBriefIntent }
+    >({
+      query: ({ locale, intentId }) => ({
+        url: '/ai/manager-brief',
+        method: 'POST',
+        headers: { 'accept-language': locale },
+        body: { intentId },
+      }),
     }),
   }),
 });

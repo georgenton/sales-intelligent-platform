@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Save } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -29,7 +30,7 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 const selectClass =
-  'mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring';
+  'mt-2 h-density-control w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring';
 
 export function UpdateOpportunityPanel({
   opportunity,
@@ -38,6 +39,9 @@ export function UpdateOpportunityPanel({
   opportunity: OpportunityData;
   reference: ReferenceData;
 }) {
+  const t = useTranslations('opportunities.update');
+  const tStatus = useTranslations('common.status');
+  const tCategory = useTranslations('common.forecastCategory');
   const router = useRouter();
   const [message, setMessage] = useState('');
   const {
@@ -69,28 +73,28 @@ export function UpdateOpportunityPanel({
         poNumber: values.poNumber || undefined,
       }),
     });
-    setMessage(response.ok ? 'Changes saved.' : 'Changes could not be saved.');
+    setMessage(response.ok ? t('saved') : t('error'));
     if (response.ok) router.refresh();
   });
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Update forecast</CardTitle>
-        <p className="text-xs text-muted-foreground">Stage changes are recorded automatically.</p>
+        <CardTitle>{t('title')}</CardTitle>
+        <p className="text-xs text-muted-foreground">{t('description')}</p>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-sm font-medium">
-            Status
+            {t('status')}
             <select className={selectClass} {...register('status')}>
-              <option value="OPEN">Open</option>
-              <option value="WON">Won</option>
-              <option value="LOST">Lost</option>
-              <option value="CANCELLED">Cancelled</option>
+              <option value="OPEN">{tStatus('OPEN')}</option>
+              <option value="WON">{tStatus('WON')}</option>
+              <option value="LOST">{tStatus('LOST')}</option>
+              <option value="CANCELLED">{tStatus('CANCELLED')}</option>
             </select>
           </label>
           <label className="block text-sm font-medium">
-            Stage
+            {t('stage')}
             <select className={selectClass} {...register('stageId')}>
               {reference.stages.map((stage) => (
                 <option key={stage.id} value={stage.id}>
@@ -100,37 +104,37 @@ export function UpdateOpportunityPanel({
             </select>
           </label>
           <label className="block text-sm font-medium">
-            Forecast category
+            {t('forecastCategory')}
             <select className={selectClass} {...register('forecastCategory')}>
-              <option value="PIPELINE">Pipeline</option>
-              <option value="BEST_CASE">Best case</option>
-              <option value="COMMIT">Commit</option>
-              <option value="CLOSED">Closed</option>
-              <option value="OMITTED">Omitted</option>
+              <option value="PIPELINE">{tCategory('PIPELINE')}</option>
+              <option value="BEST_CASE">{tCategory('BEST_CASE')}</option>
+              <option value="COMMIT">{tCategory('COMMIT')}</option>
+              <option value="CLOSED">{tCategory('CLOSED')}</option>
+              <option value="OMITTED">{tCategory('OMITTED')}</option>
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm font-medium">
-              Amount
+              {t('amount')}
               <Input className="mt-2" {...register('estimatedAmount')} />
             </label>
             <label className="text-sm font-medium">
-              Gross profit
+              {t('grossProfit')}
               <Input className="mt-2" {...register('grossProfit')} />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm font-medium">
-              Close date
+              {t('closeDate')}
               <Input className="mt-2" type="date" {...register('expectedCloseDate')} />
             </label>
             <label className="text-sm font-medium">
-              Billing date
+              {t('billingDate')}
               <Input className="mt-2" type="date" {...register('expectedBillingDate')} />
             </label>
           </div>
           <label className="block text-sm font-medium">
-            PO number
+            {t('poNumber')}
             <Input className="mt-2" {...register('poNumber')} />
           </label>
           {message && (
@@ -140,7 +144,7 @@ export function UpdateOpportunityPanel({
           )}
           <Button className="w-full" disabled={isSubmitting}>
             <Save className="size-4" />
-            {isSubmitting ? 'Saving…' : 'Save changes'}
+            {isSubmitting ? t('saving') : t('save')}
           </Button>
         </form>
       </CardContent>

@@ -11,26 +11,27 @@ import {
   UsersRound,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-const nav = [
-  { href: '/app/dashboard', label: 'Command center', icon: Gauge },
-  { href: '/app/opportunities', label: 'Opportunities', icon: Target },
-  { href: '/app/forecast', label: 'Forecast', icon: Sparkles },
-  { href: '/app/alerts', label: 'Alerts', icon: BellRing },
-  { href: '/app/analytics', label: 'Analytics', icon: ChartNoAxesCombined },
-  { href: '/app/import', label: 'Import', icon: FileUp },
-  { href: '/app/settings', label: 'Settings', icon: Settings },
-];
-
 export function SidebarNav({ showAdmin }: { showAdmin: boolean }) {
+  const t = useTranslations('navigation');
   const pathname = usePathname();
+  const nav = [
+    { href: '/app/dashboard', label: t('commandCenter'), icon: Gauge },
+    { href: '/app/opportunities', label: t('opportunities'), icon: Target },
+    { href: '/app/forecast', label: t('forecast'), icon: Sparkles },
+    { href: '/app/alerts', label: t('alerts'), icon: BellRing },
+    { href: '/app/analytics', label: t('analytics'), icon: ChartNoAxesCombined },
+    { href: '/app/import', label: t('import'), icon: FileUp },
+    { href: '/app/settings', label: t('settings'), icon: Settings },
+  ];
   const items = showAdmin
-    ? [...nav, { href: '/app/admin/users', label: 'Users', icon: UsersRound }]
+    ? [...nav, { href: '/app/admin/users', label: t('users'), icon: UsersRound }]
     : nav;
   return (
-    <nav aria-label="Primary" className="space-y-1">
+    <nav aria-label={t('primary')} className="space-y-1">
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;

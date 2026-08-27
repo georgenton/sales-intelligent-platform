@@ -2,16 +2,18 @@
 
 import { LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { csrfToken } from '@/lib/utils';
 
 export function LogoutButton() {
+  const t = useTranslations('navigation');
   const router = useRouter();
   return (
     <Button
       variant="ghost"
       size="icon"
-      aria-label="Sign out"
+      aria-label={t('signOut')}
       onClick={async () => {
         await fetch('/backend/auth/logout', {
           method: 'POST',

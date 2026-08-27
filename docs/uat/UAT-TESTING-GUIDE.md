@@ -438,7 +438,28 @@ Verify:
 
 ---
 
-## 19. Responsive Testing
+## 19. Language Testing
+
+Test both:
+
+- English
+- Español
+
+For each language:
+
+1. Switch language from the authenticated shell.
+2. Confirm the current route, opportunity drawer, Seller/Manager mode, filters, theme, session, and in-progress Redux state remain intact.
+3. Refresh and confirm the language persists.
+4. Logout and confirm the Login screen remains in the selected language.
+5. Login again and confirm the language remains selected.
+6. Verify currency, number, date, relative-time, plural, validation, error, Copilot, command palette, and accessibility labels.
+7. Confirm `<html lang>` is `en` or `es` as appropriate.
+
+Do not expect customer names, brand names, opportunity titles, IDs, stage names owned by the tenant, or internal enum values in logs to be translated.
+
+---
+
+## 20. Responsive Testing
 
 Test at approximately:
 
@@ -458,7 +479,7 @@ Mobile should prioritize workflow, not compress every desktop analytics widget.
 
 ---
 
-## 20. Session Security
+## 21. Session Security
 
 Test:
 
@@ -475,7 +496,7 @@ The revoked session must not continue working.
 
 ---
 
-## 21. UAT Finding Template
+## 22. UAT Finding Template
 
 Record findings using:
 
@@ -510,7 +531,7 @@ Screenshot or description
 
 ---
 
-## 22. Evaluation Questions
+## 23. Evaluation Questions
 
 Do not ask only:
 
@@ -544,7 +565,7 @@ Is the system helping me think, or merely displaying data?
 
 ---
 
-## 23. UAT Exit Criteria
+## 24. UAT Exit Criteria
 
 UAT may be considered successful for a given workflow when:
 
@@ -559,7 +580,7 @@ P1/P2 design enhancements that do not block the workflow may remain scheduled fo
 
 ---
 
-## 24. Important Security Rule
+## 25. Important Security Rule
 
 Never commit:
 

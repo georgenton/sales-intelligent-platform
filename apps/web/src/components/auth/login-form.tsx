@@ -1,8 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, LockKeyhole } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ const schema = z.object({ email: z.email(), password: z.string().min(10) });
 type LoginValues = z.infer<typeof schema>;
 
 export function LoginForm() {
+  const t = useTranslations('auth');
   const router = useRouter();
   const [error, setError] = useState('');
   const {
@@ -33,11 +35,7 @@ export function LoginForm() {
       body: JSON.stringify(values),
     });
     if (!response.ok) {
-      setError(
-        response.status === 429
-          ? 'Too many attempts. Try again shortly.'
-          : 'Email or password is incorrect.',
-      );
+      setError(response.status === 429 ? t('rateLimited') : t('invalidCredentials'));
       return;
     }
     router.replace('/app/dashboard');
@@ -45,26 +43,20 @@ export function LoginForm() {
   });
 
   return (
-    <Card className="w-full max-w-md border-0 shadow-none">
-      <CardHeader className="px-0 pb-8">
-        <div className="mb-7 grid size-12 place-items-center rounded-2xl bg-secondary text-primary lg:hidden">
-          <LockKeyhole />
-        </div>
-        <p className="text-sm font-semibold text-primary">Secure workspace</p>
-        <h2 className="mt-2 text-4xl font-semibold tracking-[-0.04em]">Welcome back</h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Sign in to review your team&apos;s commercial position.
-        </p>
+    <Card className="w-full max-w-sm border-0 shadow-none">
+      <CardHeader className="px-0 pb-6">
+        <h2 className="text-3xl font-semibold tracking-[-0.035em]">{t('welcome')}</h2>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('prompt')}</p>
       </CardHeader>
       <CardContent className="px-0">
-        <form className="space-y-5" onSubmit={submit} noValidate>
+        <form className="space-y-4" onSubmit={submit} noValidate>
           <label className="block text-sm font-medium">
-            Email
+            {t('email')}
             <Input className="mt-2" autoComplete="email" {...register('email')} />
           </label>
-          {errors.email && <p className="text-sm text-danger">Enter a valid email.</p>}
+          {errors.email && <p className="text-sm text-danger">{t('invalidEmail')}</p>}
           <label className="block text-sm font-medium">
-            Password
+            {t('password')}
             <Input
               className="mt-2"
               type="password"
@@ -72,9 +64,7 @@ export function LoginForm() {
               {...register('password')}
             />
           </label>
-          {errors.password && (
-            <p className="text-sm text-danger">Password must have at least 10 characters.</p>
-          )}
+          {errors.password && <p className="text-sm text-danger">{t('shortPassword')}</p>}
           {error && (
             <p
               role="alert"
@@ -83,12 +73,12 @@ export function LoginForm() {
               {error}
             </p>
           )}
-          <Button className="h-12 w-full" type="submit" disabled={isSubmitting}>
+          <Button className="h-density-control w-full" type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
-              'Signing in…'
+              t('signingIn')
             ) : (
               <>
-                Sign in <ArrowRight className="size-4" />
+                {t('signIn')} <ArrowRight className="size-4" />
               </>
             )}
           </Button>

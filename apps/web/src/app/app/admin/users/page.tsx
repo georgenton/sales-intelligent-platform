@@ -1,4 +1,5 @@
 import { UserPlus } from 'lucide-react';
+import { getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiFetch } from '@/lib/api';
@@ -12,25 +13,26 @@ interface Membership {
 }
 
 export default async function UsersPage() {
+  const t = await getTranslations('admin');
+  const tRole = await getTranslations('common.role');
+  const tStatus = await getTranslations('common.status');
   const memberships = await apiFetch<Membership[]>('/users');
   return (
-    <div className="space-y-6">
+    <div className="space-y-density-section">
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-sm font-semibold text-primary">Administration</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.035em]">Users and roles</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Identity is global; access is granted by tenant membership.
-          </p>
+          <p className="text-sm font-semibold text-primary">{t('eyebrow')}</p>
+          <h1 className="mt-1 text-page-title font-semibold tracking-[-0.035em]">{t('title')}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t('description')}</p>
         </div>
         <button className="inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-semibold">
           <UserPlus className="size-4" />
-          Invite user
+          {t('invite')}
         </button>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Active memberships</CardTitle>
+          <CardTitle>{t('memberships')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="divide-y">
@@ -50,8 +52,8 @@ export default async function UsersPage() {
                   <p className="text-sm font-semibold">{membership.user.name}</p>
                   <p className="text-xs text-muted-foreground">{membership.user.email}</p>
                 </div>
-                <Badge>{membership.role.replaceAll('_', ' ')}</Badge>
-                <Badge>{membership.status}</Badge>
+                <Badge>{tRole(membership.role)}</Badge>
+                <Badge>{tStatus(membership.status)}</Badge>
               </div>
             ))}
           </div>

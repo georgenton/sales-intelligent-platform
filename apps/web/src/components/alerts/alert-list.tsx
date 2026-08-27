@@ -1,15 +1,21 @@
 'use client';
 
 import { AlertOctagon, PanelRightOpen } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { RiskBadge } from '@/components/sales/sales-components';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { AlertData } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import type { AppLocale } from '@/i18n/config';
+import { cn, formatDateTime } from '@/lib/utils';
 import { useAppDispatch } from '@/store/hooks';
 import { selectOpportunity } from '@/store/ui-slice';
 
 export function AlertList({ alerts }: { alerts: AlertData[] }) {
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations('alerts');
+  const tCommon = useTranslations('common.action');
+  const tMessages = useTranslations('alerts.messages');
   const dispatch = useAppDispatch();
 
   return (
@@ -29,23 +35,25 @@ export function AlertList({ alerts }: { alerts: AlertData[] }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-semibold">{alert.opportunity?.title ?? 'Portfolio alert'}</h2>
+                <h2 className="font-semibold">{alert.opportunity?.title ?? t('portfolio')}</h2>
                 <RiskBadge severity={alert.severity} code={alert.code} />
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">{alert.message}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {tMessages.has(alert.code) ? tMessages(alert.code) : alert.message}
+              </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                Detected {new Date(alert.createdAt).toLocaleString()}
+                {t('detected', { date: formatDateTime(alert.createdAt, locale) })}
               </p>
             </div>
             {alert.opportunity ? (
               <Button
                 variant="outline"
                 size="sm"
-                aria-label={`Inspect ${alert.opportunity.title}`}
+                aria-label={t('inspect', { title: alert.opportunity.title })}
                 onClick={() => dispatch(selectOpportunity(alert.opportunity?.id ?? null))}
               >
                 <PanelRightOpen className="size-4" />
-                Inspect
+                {tCommon('inspect')}
               </Button>
             ) : null}
           </CardContent>
@@ -54,7 +62,7 @@ export function AlertList({ alerts }: { alerts: AlertData[] }) {
       {alerts.length === 0 ? (
         <Card>
           <CardContent className="p-10 text-center text-sm text-muted-foreground">
-            No active risk signals.
+            {t('empty')}
           </CardContent>
         </Card>
       ) : null}

@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Bot, BriefcaseBusiness, Plus, Search, Target, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOpportunitiesQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -21,6 +22,7 @@ interface PaletteAction {
 }
 
 export function CommandPalette() {
+  const t = useTranslations('navigation.palette');
   const router = useRouter();
   const dispatch = useAppDispatch();
   const open = useAppSelector((state) => state.productUi.commandPaletteOpen);
@@ -41,29 +43,29 @@ export function CommandPalette() {
     () => [
       {
         id: 'opportunities',
-        label: 'Find opportunity or customer',
-        hint: 'Start typing a name',
+        label: t('findOpportunity'),
+        hint: t('startTyping'),
         icon: Search,
         run: () => setQuery(''),
       },
       {
         id: 'create',
-        label: 'Create opportunity',
-        hint: 'Portfolio',
+        label: t('createOpportunity'),
+        hint: t('portfolio'),
         icon: Plus,
         run: () => router.push('/app/opportunities/new'),
       },
       {
         id: 'risk',
-        label: 'View at-risk opportunities',
-        hint: 'Risk alerts',
+        label: t('viewRisk'),
+        hint: t('riskAlerts'),
         icon: AlertTriangle,
         run: () => router.push('/app/alerts'),
       },
       {
         id: 'review',
-        label: 'Open forecast review',
-        hint: 'Review mode',
+        label: t('openReview'),
+        hint: t('reviewMode'),
         icon: Target,
         run: () => {
           dispatch(setExperienceMode('REVIEW'));
@@ -72,13 +74,13 @@ export function CommandPalette() {
       },
       {
         id: 'copilot',
-        label: 'Ask Copilot',
-        hint: 'Current context only',
+        label: t('askCopilot'),
+        hint: t('currentContext'),
         icon: Bot,
         run: () => dispatch(setCopilotPanelOpen(true)),
       },
     ],
-    [dispatch, router],
+    [dispatch, router, t],
   );
   const results: PaletteAction[] = [
     ...actions.filter((item) =>
@@ -130,7 +132,7 @@ export function CommandPalette() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
+        aria-label={t('label')}
         className="w-full max-w-2xl overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-overlay)]"
         onKeyDown={(event) => {
           if (event.key === 'Escape') close();
@@ -172,16 +174,12 @@ export function CommandPalette() {
               setQuery(event.target.value);
               setActive(0);
             }}
-            className="h-14 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-            placeholder="Find or run a command…"
+            className="h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+            placeholder={t('placeholder')}
             aria-controls="command-results"
             aria-activedescendant={results[active] ? `command-${results[active].id}` : undefined}
           />
-          <button
-            aria-label="Close command palette"
-            className="rounded-lg p-2 hover:bg-muted"
-            onClick={close}
-          >
+          <button aria-label={t('close')} className="rounded-lg p-2 hover:bg-muted" onClick={close}>
             <X className="size-4" />
           </button>
         </div>
@@ -209,15 +207,13 @@ export function CommandPalette() {
             );
           })}
           {!results.length && (
-            <p className="px-3 py-10 text-center text-sm text-muted-foreground">
-              No matching commands.
-            </p>
+            <p className="px-3 py-10 text-center text-sm text-muted-foreground">{t('empty')}</p>
           )}
         </div>
         <div className="flex items-center gap-3 border-t bg-muted/60 px-4 py-2 text-[11px] text-muted-foreground">
-          <span>↑↓ Navigate</span>
-          <span>↵ Select</span>
-          <span>Esc Close</span>
+          <span>↑↓ {t('navigate')}</span>
+          <span>↵ {t('select')}</span>
+          <span>Esc {t('closeHint')}</span>
         </div>
       </div>
     </div>
