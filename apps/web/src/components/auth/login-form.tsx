@@ -16,21 +16,28 @@ import Link from 'next/link';
 const schema = z.object({ email: z.email(), password: z.string().min(10) });
 type LoginValues = z.infer<typeof schema>;
 
-const subscribeToDocumentReady = (onStoreChange: () => void) => {
-  if (document.readyState === 'complete') return () => undefined;
-  window.addEventListener('load', onStoreChange, { once: true });
-  return () => window.removeEventListener('load', onStoreChange);
+let hydrationCommitted = false;
+const subscribeToHydrationCommit = (onStoreChange: () => void) => {
+  let active = true;
+  queueMicrotask(() => {
+    if (!active || hydrationCommitted) return;
+    hydrationCommitted = true;
+    onStoreChange();
+  });
+  return () => {
+    active = false;
+  };
 };
-const getDocumentReadySnapshot = () => document.readyState === 'complete';
+const getHydrationSnapshot = () => hydrationCommitted;
 const getServerSnapshot = () => false;
 
 export function LoginForm() {
   const t = useTranslations('auth');
   const router = useRouter();
   const [error, setError] = useState('');
-  const documentReady = useSyncExternalStore(
-    subscribeToDocumentReady,
-    getDocumentReadySnapshot,
+  const hydrationReady = useSyncExternalStore(
+    subscribeToHydrationCommit,
+    getHydrationSnapshot,
     getServerSnapshot,
   );
   const {
@@ -102,7 +109,7 @@ export function LoginForm() {
           <Button
             className="h-density-control w-full"
             type="submit"
-            disabled={!documentReady || isSubmitting}
+            disabled={!hydrationReady || isSubmitting}
           >
             {isSubmitting ? (
               t('signingIn')
