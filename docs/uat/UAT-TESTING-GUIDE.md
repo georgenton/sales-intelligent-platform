@@ -313,6 +313,74 @@ Actions may include:
 
 Evaluate whether this workflow could realistically be used during a weekly forecast meeting.
 
+Phase 1 traceability checks:
+
+1. Open a Commit opportunity and inspect the persisted 60% and 80% evidence verdicts.
+2. Record **Keep Commit** and confirm it appears in Review traceability after a refresh.
+3. Enter an evidence-backed question and choose **Ask Seller**.
+4. Sign in as that opportunity's seller. Confirm the question appears in **Manager questions**.
+5. Respond, return as Manager, and confirm the parent question is resolved with its reply.
+6. Move a valid 60% or 80% opportunity to Best Case and confirm category, review event, and audit trail agree.
+
+---
+
+## 13A. Canonical stage and qualification flow
+
+Use a synthetic UAT opportunity only.
+
+1. Create it at `20 Prospecting / Prospección` with amount, GM %, close date, and line items.
+2. Move it to `40 Qualification / Calificación`.
+3. Attempt `60 Proposal / Propuesta` before completing the 60% gate; the change must be blocked.
+4. Complete every required 60% criterion with a `YES` answer and meaningful evidence.
+5. Move to 60% / Best Case.
+6. Attempt `80 Negotiation / Negociación` / Commit before completing the 80% gate; it must be blocked.
+7. Complete every required 80% criterion and move to 80% / Commit.
+8. Verify the stage history and audit trail. No synthetic UI text may be presented as qualification evidence.
+
+A Manager or Tenant Admin may separately test an override. The reason must be at least 10 characters and commercially meaningful. Confirm an `OVERRIDE_QUALIFICATION` review event and audit evidence are created. A Seller must never be able to override.
+
+---
+
+## 13B. Manager revenue and brand truth
+
+For the active fiscal quarter, independently verify:
+
+- quota, billed revenue, forecast, Commit, backlog, gap, coverage, and GM;
+- brand rows for quota, billed, forecast, Commit, gap, attainment, and GM;
+- opportunities outside the quarter do not contaminate forecast or coverage;
+- coverage is unavailable with an explicit explanation when quota is missing;
+- coverage says no more coverage is required when billed already fulfills quota;
+- a Seller without an individual quota sees **Quota not configured**, not `$0`, and is not assigned an implicit share of team quota.
+
+Tenant Admin can edit fiscal start, currency, GM threshold, total quota, brand quotas, optional seller quotas, and qualification criterion flags in **Commercial configuration**. Verify changes persist after refresh and affect only the active tenant.
+
+---
+
+## 13C. Commercial import
+
+Use sanitized synthetic fixtures; never upload the private workbook to an unapproved environment.
+
+1. Upload an opportunity CSV. Confirm the server-side dry run reports rows read and `READY`, `WARNING`, or `BLOCKED` without creating records.
+2. Execute only a non-blocked plan and confirm imported opportunity count.
+3. Upload an XLSX containing `Oppty`, `Facturado Daily`, and optionally `Resumen` / `Canales Proceso`.
+4. Confirm source sheets are recognized correctly, while derived and Phase 2 sheets are not imported.
+5. Execute and confirm opportunity and billing counts, billed total, brand attainment, and gap.
+6. Reimport the identical file. Imported count must remain zero for the same facts and duplicates must be reported.
+7. Verify no workbook row contents appear in application logs.
+
+---
+
+## 13D. Password recovery
+
+1. On the login page choose **Forgot password?**.
+2. Request recovery for a known and unknown address; visible responses must be identical.
+3. With SMTP configured, follow the delivered one-time link.
+4. Verify weak passwords are rejected and a valid strong password succeeds.
+5. Confirm the old password and every pre-reset session no longer work.
+6. Confirm the token cannot be reused or used after expiration.
+
+Staging email delivery is `EXTERNAL_CONFIGURATION_REQUIRED` until the documented SMTP variables are present. Never place reset links, tokens, or passwords in UAT evidence.
+
 ---
 
 ## 14. Copilot
