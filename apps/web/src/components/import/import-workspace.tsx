@@ -2,10 +2,37 @@
 
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { csrfToken } from '@/lib/utils';
+
+interface ImportIssue {
+  sheet: string;
+  row: number;
+  code: string;
+  severity: 'WARNING' | 'BLOCKED';
+}
+
+interface ImportAnalysis {
+  fileType: 'CSV' | 'XLSX';
+  sheets: Array<{
+    name: string;
+    kind: 'OPPORTUNITY' | 'BILLING' | 'OTHER';
+    disposition: 'IMPORT' | 'RECOGNIZED_NOT_IMPORTED' | 'UNSUPPORTED';
+    rowCount: number;
+    sourceHeaders: string[];
+    destinations: Array<{ field: string; required: boolean }>;
+    suggestedMappings: Array<{
+      sourceColumn: string;
+      destinationField: string | null;
+      confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
+      required: boolean;
+    }>;
+  }>;
+  issues: ImportIssue[];
+}
 
 interface ImportReport {
   fileType: 'CSV' | 'XLSX';
@@ -13,12 +40,7 @@ interface ImportReport {
     name: string;
     disposition: 'IMPORT' | 'RECOGNIZED_NOT_IMPORTED' | 'UNSUPPORTED';
   }>;
-  issues?: Array<{
-    sheet: string;
-    row: number;
-    code: string;
-    severity: 'WARNING' | 'BLOCKED';
-  }>;
+  issues?: ImportIssue[];
   summary: {
     status: 'READY' | 'WARNING' | 'BLOCKED';
     rowsRead: number;
@@ -32,34 +54,152 @@ interface ImportReport {
   };
 }
 
-async function upload(path: 'validate' | 'execute', file: File): Promise<ImportReport> {
+interface MappingSelection {
+  destinationField: string | null;
+  confirmed: boolean;
+}
+
+const mappingKey = (sheet: string, sourceColumn: string) => `${sheet}\u0000${sourceColumn}`;
+
+async function upload<T>(
+  path: 'analyze' | 'validate' | 'execute',
+  file: File,
+  options?: { mapping: string; asOfDate: string },
+): Promise<T> {
   const body = new FormData();
   body.append('file', file);
+  if (options) {
+    body.append('mapping', options.mapping);
+    if (options.asOfDate) body.append('asOfDate', options.asOfDate);
+  }
   const response = await fetch(`/backend/imports/${path}`, {
     method: 'POST',
     headers: { 'x-csrf-token': csrfToken() },
     body,
   });
   if (!response.ok) throw new Error(`IMPORT_${path.toUpperCase()}_${response.status}`);
-  return (await response.json()) as ImportReport;
+  return (await response.json()) as T;
 }
 
 export function ImportWorkspace() {
   const t = useTranslations('importServer');
   const [file, setFile] = useState<File | null>(null);
+  const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
+  const [mappings, setMappings] = useState<Record<string, MappingSelection>>({});
+  const [asOfDate, setAsOfDate] = useState('');
   const [report, setReport] = useState<ImportReport | null>(null);
   const [result, setResult] = useState<ImportReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const validate = async (selected: File) => {
+  const importableSheets = useMemo(
+    () => analysis?.sheets.filter((sheet) => sheet.disposition === 'IMPORT') ?? [],
+    [analysis],
+  );
+
+  const mappingIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (analysis?.issues.some((issue) => issue.severity === 'BLOCKED')) {
+      issues.push(t('mappingIssues.sourceHeaders'));
+    }
+    for (const sheet of importableSheets) {
+      const selected = sheet.sourceHeaders
+        .map((sourceColumn) => ({
+          sourceColumn,
+          selection: mappings[mappingKey(sheet.name, sourceColumn)],
+        }))
+        .filter(({ selection }) => selection?.destinationField);
+      for (const destination of sheet.destinations.filter((item) => item.required)) {
+        if (!selected.some(({ selection }) => selection?.destinationField === destination.field)) {
+          issues.push(
+            t('mappingIssues.required', {
+              field: t(`fields.${destination.field}`),
+              sheet: sheet.name,
+            }),
+          );
+        }
+      }
+      const destinationCounts = new Map<string, number>();
+      for (const { selection } of selected) {
+        const destination = selection?.destinationField;
+        if (!destination) continue;
+        destinationCounts.set(destination, (destinationCounts.get(destination) ?? 0) + 1);
+        if (!selection.confirmed) {
+          issues.push(t('mappingIssues.unconfirmed', { field: t(`fields.${destination}`) }));
+        }
+      }
+      for (const [destination, count] of destinationCounts) {
+        if (count > 1) {
+          issues.push(t('mappingIssues.duplicate', { field: t(`fields.${destination}`) }));
+        }
+      }
+      if (
+        sheet.kind === 'BILLING' &&
+        !selected.some(({ selection }) => selection?.destinationField === 'date') &&
+        !asOfDate
+      ) {
+        issues.push(t('mappingIssues.billingDate'));
+      }
+    }
+    return [...new Set(issues)];
+  }, [analysis, asOfDate, importableSheets, mappings, t]);
+
+  const mappingContract = useMemo(
+    () =>
+      importableSheets.flatMap((sheet) =>
+        sheet.sourceHeaders.map((sourceColumn) => ({
+          sheet: sheet.name,
+          sourceColumn,
+          destinationField:
+            mappings[mappingKey(sheet.name, sourceColumn)]?.destinationField ?? null,
+          confirmed: mappings[mappingKey(sheet.name, sourceColumn)]?.confirmed ?? false,
+        })),
+      ),
+    [importableSheets, mappings],
+  );
+
+  const analyze = async (selected: File) => {
     setFile(selected);
+    setAnalysis(null);
+    setMappings({});
+    setAsOfDate('');
     setReport(null);
     setResult(null);
     setError('');
     setBusy(true);
     try {
-      setReport(await upload('validate', selected));
+      const next = await upload<ImportAnalysis>('analyze', selected);
+      setAnalysis(next);
+      setMappings(
+        Object.fromEntries(
+          next.sheets.flatMap((sheet) =>
+            sheet.suggestedMappings.map((mapping) => [
+              mappingKey(sheet.name, mapping.sourceColumn),
+              { destinationField: mapping.destinationField, confirmed: false },
+            ]),
+          ),
+        ),
+      );
+    } catch {
+      setError(t('analysisError'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const validate = async () => {
+    if (!file || mappingIssues.length) return;
+    setReport(null);
+    setResult(null);
+    setError('');
+    setBusy(true);
+    try {
+      setReport(
+        await upload<ImportReport>('validate', file, {
+          mapping: JSON.stringify(mappingContract),
+          asOfDate,
+        }),
+      );
     } catch {
       setError(t('validationError'));
     } finally {
@@ -68,11 +208,16 @@ export function ImportWorkspace() {
   };
 
   const execute = async () => {
-    if (!file || !report || report.summary.status === 'BLOCKED') return;
+    if (!file || !report || report.summary.status === 'BLOCKED' || mappingIssues.length) return;
     setBusy(true);
     setError('');
     try {
-      setResult(await upload('execute', file));
+      setResult(
+        await upload<ImportReport>('execute', file, {
+          mapping: JSON.stringify(mappingContract),
+          asOfDate,
+        }),
+      );
     } catch {
       setError(t('executionError'));
     } finally {
@@ -100,7 +245,7 @@ export function ImportWorkspace() {
           <label className="grid min-h-44 cursor-pointer place-items-center rounded-2xl border-2 border-dashed p-8 text-center hover:border-primary">
             <span>
               <Upload className="mx-auto size-8 text-primary" />
-              <b className="mt-3 block">{busy ? t('validating') : t('choose')}</b>
+              <b className="mt-3 block">{busy ? t('analyzing') : t('choose')}</b>
               <span className="mt-2 block text-sm text-muted-foreground">
                 {file?.name ?? t('formats')}
               </span>
@@ -111,7 +256,7 @@ export function ImportWorkspace() {
                 disabled={busy}
                 onChange={(event) => {
                   const selected = event.target.files?.[0];
-                  if (selected) void validate(selected);
+                  if (selected) void analyze(selected);
                   event.currentTarget.value = '';
                 }}
               />
@@ -127,6 +272,164 @@ export function ImportWorkspace() {
           ) : null}
         </CardContent>
       </Card>
+
+      {analysis ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('mappingTitle')}</CardTitle>
+            <p className="text-xs text-muted-foreground">{t('mappingDescription')}</p>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {importableSheets.map((sheet) => {
+              const sheetHeadingId = `mapping-${sheet.name.replace(/[^a-z0-9_-]/gi, '-')}`;
+              return (
+                <section key={sheet.name} aria-labelledby={sheetHeadingId}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 id={sheetHeadingId} className="text-sm font-semibold">
+                      {sheet.name}
+                    </h2>
+                    <span className="text-xs text-muted-foreground">
+                      {t('rowsDetected', { count: sheet.rowCount })}
+                    </span>
+                  </div>
+                  <div className="mt-2 overflow-x-auto rounded-xl border">
+                    <table className="w-full min-w-[680px] text-left text-xs">
+                      <thead className="bg-muted text-muted-foreground">
+                        <tr>
+                          <th scope="col" className="px-3 py-2">
+                            {t('sourceColumn')}
+                          </th>
+                          <th scope="col" className="px-3 py-2">
+                            {t('destinationField')}
+                          </th>
+                          <th scope="col" className="px-3 py-2">
+                            {t('confidence')}
+                          </th>
+                          <th scope="col" className="px-3 py-2">
+                            {t('confirm')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sheet.suggestedMappings.map((suggestion) => {
+                          const key = mappingKey(sheet.name, suggestion.sourceColumn);
+                          const selection = mappings[key] ?? {
+                            destinationField: null,
+                            confirmed: false,
+                          };
+                          return (
+                            <tr key={suggestion.sourceColumn} className="border-t">
+                              <th scope="row" className="px-3 py-2 font-semibold">
+                                {suggestion.sourceColumn}
+                              </th>
+                              <td className="px-3 py-2">
+                                <select
+                                  aria-label={t('mapColumn', { column: suggestion.sourceColumn })}
+                                  className="h-9 w-full rounded-lg border bg-background px-2"
+                                  value={selection.destinationField ?? ''}
+                                  onChange={(event) => {
+                                    setReport(null);
+                                    setResult(null);
+                                    setMappings((current) => ({
+                                      ...current,
+                                      [key]: {
+                                        destinationField: event.target.value || null,
+                                        confirmed: false,
+                                      },
+                                    }));
+                                  }}
+                                >
+                                  <option value="">{t('ignore')}</option>
+                                  {sheet.destinations.map((destination) => (
+                                    <option key={destination.field} value={destination.field}>
+                                      {t(`fields.${destination.field}`)}
+                                      {destination.required ? ` · ${t('required')}` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                {t(`confidenceValues.${suggestion.confidence}`)}
+                              </td>
+                              <td className="px-3 py-2">
+                                <label className="inline-flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={t('confirmColumn', {
+                                      column: suggestion.sourceColumn,
+                                    })}
+                                    disabled={!selection.destinationField}
+                                    checked={Boolean(
+                                      selection.destinationField && selection.confirmed,
+                                    )}
+                                    onChange={(event) => {
+                                      setReport(null);
+                                      setResult(null);
+                                      setMappings((current) => ({
+                                        ...current,
+                                        [key]: { ...selection, confirmed: event.target.checked },
+                                      }));
+                                    }}
+                                  />
+                                  <span>{t('confirmed')}</span>
+                                </label>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {sheet.kind === 'BILLING' ? (
+                    <label className="mt-3 block max-w-sm text-xs font-semibold">
+                      {t('asOfDate')}
+                      <Input
+                        className="mt-1"
+                        type="date"
+                        value={asOfDate}
+                        onChange={(event) => {
+                          setReport(null);
+                          setResult(null);
+                          setAsOfDate(event.target.value);
+                        }}
+                      />
+                      <span className="mt-1 block font-normal text-muted-foreground">
+                        {t('asOfDateHelp')}
+                      </span>
+                    </label>
+                  ) : null}
+                </section>
+              );
+            })}
+
+            {mappingIssues.length ? (
+              <div
+                role="alert"
+                className="rounded-xl bg-surface-danger-soft p-3 text-sm text-danger"
+              >
+                <p className="font-semibold">{t('mappingBlocked')}</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {mappingIssues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p
+                role="status"
+                className="rounded-xl bg-surface-success-soft p-3 text-sm text-success"
+              >
+                {t('mappingReady')}
+              </p>
+            )}
+            <div className="flex justify-end">
+              <Button disabled={busy || mappingIssues.length > 0} onClick={() => void validate()}>
+                {busy ? t('validating') : t('validateMapping')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {active ? (
         <Card>

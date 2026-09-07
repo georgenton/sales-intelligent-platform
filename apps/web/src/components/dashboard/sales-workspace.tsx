@@ -244,7 +244,7 @@ function ManagerStandard({
   const risky = opportunities
     .filter((opportunity) => opportunity.alerts.length > 0)
     .sort((a, b) => b.estimatedAmount - a.estimatedAmount);
-  const attainment = data.kpis.forecastAttainment;
+  const attainment = data.kpis.projectedAttainment;
   return (
     <>
       <ScreenHeader
@@ -267,11 +267,15 @@ function ManagerStandard({
             <RevenueKPI
               hero
               label={t('forecast')}
-              value={data.kpis.forecast}
+              value={data.kpis.openForecast}
               currency={data.currency}
-              detail={t('likelyAttainment', {
-                value: formatNumber(attainment ?? 0, locale, { maximumFractionDigits: 1 }),
-              })}
+              detail={
+                attainment === null
+                  ? t('quotaNotConfigured')
+                  : t('likelyAttainment', {
+                      value: formatNumber(attainment, locale, { maximumFractionDigits: 1 }),
+                    })
+              }
               icon={<TrendingUp className="size-4" />}
             />
             <RevenueKPI
@@ -283,11 +287,11 @@ function ManagerStandard({
             />
             <RevenueKPI
               label={t('gap')}
-              value={data.kpis.gap ?? t('notAvailable')}
-              format={data.kpis.gap === null ? 'raw' : 'currency'}
+              value={data.kpis.projectedGap ?? t('notAvailable')}
+              format={data.kpis.projectedGap === null ? 'raw' : 'currency'}
               currency={data.currency}
               tone="risk"
-              detail={t('remainingToQuota')}
+              detail={t('projectedGapDetail')}
               icon={<Target className="size-4" />}
             />
           </div>
@@ -298,7 +302,7 @@ function ManagerStandard({
                   state="AVAILABLE"
                   quota={data.kpis.quota}
                   billed={data.kpis.billed}
-                  forecast={Math.max(0, data.kpis.forecast - data.kpis.billed)}
+                  openForecast={data.kpis.openForecast}
                   currency={data.currency}
                   label={t('teamQuotaAttainment')}
                 />
@@ -344,7 +348,7 @@ function ManagerStandard({
               detail={
                 data.kpis.coverageStatus === 'FULFILLED'
                   ? t('coverageNotRequired')
-                  : t('pipelineGap')
+                  : t('coverageFormula')
               }
             />
           </div>
@@ -371,9 +375,9 @@ function ManagerStandard({
                 {t('commandInsight')}
               </p>
               <p className="mt-3 text-lg font-semibold">
-                {data.kpis.gap !== null && data.kpis.gap > 0
+                {data.kpis.projectedGap !== null && data.kpis.projectedGap > 0
                   ? t('gapRemains', {
-                      amount: formatCurrency(data.kpis.gap, data.currency, locale),
+                      amount: formatCurrency(data.kpis.projectedGap, data.currency, locale),
                     })
                   : t('forecastCovers')}
               </p>
@@ -391,7 +395,7 @@ function ManagerStandard({
             </CardContent>
           </Card>
           <QuotaGap
-            gap={data.kpis.gap}
+            gap={data.kpis.projectedGap}
             currency={data.currency}
             interpretation={t('riskEvidence', { count: risky.length })}
             drivers={risky.slice(0, 3).map((opportunity) => ({
@@ -432,8 +436,8 @@ function ManagerStandard({
                     'billed',
                     'forecast',
                     'commit',
-                    'gap',
-                    'attainment',
+                    'projectedGap',
+                    'projectedAttainment',
                     'gm',
                   ].map((column) => (
                     <th key={column} className="px-2 py-2 font-semibold">
@@ -461,12 +465,14 @@ function ManagerStandard({
                       {formatCurrency(brand.commit, data.currency, locale)}
                     </td>
                     <td className="tnum px-2 py-3">
-                      {brand.gap === null ? '—' : formatCurrency(brand.gap, data.currency, locale)}
+                      {brand.projectedGap === null
+                        ? '—'
+                        : formatCurrency(brand.projectedGap, data.currency, locale)}
                     </td>
                     <td className="tnum px-2 py-3">
-                      {brand.billingAttainment === null
+                      {brand.projectedAttainment === null
                         ? '—'
-                        : `${brand.billingAttainment.toFixed(1)}%`}
+                        : `${brand.projectedAttainment.toFixed(1)}%`}
                     </td>
                     <td className="tnum px-2 py-3">
                       {brand.grossMargin === null ? '—' : `${brand.grossMargin.toFixed(1)}%`}
@@ -575,11 +581,11 @@ function SellerStandard({
               hero
               label={t('likelyAttainment')}
               value={
-                data.kpis.forecastAttainment === null
+                data.kpis.projectedAttainment === null
                   ? tValue('notAvailable')
-                  : data.kpis.forecastAttainment
+                  : data.kpis.projectedAttainment
               }
-              format={data.kpis.forecastAttainment === null ? 'raw' : 'percent'}
+              format={data.kpis.projectedAttainment === null ? 'raw' : 'percent'}
               detail={
                 data.kpis.quotaConfigured ? t('sellerQuotaConfigured') : t('quotaUnavailable')
               }
@@ -605,7 +611,7 @@ function SellerStandard({
         </div>
         <div className="space-y-density-grid">
           <QuotaGap
-            gap={data.kpis.gap}
+            gap={data.kpis.projectedGap}
             currency={data.currency}
             interpretation={
               data.kpis.quotaConfigured ? t('personalGap') : t('personalQuotaRequired')

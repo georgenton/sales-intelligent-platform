@@ -348,9 +348,9 @@ async function seedDemo(
     const forecastCategory =
       status === OpportunityStatus.WON
         ? ForecastCategory.CLOSED
-        : stage.probability >= 80
+        : stage.code === '80'
           ? ForecastCategory.COMMIT
-          : stage.probability >= 60
+          : stage.code === '60'
             ? ForecastCategory.BEST_CASE
             : ForecastCategory.PIPELINE;
     const externalReference = `DEMO-${String(index + 1).padStart(3, '0')}`;

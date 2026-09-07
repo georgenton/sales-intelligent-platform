@@ -9,7 +9,10 @@ export class MockAiProvider implements AiProvider {
   ): Promise<string> {
     const intlLocale = locale === 'es' ? 'es-EC' : 'en-US';
     const formatter = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 1 });
-    const attainment = formatter.format(context.quota ? (context.billed / context.quota) * 100 : 0);
+    const attainment =
+      context.quota !== null && context.quota > 0
+        ? formatter.format((context.billed / context.quota) * 100)
+        : null;
     const riskMessage = context.topRisks.length
       ? locale === 'es'
         ? context.topRisks.length === 1
@@ -21,8 +24,14 @@ export class MockAiProvider implements AiProvider {
       : locale === 'es'
         ? 'No hay riesgos prioritarios abiertos actualmente.'
         : 'No priority risks are currently open.';
-    return locale === 'es'
-      ? `${context.period}: el cumplimiento facturado es ${attainment} %, con ${formatter.format(context.forecast)} en el pronóstico y una brecha de ${formatter.format(context.gap ?? 0)} para la cuota. ${riskMessage}`
-      : `${context.period}: billed attainment is ${attainment}% with ${formatter.format(context.forecast)} in forecast and a ${formatter.format(context.gap ?? 0)} gap to quota. ${riskMessage}`;
+    const positionMessage =
+      attainment !== null && context.projectedGap !== null
+        ? locale === 'es'
+          ? `${context.period}: el cumplimiento facturado es ${attainment} %, con ${formatter.format(context.openForecast)} en el pronóstico abierto y una brecha proyectada de ${formatter.format(context.projectedGap)} para la cuota.`
+          : `${context.period}: billed attainment is ${attainment}% with ${formatter.format(context.openForecast)} in open forecast and a ${formatter.format(context.projectedGap)} projected gap to quota.`
+        : locale === 'es'
+          ? `${context.period}: la cuota no está configurada; el cumplimiento facturado y la brecha proyectada no están disponibles. El pronóstico abierto es ${formatter.format(context.openForecast)}.`
+          : `${context.period}: quota is not configured; billed attainment and projected gap are unavailable. Open forecast is ${formatter.format(context.openForecast)}.`;
+    return `${positionMessage} ${riskMessage}`;
   }
 }

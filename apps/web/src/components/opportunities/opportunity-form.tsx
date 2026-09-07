@@ -184,11 +184,13 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
               <label className="text-sm font-medium">
                 {t('stage')}
                 <select className={`${selectClass} mt-2`} {...register('stageId')}>
-                  {reference.stages.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.code}% · {commercialStageLabel(item, locale)}
-                    </option>
-                  ))}
+                  {reference.stages
+                    .filter((item) => item.code !== '100')
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code}% · {commercialStageLabel(item, locale)}
+                      </option>
+                    ))}
                 </select>
               </label>
             </CardContent>

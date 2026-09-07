@@ -96,10 +96,15 @@ describe('MVP API vertical slice', () => {
   it('reads and updates the opportunity while recording stage history', async () => {
     await agent.get(`/opportunities/${createdOpportunityId}`).expect(200);
     const qualification = reference.stages.find((stage) => stage.code === '40')!;
-    const updated = await agent
+    await agent
       .patch(`/opportunities/${createdOpportunityId}`)
       .set('x-csrf-token', csrf)
       .send({ stageId: qualification.id, forecastCategory: 'BEST_CASE' })
+      .expect(400);
+    const updated = await agent
+      .patch(`/opportunities/${createdOpportunityId}`)
+      .set('x-csrf-token', csrf)
+      .send({ stageId: qualification.id, forecastCategory: 'PIPELINE' })
       .expect(200);
     expect(updated.body.stage.code).toBe('40');
     const detail = await agent.get(`/opportunities/${createdOpportunityId}`).expect(200);

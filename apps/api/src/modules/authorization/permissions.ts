@@ -6,6 +6,7 @@ export const PERMISSIONS = {
   OPPORTUNITIES_READ_ALL: 'opportunities.read.all',
   OPPORTUNITIES_CREATE: 'opportunities.create',
   OPPORTUNITIES_UPDATE_OWN: 'opportunities.update.own',
+  OPPORTUNITIES_UPDATE_TEAM: 'opportunities.update.team',
   OPPORTUNITIES_UPDATE_ALL: 'opportunities.update.all',
   FORECAST_READ: 'forecast.read',
   FORECAST_MANAGE: 'forecast.manage',
@@ -24,7 +25,7 @@ const ROLE_PERMISSIONS: Record<MembershipRole, readonly string[]> = {
   MANAGER: [
     PERMISSIONS.OPPORTUNITIES_READ_TEAM,
     PERMISSIONS.OPPORTUNITIES_CREATE,
-    PERMISSIONS.OPPORTUNITIES_UPDATE_ALL,
+    PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM,
     PERMISSIONS.FORECAST_READ,
     PERMISSIONS.FORECAST_MANAGE,
     PERMISSIONS.ALERTS_READ,

@@ -360,13 +360,16 @@ Tenant Admin can edit fiscal start, currency, GM threshold, total quota, brand q
 
 Use sanitized synthetic fixtures; never upload the private workbook to an unapproved environment.
 
-1. Upload an opportunity CSV. Confirm the server-side dry run reports rows read and `READY`, `WARNING`, or `BLOCKED` without creating records.
-2. Execute only a non-blocked plan and confirm imported opportunity count.
-3. Upload an XLSX containing `Oppty`, `Facturado Daily`, and optionally `Resumen` / `Canales Proceso`.
-4. Confirm source sheets are recognized correctly, while derived and Phase 2 sheets are not imported.
-5. Execute and confirm opportunity and billing counts, billed total, brand attainment, and gap.
-6. Reimport the identical file. Imported count must remain zero for the same facts and duplicates must be reported.
-7. Verify no workbook row contents appear in application logs.
+1. Upload an opportunity CSV. Confirm server analysis shows only source headers, detected sheets, row counts, and suggested mappings; it must not expose complete row contents.
+2. Inspect every source-to-destination mapping. Confirm required mappings explicitly and verify the quality gate remains blocked for an unmapped required field, duplicate destination, duplicate source, or unconfirmed mapping.
+3. Validate the confirmed mapping. Confirm the dry run reports rows read and `READY`, `WARNING`, or `BLOCKED` without creating records.
+4. Execute only a non-blocked plan and confirm imported opportunity count. A source opportunity at stage 100 must be blocked because billing is authoritative.
+5. Upload an XLSX containing `Oppty`, `Facturado Daily`, and optionally `Resumen` / `Canales Proceso`.
+6. Confirm source sheets are recognized correctly, while derived and Phase 2 sheets are not imported. Do not map `Orders` to invoice unless the approved customer contract explicitly establishes that meaning.
+7. If `Facturado Daily` has no per-row billing date, enter and confirm the workbook snapshot `asOfDate`; the application must never substitute today's date.
+8. Execute and confirm opportunity and billing counts, billed total, brand attainment, and projected gap. A billing row linked to an appropriate stage-90 opportunity may move it to stage 100; a brand-only billing row must increase billed KPI without changing an opportunity.
+9. Reimport the identical file. Imported count must remain zero for the same facts and duplicates must be reported.
+10. Verify no workbook row contents appear in application logs.
 
 ---
 

@@ -7,7 +7,7 @@ const allowedForecastCategories: Record<
   readonly ForecastCategory[]
 > = {
   '20': [ForecastCategory.PIPELINE, ForecastCategory.OMITTED],
-  '40': [ForecastCategory.PIPELINE, ForecastCategory.BEST_CASE, ForecastCategory.OMITTED],
+  '40': [ForecastCategory.PIPELINE, ForecastCategory.OMITTED],
   '60': [ForecastCategory.PIPELINE, ForecastCategory.BEST_CASE, ForecastCategory.OMITTED],
   '80': [
     ForecastCategory.PIPELINE,

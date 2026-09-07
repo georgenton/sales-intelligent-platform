@@ -104,11 +104,13 @@ export function UpdateOpportunityPanel({
           <label className="block text-sm font-medium">
             {t('stage')}
             <select className={selectClass} {...register('stageId')}>
-              {reference.stages.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.code}% · {commercialStageLabel(stage, locale)}
-                </option>
-              ))}
+              {reference.stages
+                .filter((stage) => stage.code !== '100' || stage.id === opportunity.stage.id)
+                .map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.code}% · {commercialStageLabel(stage, locale)}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="block text-sm font-medium">

@@ -35,8 +35,8 @@ export class AiService {
       period: dashboard.period.label,
       quota: dashboard.kpis.quota,
       billed: dashboard.kpis.billed,
-      forecast: dashboard.kpis.forecast,
-      gap: dashboard.kpis.gap,
+      openForecast: dashboard.kpis.openForecast,
+      projectedGap: dashboard.kpis.projectedGap,
       commit: dashboard.kpis.commit,
       backlog: dashboard.kpis.backlog,
       topRisks: details.risks.map((risk) => ({

@@ -4,9 +4,12 @@ import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { requiredQualificationGates } from '../opportunities/commercial-domain';
 import {
+  analyzeCommercialWorkbook,
   parseCommercialWorkbook,
   publicImportPlan,
   type BillingImportRow,
+  type CommercialImportContext,
+  type ConfirmedImportMapping,
   type OpportunityImportRow,
 } from './commercial-import.parser';
 
@@ -17,19 +20,41 @@ export interface UploadedCommercialFile {
   buffer: Buffer;
 }
 
+export interface ImportRequestFields {
+  mapping?: string;
+  asOfDate?: string;
+}
+
 @Injectable()
 export class ImportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async validate(file: UploadedCommercialFile) {
+  async analyze(file: UploadedCommercialFile) {
     this.assertFile(file);
-    const plan = await this.parse(file);
+    try {
+      return await analyzeCommercialWorkbook(file.originalname, file.buffer);
+    } catch {
+      throw new BadRequestException({
+        code: 'IMPORT_FILE_INVALID',
+        message: 'The file is not a readable CSV or XLSX workbook',
+      });
+    }
+  }
+
+  async validate(file: UploadedCommercialFile, fields: ImportRequestFields) {
+    this.assertFile(file);
+    const plan = await this.parse(file, this.parseContext(fields));
     return publicImportPlan(plan);
   }
 
-  async execute(file: UploadedCommercialFile, auth: RequestAuth, requestId: string) {
+  async execute(
+    file: UploadedCommercialFile,
+    fields: ImportRequestFields,
+    auth: RequestAuth,
+    requestId: string,
+  ) {
     this.assertFile(file);
-    const plan = await this.parse(file);
+    const plan = await this.parse(file, this.parseContext(fields));
     if (plan.summary.status === 'BLOCKED') {
       throw new BadRequestException({
         code: 'IMPORT_BLOCKED',
@@ -55,7 +80,7 @@ export class ImportsService {
       }
     }
     for (const row of plan.billing) {
-      const outcome = await this.importBilling(auth.activeTenantId, row);
+      const outcome = await this.importBilling(auth.activeTenantId, auth.userId, row);
       if (outcome === 'IMPORTED') {
         result.imported += 1;
         result.billingImported += 1;
@@ -201,6 +226,7 @@ export class ImportsService {
 
   private async importBilling(
     tenantId: string,
+    actorId: string,
     row: BillingImportRow,
   ): Promise<'IMPORTED' | 'DUPLICATE' | 'BLOCKED'> {
     return this.prisma.withTenant(tenantId, async (transaction) => {
@@ -209,14 +235,26 @@ export class ImportsService {
         select: { id: true },
       });
       if (duplicate) return 'DUPLICATE';
+      const opportunity = row.opportunityExternalReference
+        ? await transaction.opportunity.findFirst({
+            where: {
+              tenantId,
+              externalReference: row.opportunityExternalReference,
+              deletedAt: null,
+            },
+            include: { stage: true },
+          })
+        : null;
+      if (row.opportunityExternalReference && !opportunity) return 'BLOCKED';
       const brand = await transaction.brand.upsert({
         where: { tenantId_name: { tenantId, name: row.brand } },
         update: {},
         create: { tenantId, name: row.brand },
       });
-      await transaction.billingRecord.create({
+      const billing = await transaction.billingRecord.create({
         data: {
           tenantId,
+          opportunityId: opportunity?.id,
           brandId: brand.id,
           invoiceNumber: row.invoiceNumber || null,
           amount: new Prisma.Decimal(row.amount),
@@ -225,6 +263,54 @@ export class ImportsService {
           billedAt: row.billedAt,
           source: 'FACTURADO_DAILY_IMPORT',
           externalReference: row.externalReference,
+        },
+      });
+      if (opportunity?.stage.code === '90' && opportunity.status === 'WON') {
+        const billedStage = await transaction.stage.findFirst({ where: { tenantId, code: '100' } });
+        if (billedStage) {
+          await transaction.opportunity.update({
+            where: { id: opportunity.id },
+            data: {
+              stageId: billedStage.id,
+              status: 'WON',
+              forecastCategory: 'CLOSED',
+              probability: billedStage.probability,
+              lastStageChangedAt: new Date(),
+            },
+          });
+          await transaction.stageHistory.create({
+            data: {
+              tenantId,
+              opportunityId: opportunity.id,
+              fromStageId: opportunity.stageId,
+              toStageId: billedStage.id,
+              changedById: actorId,
+              reason: `Billing confirmed by ${row.sheet} import`,
+            },
+          });
+          await transaction.auditEvent.create({
+            data: {
+              tenantId,
+              actorId,
+              action: 'OPPORTUNITY_BILLING_CONFIRMED',
+              entity: 'Opportunity',
+              entityId: opportunity.id,
+              metadata: { billingRecordId: billing.id, source: 'FACTURADO_DAILY_IMPORT' },
+            },
+          });
+        }
+      }
+      await transaction.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: 'BILLING_RECORD_IMPORTED',
+          entity: 'BillingRecord',
+          entityId: billing.id,
+          metadata: {
+            source: 'FACTURADO_DAILY_IMPORT',
+            opportunityLinked: Boolean(opportunity),
+          },
         },
       });
       return 'IMPORTED';
@@ -239,9 +325,64 @@ export class ImportsService {
     }
   }
 
-  private async parse(file: UploadedCommercialFile) {
+  private parseContext(fields: ImportRequestFields = {}): CommercialImportContext {
+    let mappings: ConfirmedImportMapping[] = [];
     try {
-      return await parseCommercialWorkbook(file.originalname, file.buffer);
+      const parsed = JSON.parse(fields.mapping ?? '[]') as unknown;
+      if (!Array.isArray(parsed) || parsed.length > 500) throw new Error('Invalid mapping array');
+      mappings = parsed.map((item) => {
+        if (!item || typeof item !== 'object') throw new Error('Invalid mapping item');
+        const candidate = item as Record<string, unknown>;
+        if (
+          typeof candidate.sheet !== 'string' ||
+          !candidate.sheet.trim() ||
+          candidate.sheet.length > 100 ||
+          typeof candidate.sourceColumn !== 'string' ||
+          !candidate.sourceColumn.trim() ||
+          candidate.sourceColumn.length > 200 ||
+          (candidate.destinationField !== null && typeof candidate.destinationField !== 'string') ||
+          typeof candidate.confirmed !== 'boolean'
+        ) {
+          throw new Error('Invalid mapping item');
+        }
+        return {
+          sheet: candidate.sheet,
+          sourceColumn: candidate.sourceColumn,
+          destinationField: candidate.destinationField,
+          confirmed: candidate.confirmed,
+        };
+      });
+    } catch {
+      throw new BadRequestException({
+        code: 'IMPORT_MAPPING_INVALID',
+        message: 'A valid confirmed column mapping is required',
+      });
+    }
+    let asOfDate: Date | null = null;
+    if (fields.asOfDate) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fields.asOfDate)) {
+        throw new BadRequestException({
+          code: 'IMPORT_AS_OF_DATE_INVALID',
+          message: 'asOfDate must use YYYY-MM-DD',
+        });
+      }
+      asOfDate = new Date(`${fields.asOfDate}T00:00:00.000Z`);
+      if (
+        Number.isNaN(asOfDate.getTime()) ||
+        asOfDate.toISOString().slice(0, 10) !== fields.asOfDate
+      ) {
+        throw new BadRequestException({
+          code: 'IMPORT_AS_OF_DATE_INVALID',
+          message: 'asOfDate must be a real calendar date',
+        });
+      }
+    }
+    return { mappings, asOfDate };
+  }
+
+  private async parse(file: UploadedCommercialFile, context: CommercialImportContext) {
+    try {
+      return await parseCommercialWorkbook(file.originalname, file.buffer, context);
     } catch {
       throw new BadRequestException({
         code: 'IMPORT_FILE_INVALID',

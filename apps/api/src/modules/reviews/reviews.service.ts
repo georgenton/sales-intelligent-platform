@@ -7,6 +7,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { PERMISSIONS } from '../authorization/permissions';
 import type { CreateReviewEventDto } from './dto/create-review-event.dto';
 import type { ListReviewEventsDto } from './dto/list-review-events.dto';
 
@@ -25,17 +26,15 @@ export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
 
   list(auth: RequestAuth, query: ListReviewEventsDto) {
+    const opportunityScope = this.opportunityScope(auth, false);
     return this.prisma.withTenant(auth.activeTenantId, (transaction) =>
       transaction.opportunityReviewEvent.findMany({
         where: {
           tenantId: auth.activeTenantId,
           ...(query.opportunityId ? { opportunityId: query.opportunityId } : {}),
           ...(query.pendingOnly ? { type: 'ASK_SELLER', resolvedAt: null } : {}),
-          ...(auth.role === 'SELLER'
-            ? query.opportunityId
-              ? { opportunity: { sellerId: auth.userId } }
-              : { targetUserId: auth.userId }
-            : {}),
+          ...(Object.keys(opportunityScope).length ? { opportunity: opportunityScope } : {}),
+          ...(auth.role === 'SELLER' && !query.opportunityId ? { targetUserId: auth.userId } : {}),
         },
         include,
         orderBy: { createdAt: 'desc' },
@@ -45,13 +44,20 @@ export class ReviewsService {
   }
 
   async create(auth: RequestAuth, input: CreateReviewEventDto, requestId: string) {
+    if (
+      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL) &&
+      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
+      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)
+    ) {
+      throw new ForbiddenException('Commercial review mutation is not permitted');
+    }
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const opportunity = await transaction.opportunity.findFirst({
         where: {
           id: input.opportunityId,
           tenantId: auth.activeTenantId,
           deletedAt: null,
-          ...(auth.role === 'SELLER' ? { sellerId: auth.userId } : {}),
+          ...this.opportunityScope(auth, true),
         },
         include: { stage: true },
       });
@@ -139,5 +145,17 @@ export class ReviewsService {
       });
       return event;
     });
+  }
+
+  private opportunityScope(auth: RequestAuth, forUpdate: boolean): Prisma.OpportunityWhereInput {
+    if (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL)) return {};
+    if (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_ALL)) return {};
+    if (
+      (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM)) ||
+      (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM))
+    ) {
+      return { OR: [{ managerId: auth.userId }, { sellerId: auth.userId }] };
+    }
+    return { sellerId: auth.userId };
   }
 }

@@ -158,7 +158,7 @@ export function QuotaProgress(props: QuotaProgressProps) {
     );
   }
 
-  const { quota, billed, forecast, billedPct, forecastPct, projectedPct } = resolved;
+  const { quota, billed, openForecast, billedPct, forecastPct, projectedPct } = resolved;
   return (
     <div
       className="space-y-2"
@@ -167,7 +167,7 @@ export function QuotaProgress(props: QuotaProgressProps) {
       <div className="flex items-end justify-between gap-4">
         <span className="text-xs font-semibold text-muted-foreground">{label}</span>
         <span className="tnum text-xs font-semibold">
-          {formatCurrency(billed + forecast, currency, locale)} /{' '}
+          {formatCurrency(billed + openForecast, currency, locale)} /{' '}
           {formatCurrency(quota, currency, locale)}
         </span>
       </div>

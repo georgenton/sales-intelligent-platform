@@ -166,6 +166,7 @@ test('admin can manage a synthetic opportunity', async () => {
 
   const stage = page.getByRole('combobox', { name: 'Stage', exact: true });
   const category = page.getByRole('combobox', { name: 'Forecast category', exact: true });
+  await expect(stage.locator('option[value]').filter({ hasText: '100% · Billed' })).toHaveCount(0);
   await stage.selectOption({ label: '60% · Proposal' });
   await category.selectOption('BEST_CASE');
   await page.getByRole('button', { name: 'Save changes' }).click();
@@ -413,7 +414,7 @@ test('critical Copilot and server import contracts block unsafe interaction', as
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: Buffer.from('not-an-excel-workbook'),
   });
-  await expect(page.getByRole('alert').filter({ hasText: 'could not be validated' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'could not be analyzed' })).toBeVisible();
 
   await fileInput.setInputFiles({
     name: 'opportunities.csv',
@@ -425,6 +426,14 @@ test('critical Copilot and server import contracts block unsafe interaction', as
       ].join('\n'),
     ),
   });
+  await expect(page.getByRole('heading', { name: 'Column mapping confirmation' })).toBeVisible();
+  const mappingConfirmations = page.getByRole('checkbox');
+  const confirmationCount = await mappingConfirmations.count();
+  expect(confirmationCount).toBeGreaterThan(0);
+  for (let index = 0; index < confirmationCount; index += 1) {
+    await mappingConfirmations.nth(index).check();
+  }
+  await page.getByRole('button', { name: 'Validate confirmed mapping' }).click();
   await expect(page.getByRole('heading', { name: 'Dry-run validation' })).toBeVisible();
   await expect(page.getByText('BLOCKED', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Execute validated import' })).toBeDisabled();

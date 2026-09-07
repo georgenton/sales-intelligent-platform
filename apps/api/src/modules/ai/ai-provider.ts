@@ -2,8 +2,8 @@ export interface ManagerBriefContext {
   period: string;
   quota: number | null;
   billed: number;
-  forecast: number;
-  gap: number | null;
+  openForecast: number;
+  projectedGap: number | null;
   commit: number;
   backlog: number;
   topRisks: Array<{ title: string; severity: string; message: string }>;

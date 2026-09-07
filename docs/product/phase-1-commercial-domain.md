@@ -15,7 +15,7 @@ Stage `code` is the stable commercial contract. Names are tenant data, while kno
 
 Stage 100 is excluded from the active open funnel. Lost and cancelled are statuses; an opportunity retains its last historical stage instead of moving to a synthetic 0% stage.
 
-The supported status values are `OPEN`, `WON`, `LOST`, and `CANCELLED`. Forecast category is separate from both status and stage: `PIPELINE`, `BEST_CASE`, `COMMIT`, `CLOSED`, or `OMITTED`. A small domain compatibility function rejects impossible combinations while permitting deliberate manager downgrades such as an 80% opportunity in Best Case.
+The supported status values are `OPEN`, `WON`, `LOST`, and `CANCELLED`. Forecast category is separate from both status and stage: `PIPELINE`, `BEST_CASE`, `COMMIT`, `CLOSED`, or `OMITTED`. The compatibility contract permits only `PIPELINE`/`OMITTED` at stages 20 and 40, adds `BEST_CASE` at stage 60, and adds `COMMIT` at stage 80. It also permits deliberate manager downgrades such as an 80% opportunity in Best Case. Stages 90 and 100 require `CLOSED` while active.
 
 The data migration preserves stage identifiers where possible. Legacy 0/25/50/75 codes are transformed or remapped to 20/40/60/80 and every dependent opportunity, history, and snapshot reference is retained.
 
@@ -23,7 +23,7 @@ The data migration preserves stage identifiers where possible. Legacy 0/25/50/75
 
 The fiscal-year start month is tenant configuration. The demo tenant uses December through November, yielding quarters Dec–Feb, Mar–May, Jun–Aug, and Sep–Nov. Quarter boundaries are inclusive and calendar-safe, including leap-year February.
 
-Pipeline, forecast, Commit, snapshots, and coverage use only opportunities whose expected close date is inside the current fiscal quarter. Forecast equals eligible open `BEST_CASE + COMMIT`; Commit is eligible open `COMMIT`. A snapshot stores only the active quarter. The latest diff reports added/removed opportunities and changes to amount, stage, category, close date, and billing date, plus the total forecast delta.
+Pipeline, open forecast, Commit, snapshots, and coverage use only opportunities whose expected close date is inside the current fiscal quarter. Open forecast equals eligible open `BEST_CASE + COMMIT`; Commit is eligible open `COMMIT`. A snapshot stores only the active quarter. The latest diff reports added/removed opportunities and changes to amount, stage, category, close date, and billing date, plus the total open-forecast delta.
 
 ## Quota, billing, gap, and coverage
 
@@ -31,15 +31,21 @@ Quota can be configured for the tenant total, by brand, and optionally by seller
 
 Billing records are actual-revenue facts. An opportunity link is optional, but every import row must have enough attribution to identify a tenant brand, amount, currency, billing date, source, and deterministic external reference. This supports Facturado Daily without creating artificial opportunities.
 
+`BillingRecord` is the only source of actual billed revenue. Sellers and managers cannot manually select stage 100. A linked billing fact may atomically and auditably advance an appropriate stage-90 Won opportunity to stage 100. An unmatched brand-level billing fact still contributes to billed revenue and brand attainment without changing any opportunity. The application never fabricates a billing record from an opportunity stage.
+
 Definitions:
 
 ```text
 remaining quota = max(total quota - billed, 0)
+projected revenue = billed + open forecast
+projected gap = max(total quota - projected revenue, 0)
+billing attainment = billed / total quota
+projected attainment = projected revenue / total quota
 pipeline coverage = current-quarter eligible open pipeline / remaining quota
 weighted coverage = current-quarter weighted eligible open pipeline / remaining quota
 ```
 
-Coverage is `null` when quota is not configured. It is also `null` with status `FULFILLED` when remaining quota is zero; this avoids division by zero and truthfully indicates that more coverage is not required. Gap and attainment are computed on the server. Brand performance returns quota, billed, pipeline, forecast, Commit, backlog, gap, billing/forecast attainment, and GM from one consolidated domain response.
+All quota-derived values are `null` when quota is not configured; the API never substitutes a fake zero. Coverage is also `null` with status `FULFILLED` when remaining quota is zero, avoiding division by zero and indicating that more coverage is not required. Brand performance returns quota, billed, remaining quota, open forecast, projected revenue, projected gap, billing/projected attainment, pipeline, Commit, backlog, and GM from one consolidated domain response.
 
 ## Gross margin
 
@@ -70,15 +76,21 @@ Forecast decisions use a durable opportunity review log: `KEEP_COMMIT`, `MOVE_BE
 
 ## Imports
 
-Both CSV and XLSX are parsed server-side from bounded multipart uploads (10 MB maximum) with no permanent file storage. Validation is a dry run and reports `READY`, `WARNING`, or `BLOCKED`. Execution uses deterministic external references and is idempotent.
+Both CSV and XLSX are parsed server-side from bounded multipart uploads (10 MB maximum) with no permanent file storage. The safe workflow is analyze → inspect and confirm column mapping → validate → review the `READY`, `WARNING`, or `BLOCKED` quality gate → execute. Analysis returns headers and sample-free metadata, not source rows. Required fields, duplicate destinations or sources, unknown critical mappings, and unconfirmed mappings block execution. Execution uses the exact confirmed mapping contract, deterministic external references, and idempotency.
 
 - CSV and workbook sheet `Oppty` import opportunity source rows.
 - `Facturado Daily` imports billing source rows.
+- `Orders` is not treated as an invoice identifier unless a real source contract proves that meaning; it is currently left unmapped for explicit operator review.
+- A billing date must be mapped per row or supplied as an explicit `asOfDate` for an aggregate snapshot. Today's date is never inferred.
 - `Resumen` is recognized as a derived/report sheet and is not imported.
 - `Canales Proceso` is recognized as future Phase 2 scope and is not imported.
 - Unsupported sheets are reported without being used as primary facts.
 
-The private workbook is never committed or logged. The exact quota/target source remains external configuration until a real private workbook is available and its mapping can be verified deterministically.
+The private workbook is never committed, uploaded, or logged. `PROGRAMA VENTAS.xlsx` was not found in the authorized workspace, project, download, document, desktop, iCloud Drive, or CloudStorage search locations during the correction pass. Consequently, the customer-specific `Facturado Daily` and quota/target mappings remain `EXTERNAL_CONFIGURATION_REQUIRED`; synthetic parser coverage is not presented as real-workbook verification.
+
+## Role scope
+
+Tenant and platform admins can update all opportunities visible within their tenant boundary. A Manager can read and update only opportunities where `managerId` is the current user or `sellerId` is the current user. A Seller can read and update only owned opportunities. Executive and Viewer roles are read-only for commercial mutations. PostgreSQL tenant RLS remains the independent tenant-isolation boundary beneath these service-level scopes.
 
 ## Password recovery and mail
 

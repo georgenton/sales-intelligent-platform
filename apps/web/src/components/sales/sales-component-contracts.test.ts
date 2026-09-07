@@ -16,14 +16,14 @@ describe('decision-safe sales component states', () => {
       state: 'AVAILABLE',
       quota: 100_000,
       billed: 40_000,
-      forecast: 30_000,
+      openForecast: 30_000,
     });
 
     expect(result).toEqual({
       state: 'AVAILABLE',
       quota: 100_000,
       billed: 40_000,
-      forecast: 30_000,
+      openForecast: 30_000,
       billedPct: 40,
       forecastPct: 30,
       projectedPct: 70,
@@ -31,7 +31,9 @@ describe('decision-safe sales component states', () => {
   });
 
   it('defensively treats a non-positive available quota as not configured', () => {
-    expect(resolveQuotaProgress({ state: 'AVAILABLE', quota: 0, billed: 0, forecast: 0 })).toEqual({
+    expect(
+      resolveQuotaProgress({ state: 'AVAILABLE', quota: 0, billed: 0, openForecast: 0 }),
+    ).toEqual({
       state: 'NOT_CONFIGURED',
       message: 'Quota is not configured for this period.',
     });

@@ -152,7 +152,9 @@ export class QualificationService {
     const canReadAll = auth.permissions.has(
       forUpdate ? PERMISSIONS.OPPORTUNITIES_UPDATE_ALL : PERMISSIONS.OPPORTUNITIES_READ_ALL,
     );
-    const canReadTeam = !forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM);
+    const canReadTeam = auth.permissions.has(
+      forUpdate ? PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM : PERMISSIONS.OPPORTUNITIES_READ_TEAM,
+    );
     const opportunity = await transaction.opportunity.findFirst({
       where: {
         id: opportunityId,
@@ -167,7 +169,12 @@ export class QualificationService {
       select: { id: true },
     });
     if (!opportunity) {
-      if (forUpdate && !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)) {
+      if (
+        forUpdate &&
+        !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL) &&
+        !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
+        !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)
+      ) {
         throw new ForbiddenException('Qualification update is not permitted');
       }
       throw new NotFoundException('Opportunity not found');

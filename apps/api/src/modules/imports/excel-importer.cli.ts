@@ -11,10 +11,14 @@ function argument(name: string): string | undefined {
 
 async function main(): Promise<void> {
   const fileArgument = argument('--file');
+  const mappingArgument = argument('--mapping');
   const tenantSlug = argument('--tenant');
+  const asOfDate = argument('--as-of');
   const dryRun = process.argv.includes('--dry-run');
   if (!fileArgument || !tenantSlug) {
-    throw new Error('Usage: import:excel -- --file <path> --tenant <slug> [--dry-run]');
+    throw new Error(
+      'Usage: import:excel -- --file <path> --tenant <slug> [--mapping <json-path>] [--as-of YYYY-MM-DD] [--dry-run]',
+    );
   }
   const filePath = path.resolve(process.env.INIT_CWD ?? process.cwd(), fileArgument);
   const [buffer, fileStats] = await Promise.all([readFile(filePath), stat(filePath)]);
@@ -31,10 +35,18 @@ async function main(): Promise<void> {
   await prisma.$connect();
   try {
     const imports = new ImportsService(prisma);
-    if (dryRun) {
-      console.log(JSON.stringify(await imports.validate(file)));
+    const mapping = mappingArgument
+      ? await readFile(path.resolve(process.env.INIT_CWD ?? process.cwd(), mappingArgument), 'utf8')
+      : undefined;
+    if (dryRun && !mapping) {
+      console.log(JSON.stringify(await imports.analyze(file)));
       return;
     }
+    if (dryRun) {
+      console.log(JSON.stringify(await imports.validate(file, { mapping, asOfDate })));
+      return;
+    }
+    if (!mapping) throw new Error('--mapping is required before an import can execute');
     const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
     if (!tenant) throw new Error('Tenant not found');
     const operator = await prisma.tenantMembership.findFirst({
@@ -47,6 +59,7 @@ async function main(): Promise<void> {
     if (!operator) throw new Error('Tenant import operator not found');
     const result = await imports.execute(
       file,
+      { mapping, asOfDate },
       {
         userId: operator.userId,
         activeTenantId: tenant.id,

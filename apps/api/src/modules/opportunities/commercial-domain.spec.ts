@@ -10,6 +10,7 @@ import {
 describe('commercial opportunity domain', () => {
   it('uses the approved category defaults without deriving every update', () => {
     expect(defaultForecastCategory('20')).toBe(ForecastCategory.PIPELINE);
+    expect(defaultForecastCategory('40')).toBe(ForecastCategory.PIPELINE);
     expect(defaultForecastCategory('60')).toBe(ForecastCategory.BEST_CASE);
     expect(defaultForecastCategory('80')).toBe(ForecastCategory.COMMIT);
     expect(defaultForecastCategory('100')).toBe(ForecastCategory.CLOSED);
@@ -21,6 +22,13 @@ describe('commercial opportunity domain', () => {
         stageCode: '20',
         status: OpportunityStatus.OPEN,
         forecastCategory: ForecastCategory.COMMIT,
+      }),
+    ).toMatch(/incompatible/);
+    expect(
+      commercialStateIssue({
+        stageCode: '40',
+        status: OpportunityStatus.OPEN,
+        forecastCategory: ForecastCategory.BEST_CASE,
       }),
     ).toMatch(/incompatible/);
     expect(

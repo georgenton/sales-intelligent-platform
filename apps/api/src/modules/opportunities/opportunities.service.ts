@@ -191,9 +191,12 @@ export class OpportunitiesService {
   }
 
   async create(auth: RequestAuth, input: CreateOpportunityDto, requestId: string) {
-    const sellerId = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL)
-      ? (input.sellerId ?? auth.userId)
-      : auth.userId;
+    const canAssignAnySeller = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL);
+    const canAssignOwnTeam =
+      auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
+      input.managerId === auth.userId;
+    const sellerId =
+      canAssignAnySeller || canAssignOwnTeam ? (input.sellerId ?? auth.userId) : auth.userId;
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const [stage, settings, customer, seller] = await Promise.all([
         transaction.stage.findFirst({
@@ -209,6 +212,12 @@ export class OpportunitiesService {
       ]);
       if (!stage || !customer || !seller)
         throw new ForbiddenException('Invalid tenant-owned reference');
+      if (stage.code === '100') {
+        throw new BadRequestException({
+          code: 'BILLING_FACT_REQUIRED',
+          message: 'Billed stage is reached only through a linked billing confirmation',
+        });
+      }
       if (input.managerId) {
         const manager = await transaction.tenantMembership.findFirst({
           where: {
@@ -354,6 +363,13 @@ export class OpportunitiesService {
   }
 
   async update(auth: RequestAuth, id: string, input: UpdateOpportunityDto, requestId: string) {
+    if (
+      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL) &&
+      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
+      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)
+    ) {
+      throw new ForbiddenException('Opportunity update is not permitted');
+    }
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const current = await transaction.opportunity.findFirst({
         where: { id, tenantId: auth.activeTenantId, deletedAt: null, ...this.scope(auth, true) },
@@ -371,6 +387,12 @@ export class OpportunitiesService {
         : current.stage;
       if (!stage) throw new ForbiddenException('Invalid tenant-owned stage reference');
       const stageChanged = stage.id !== current.stageId;
+      if (stageChanged && stage.code === '100') {
+        throw new BadRequestException({
+          code: 'BILLING_FACT_REQUIRED',
+          message: 'Billed stage is reached only through a linked billing confirmation',
+        });
+      }
       let forecastCategory = input.forecastCategory ?? current.forecastCategory;
       let status = input.status ?? current.status;
       let stateIssue = commercialStateIssue({
@@ -526,13 +548,12 @@ export class OpportunitiesService {
   }
 
   private scope(auth: RequestAuth, forUpdate = false): Prisma.OpportunityWhereInput {
+    if (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL)) return {};
+    if (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_ALL)) return {};
     if (
-      auth.permissions.has(
-        forUpdate ? PERMISSIONS.OPPORTUNITIES_UPDATE_ALL : PERMISSIONS.OPPORTUNITIES_READ_ALL,
-      )
-    )
-      return {};
-    if (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM)) {
+      (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM)) ||
+      (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM))
+    ) {
       return { OR: [{ managerId: auth.userId }, { sellerId: auth.userId }] };
     }
     return { sellerId: auth.userId };

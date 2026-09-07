@@ -9,12 +9,14 @@ export interface DashboardData {
     pipeline: number;
     totalOpenPipeline: number;
     weightedPipeline: number;
-    forecast: number;
+    openForecast: number;
     commit: number;
     backlog: number;
     billed: number;
-    gap: number | null;
-    forecastAttainment: number | null;
+    remainingQuota: number | null;
+    projectedRevenue: number;
+    projectedGap: number | null;
+    projectedAttainment: number | null;
     billingAttainment: number | null;
     pipelineCoverage: number | null;
     weightedCoverage: number | null;
@@ -39,9 +41,11 @@ export interface DashboardData {
     forecast: number;
     commit: number;
     backlog: number;
-    gap: number | null;
+    remainingQuota: number | null;
+    projectedRevenue: number;
+    projectedGap: number | null;
     billingAttainment: number | null;
-    forecastAttainment: number | null;
+    projectedAttainment: number | null;
     grossMargin: number | null;
   }>;
   sellerPerformance: Array<{

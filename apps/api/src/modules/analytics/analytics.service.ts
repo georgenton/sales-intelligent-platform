@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { coverageMetrics } from './commercial-metrics';
+import { commercialMetrics } from './commercial-metrics';
 import { currentFiscalQuarter } from './fiscal-period';
 
 const money = (value: { toNumber(): number } | null | undefined): number => value?.toNumber() ?? 0;
@@ -95,7 +95,7 @@ export class AnalyticsService {
           total + money(opportunity.estimatedAmount) * (opportunity.probability / 100),
         0,
       );
-      const forecast = sum(
+      const openForecast = sum(
         eligibleOpen.filter((opportunity) =>
           ['BEST_CASE', 'COMMIT'].includes(opportunity.forecastCategory),
         ),
@@ -112,9 +112,10 @@ export class AnalyticsService {
       const quota = totalQuotaRows.length
         ? totalQuotaRows.reduce((total, item) => total + money(item.amount), 0)
         : null;
-      const coverage = coverageMetrics({
+      const metrics = commercialMetrics({
         quota,
         billed,
+        openForecast,
         eligibleOpenPipeline: pipeline,
         weightedEligibleOpenPipeline: weightedPipeline,
       });
@@ -241,14 +242,27 @@ export class AnalyticsService {
 
       const brandPerformance = [...brandMap.values()]
         .map((brand) => {
-          const gap = brand.quota === null ? null : Math.max(0, brand.quota - brand.billed);
+          const brandMetrics = commercialMetrics({
+            quota: brand.quota,
+            billed: brand.billed,
+            openForecast: brand.forecast,
+            eligibleOpenPipeline: brand.pipeline,
+            weightedEligibleOpenPipeline: 0,
+          });
           return {
-            ...brand,
-            gap,
-            billingAttainment:
-              brand.quota && brand.quota > 0 ? (brand.billed / brand.quota) * 100 : null,
-            forecastAttainment:
-              brand.quota && brand.quota > 0 ? (brand.forecast / brand.quota) * 100 : null,
+            brandId: brand.brandId,
+            brand: brand.brand,
+            quota: brand.quota,
+            billed: brand.billed,
+            pipeline: brand.pipeline,
+            forecast: brand.forecast,
+            commit: brand.commit,
+            backlog: brand.backlog,
+            remainingQuota: brandMetrics.remainingQuota,
+            projectedRevenue: brandMetrics.projectedRevenue,
+            projectedGap: brandMetrics.projectedGap,
+            billingAttainment: brandMetrics.billingAttainment,
+            projectedAttainment: brandMetrics.projectedAttainment,
             grossMargin:
               brand.pipeline > 0 ? (brand.pipelineGrossProfit / brand.pipeline) * 100 : null,
           };
@@ -268,16 +282,18 @@ export class AnalyticsService {
           pipeline,
           totalOpenPipeline,
           weightedPipeline,
-          forecast,
+          openForecast,
           commit,
           backlog,
           billed,
-          gap: coverage.remainingQuota,
-          forecastAttainment: quota && quota > 0 ? (forecast / quota) * 100 : null,
-          billingAttainment: quota && quota > 0 ? (billed / quota) * 100 : null,
-          pipelineCoverage: coverage.pipelineCoverage,
-          weightedCoverage: coverage.weightedCoverage,
-          coverageStatus: coverage.coverageStatus,
+          remainingQuota: metrics.remainingQuota,
+          projectedRevenue: metrics.projectedRevenue,
+          projectedGap: metrics.projectedGap,
+          projectedAttainment: metrics.projectedAttainment,
+          billingAttainment: metrics.billingAttainment,
+          pipelineCoverage: metrics.pipelineCoverage,
+          weightedCoverage: metrics.weightedCoverage,
+          coverageStatus: metrics.coverageStatus,
           averageMargin: totalAmountWithMargin
             ? (totalGrossProfit / totalAmountWithMargin) * 100
             : null,
