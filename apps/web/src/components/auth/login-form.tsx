@@ -16,17 +16,21 @@ import Link from 'next/link';
 const schema = z.object({ email: z.email(), password: z.string().min(10) });
 type LoginValues = z.infer<typeof schema>;
 
-const subscribeToHydration = () => () => undefined;
-const getHydratedSnapshot = () => true;
+const subscribeToDocumentReady = (onStoreChange: () => void) => {
+  if (document.readyState === 'complete') return () => undefined;
+  window.addEventListener('load', onStoreChange, { once: true });
+  return () => window.removeEventListener('load', onStoreChange);
+};
+const getDocumentReadySnapshot = () => document.readyState === 'complete';
 const getServerSnapshot = () => false;
 
 export function LoginForm() {
   const t = useTranslations('auth');
   const router = useRouter();
   const [error, setError] = useState('');
-  const hydrated = useSyncExternalStore(
-    subscribeToHydration,
-    getHydratedSnapshot,
+  const documentReady = useSyncExternalStore(
+    subscribeToDocumentReady,
+    getDocumentReadySnapshot,
     getServerSnapshot,
   );
   const {
@@ -98,7 +102,7 @@ export function LoginForm() {
           <Button
             className="h-density-control w-full"
             type="submit"
-            disabled={!hydrated || isSubmitting}
+            disabled={!documentReady || isSubmitting}
           >
             {isSubmitting ? (
               t('signingIn')
