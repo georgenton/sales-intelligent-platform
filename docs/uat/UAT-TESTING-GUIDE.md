@@ -483,11 +483,35 @@ and:
 
 `viewer@techdistribution.demo`
 
-Verify their actual RBAC behavior.
+Verify the final Phase 1 contract:
 
-Do not treat missing dedicated Executive UX as a Sprint 1 defect if it is documented as intentionally deferred.
+| Role      | Data/read scope                                                                         | Mutation UI/API                                                         | Snapshot scope              | Dashboard                                                        |
+| --------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------- |
+| Executive | Tenant-wide opportunities, analytics, alerts, reviews, qualification and forecast reads | No create/edit/stage/qualification/review controls; API mutation is 403 | Tenant snapshots, read-only | Tenant-wide read-only commercial command center                  |
+| Viewer    | Tenant-wide opportunities, analytics and forecast reads; no alert-detail route          | No create/edit/stage/qualification/review controls; API mutation is 403 | Tenant snapshots, read-only | Tenant-wide read-only command center; no alert-detail navigation |
 
-Viewer must remain read-only where required.
+For each account:
+
+1. Confirm the dashboard does not expose Forecast Review or Capture Snapshot.
+2. Open the command palette and confirm Create Opportunity and Forecast Review are absent.
+3. Open Opportunities and confirm New Opportunity is absent.
+4. Open an Opportunity drawer and confirm Update Forecast is absent.
+5. Open an Opportunity detail URL and confirm stage/status/category inputs, qualification controls, and Save Changes are absent.
+6. Open Forecast and confirm historical tenant snapshots are readable but Capture Snapshot is absent.
+7. Attempt the create, update, qualification/review, and snapshot APIs with a valid CSRF token; expect 403.
+8. Navigate directly to `/app/opportunities/new`; expect redirect to `/app/opportunities`.
+
+The dedicated Executive information architecture remains a later UX enhancement; read-only enforcement is a Phase 1 acceptance requirement.
+
+### Complete role-scope reference
+
+| Role                  | Data scope                                    | Commercial mutations                                                        | Snapshot scope                  | Dashboard billing/quota                                                                 |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
+| Tenant/Platform Admin | Entire active tenant                          | All; creation requires explicit active Seller and supports explicit Manager | Tenant read/create              | Tenant quota; all linked and unattributed brand-only billing                            |
+| Manager               | `managerId=userId OR sellerId=userId`         | Team updates; create preserves selected Seller and forces current Manager   | Exact `TEAM/userId` read/create | Team-linked billing only; manager-specific quota or not configured                      |
+| Seller                | `sellerId=userId`                             | Own create/update/qualification/review response                             | Exact `OWN/userId` read-only    | Own-linked billing only; seller-specific quota or not configured                        |
+| Executive             | Tenant-wide                                   | None                                                                        | Tenant read-only                | Tenant-wide read-only                                                                   |
+| Viewer                | Tenant-wide except detailed Alerts permission | None                                                                        | Tenant read-only                | Tenant-wide read-only; aggregate alert KPI may appear without the detailed Alerts route |
 
 ---
 

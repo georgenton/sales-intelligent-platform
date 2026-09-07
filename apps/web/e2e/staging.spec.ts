@@ -5,6 +5,10 @@ const adminEmail = process.env.STAGING_ADMIN_EMAIL ?? 'admin@techdistribution.de
 const adminPassword = process.env.STAGING_ADMIN_PASSWORD;
 const sellerEmail = process.env.STAGING_SELLER_EMAIL;
 const sellerPassword = process.env.STAGING_SELLER_PASSWORD;
+const executiveEmail = process.env.STAGING_EXECUTIVE_EMAIL;
+const executivePassword = process.env.STAGING_EXECUTIVE_PASSWORD;
+const viewerEmail = process.env.STAGING_VIEWER_EMAIL;
+const viewerPassword = process.env.STAGING_VIEWER_PASSWORD;
 const vercelAutomationBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 let adminContext: BrowserContext;
@@ -487,6 +491,79 @@ test('seller completes Focus and advances the Guided queue', async ({ browser })
     await expect(page.getByText(/session decisions/)).toBeVisible();
   } else {
     await expect(page.getByRole('heading', { name: 'Guided queue is clear' })).toBeVisible();
+  }
+});
+
+test('Executive and Viewer surfaces remain read-only', async ({ browser }) => {
+  const principals = [
+    { label: 'Executive', email: executiveEmail, password: executivePassword },
+    { label: 'Viewer', email: viewerEmail, password: viewerPassword },
+  ];
+  test.skip(
+    principals.some((principal) => !principal.email || !principal.password),
+    'Executive and Viewer staging credentials are optional',
+  );
+
+  for (const principal of principals) {
+    const context = await browser.newContext(browserContextOptions());
+    const page = await context.newPage();
+    const consoleErrors: string[] = [];
+    const unexpectedResponses: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+    page.on('response', (response) => {
+      if (response.status() >= 500) {
+        unexpectedResponses.push(`${response.status()} ${response.url()}`);
+      }
+    });
+    try {
+      await signIn(page, principal.email!, principal.password!);
+      await expect(page).toHaveURL(/\/app\/dashboard$/);
+      await expect(page.getByRole('button', { name: 'Forecast review' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Capture snapshot' })).toHaveCount(0);
+      await expect(page.getByLabel('Cognitive mode').locator('option[value="REVIEW"]')).toHaveCount(
+        0,
+      );
+
+      await page.keyboard.press('Control+k');
+      const palette = page.getByRole('dialog', { name: 'Command palette' });
+      await expect(palette).toBeVisible();
+      await expect(palette.getByText('Create opportunity', { exact: true })).toHaveCount(0);
+      await expect(palette.getByText('Open forecast review', { exact: true })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      await page.goto('/app/opportunities', { waitUntil: 'networkidle' });
+      await expect(page.getByText('New opportunity', { exact: true })).toHaveCount(0);
+      const firstOpportunity = await page.evaluate(async () => {
+        const response = await fetch('/backend/opportunities?perPage=1');
+        const payload = (await response.json()) as { items: Array<{ id: string; title: string }> };
+        return payload.items[0];
+      });
+      expect(
+        firstOpportunity,
+        `${principal.label} needs a readable opportunity fixture`,
+      ).toBeTruthy();
+      await page.getByRole('button', { name: firstOpportunity!.title, exact: true }).click();
+      const drawer = page.getByRole('dialog').last();
+      await expect(drawer).toBeVisible();
+      await expect(drawer.getByText('Update forecast', { exact: true })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      await page.goto(`/app/opportunities/${firstOpportunity!.id}`, { waitUntil: 'networkidle' });
+      await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+      await expect(page.getByRole('combobox', { name: /^Answer for / })).toHaveCount(0);
+
+      await page.goto('/app/forecast', { waitUntil: 'networkidle' });
+      await expect(page.getByRole('button', { name: 'Capture snapshot' })).toHaveCount(0);
+      await page.goto('/app/opportunities/new');
+      await expect(page).toHaveURL(/\/app\/opportunities$/);
+      expect(consoleErrors).toEqual([]);
+      expect(unexpectedResponses).toEqual([]);
+    } finally {
+      await context.close();
+    }
   }
 });
 

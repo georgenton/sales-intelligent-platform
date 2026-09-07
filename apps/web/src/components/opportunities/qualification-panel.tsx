@@ -8,7 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AppLocale } from '@/i18n/config';
 import { useQualificationQuery, useUpdateQualificationMutation } from '@/store/api';
 
-export function QualificationPanel({ opportunityId }: { opportunityId: string }) {
+export function QualificationPanel({
+  opportunityId,
+  readOnly = false,
+}: {
+  opportunityId: string;
+  readOnly?: boolean;
+}) {
   const locale = useLocale() as AppLocale;
   const t = useTranslations('qualification');
   const { data, isLoading, isError } = useQualificationQuery(opportunityId);
@@ -70,68 +76,82 @@ export function QualificationPanel({ opportunityId }: { opportunityId: string })
                           {locale === 'es' ? criterion.descriptionEs : criterion.descriptionEn}
                         </p>
                       </div>
-                      <select
-                        aria-label={t('answerFor', {
-                          criterion: locale === 'es' ? criterion.labelEs : criterion.labelEn,
-                        })}
-                        className="h-9 rounded-lg border bg-background px-2 text-sm"
-                        value={answer}
-                        onChange={async (event) => {
-                          setMessage('');
-                          const next = event.target.value as 'YES' | 'NO' | 'UNKNOWN';
-                          try {
-                            await update({
-                              opportunityId,
-                              criterionId: criterion.id,
-                              answer: next,
-                              evidence: evidence.trim() || undefined,
-                            }).unwrap();
-                          } catch {
-                            setMessage(t('saveError'));
-                          }
-                        }}
-                      >
-                        <option value="UNKNOWN">{t('unknown')}</option>
-                        <option value="YES">{t('yes')}</option>
-                        <option value="NO">{t('no')}</option>
-                      </select>
+                      {readOnly ? (
+                        <span className="rounded-lg border bg-muted px-3 py-2 text-sm font-medium">
+                          {t(answer === 'YES' ? 'yes' : answer === 'NO' ? 'no' : 'unknown')}
+                        </span>
+                      ) : (
+                        <select
+                          aria-label={t('answerFor', {
+                            criterion: locale === 'es' ? criterion.labelEs : criterion.labelEn,
+                          })}
+                          className="h-9 rounded-lg border bg-background px-2 text-sm"
+                          value={answer}
+                          onChange={async (event) => {
+                            setMessage('');
+                            const next = event.target.value as 'YES' | 'NO' | 'UNKNOWN';
+                            try {
+                              await update({
+                                opportunityId,
+                                criterionId: criterion.id,
+                                answer: next,
+                                evidence: evidence.trim() || undefined,
+                              }).unwrap();
+                            } catch {
+                              setMessage(t('saveError'));
+                            }
+                          }}
+                        >
+                          <option value="UNKNOWN">{t('unknown')}</option>
+                          <option value="YES">{t('yes')}</option>
+                          <option value="NO">{t('no')}</option>
+                        </select>
+                      )}
                     </div>
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm"
-                        value={evidence}
-                        placeholder={
-                          criterion.evidenceRequired ? t('evidenceRequired') : t('evidenceOptional')
-                        }
-                        onChange={(event) =>
-                          setDrafts((current) => ({
-                            ...current,
-                            [criterion.id]: event.target.value,
-                          }))
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={updateState.isLoading}
-                        aria-label={t('saveEvidence')}
-                        onClick={async () => {
-                          setMessage('');
-                          try {
-                            await update({
-                              opportunityId,
-                              criterionId: criterion.id,
-                              answer,
-                              evidence: evidence.trim() || undefined,
-                            }).unwrap();
-                          } catch {
-                            setMessage(t('saveError'));
+                    {readOnly ? (
+                      <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+                        {evidence || '—'}
+                      </p>
+                    ) : (
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm"
+                          value={evidence}
+                          placeholder={
+                            criterion.evidenceRequired
+                              ? t('evidenceRequired')
+                              : t('evidenceOptional')
                           }
-                        }}
-                      >
-                        <Save className="size-4" />
-                      </Button>
-                    </div>
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [criterion.id]: event.target.value,
+                            }))
+                          }
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={updateState.isLoading}
+                          aria-label={t('saveEvidence')}
+                          onClick={async () => {
+                            setMessage('');
+                            try {
+                              await update({
+                                opportunityId,
+                                criterionId: criterion.id,
+                                answer,
+                                evidence: evidence.trim() || undefined,
+                              }).unwrap();
+                            } catch {
+                              setMessage(t('saveError'));
+                            }
+                          }}
+                        >
+                          <Save className="size-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

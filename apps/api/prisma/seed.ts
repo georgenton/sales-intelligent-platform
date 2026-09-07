@@ -113,6 +113,20 @@ async function seedDemo(
     { name: 'Sofía Torres', email: 'sofia@techdistribution.demo', role: MembershipRole.SELLER },
     { name: 'Diego Andrade', email: 'diego@techdistribution.demo', role: MembershipRole.SELLER },
     { name: 'Camila Paz', email: 'camila@techdistribution.demo', role: MembershipRole.SELLER },
+    ...(!stagingBootstrap
+      ? [
+          {
+            name: 'Elena Executive',
+            email: 'executive@techdistribution.demo',
+            role: MembershipRole.EXECUTIVE,
+          },
+          {
+            name: 'Victor Viewer',
+            email: 'viewer@techdistribution.demo',
+            role: MembershipRole.VIEWER,
+          },
+        ]
+      : []),
   ];
   const users = [];
   for (const person of people) {

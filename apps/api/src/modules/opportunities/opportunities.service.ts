@@ -10,6 +10,11 @@ import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { evaluateOpportunityRisk } from '../alerts/forecast-health.engine';
 import { PERMISSIONS } from '../authorization/permissions';
+import {
+  canUpdateOpportunities,
+  opportunityReadScope,
+  opportunityUpdateScope,
+} from '../authorization/opportunity-scope';
 import type { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import type { ListOpportunitiesDto } from './dto/list-opportunities.dto';
 import type { UpdateOpportunityDto } from './dto/update-opportunity.dto';
@@ -46,21 +51,30 @@ export class OpportunitiesService {
 
   async list(auth: RequestAuth, query: ListOpportunitiesDto) {
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
+      const accessScope = this.scope(auth);
       const where: Prisma.OpportunityWhereInput = {
         tenantId: auth.activeTenantId,
         deletedAt: null,
-        ...this.scope(auth),
+        AND: [
+          accessScope,
+          ...(query.search
+            ? [
+                {
+                  OR: [
+                    { title: { contains: query.search, mode: Prisma.QueryMode.insensitive } },
+                    {
+                      customer: {
+                        name: { contains: query.search, mode: Prisma.QueryMode.insensitive },
+                      },
+                    },
+                  ],
+                } satisfies Prisma.OpportunityWhereInput,
+              ]
+            : []),
+        ],
         ...(query.status ? { status: query.status } : {}),
         ...(query.stageId ? { stageId: query.stageId } : {}),
         ...(query.brandId ? { lineItems: { some: { brandId: query.brandId } } } : {}),
-        ...(query.search
-          ? {
-              OR: [
-                { title: { contains: query.search, mode: 'insensitive' } },
-                { customer: { name: { contains: query.search, mode: 'insensitive' } } },
-              ],
-            }
-          : {}),
       };
       const [items, total, settings] = await Promise.all([
         transaction.opportunity.findMany({
@@ -192,11 +206,19 @@ export class OpportunitiesService {
 
   async create(auth: RequestAuth, input: CreateOpportunityDto, requestId: string) {
     const canAssignAnySeller = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL);
-    const canAssignOwnTeam =
-      auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
-      input.managerId === auth.userId;
-    const sellerId =
-      canAssignAnySeller || canAssignOwnTeam ? (input.sellerId ?? auth.userId) : auth.userId;
+    const canAssignOwnTeam = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM);
+    if ((canAssignAnySeller || canAssignOwnTeam) && !input.sellerId) {
+      throw new BadRequestException({
+        code: 'SELLER_REQUIRED',
+        message: 'An active tenant seller must be selected',
+      });
+    }
+    const sellerId = canAssignAnySeller || canAssignOwnTeam ? input.sellerId! : auth.userId;
+    const managerId = canAssignAnySeller
+      ? (input.managerId ?? null)
+      : canAssignOwnTeam
+        ? auth.userId
+        : null;
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const [stage, settings, customer, seller] = await Promise.all([
         transaction.stage.findFirst({
@@ -207,7 +229,12 @@ export class OpportunitiesService {
           where: { id: input.customerId, tenantId: auth.activeTenantId },
         }),
         transaction.tenantMembership.findFirst({
-          where: { tenantId: auth.activeTenantId, userId: sellerId, status: 'ACTIVE' },
+          where: {
+            tenantId: auth.activeTenantId,
+            userId: sellerId,
+            role: 'SELLER',
+            status: 'ACTIVE',
+          },
         }),
       ]);
       if (!stage || !customer || !seller)
@@ -218,13 +245,13 @@ export class OpportunitiesService {
           message: 'Billed stage is reached only through a linked billing confirmation',
         });
       }
-      if (input.managerId) {
+      if (managerId) {
         const manager = await transaction.tenantMembership.findFirst({
           where: {
             tenantId: auth.activeTenantId,
-            userId: input.managerId,
+            userId: managerId,
             status: 'ACTIVE',
-            role: { in: ['MANAGER', 'TENANT_ADMIN'] },
+            role: 'MANAGER',
           },
         });
         if (!manager) throw new ForbiddenException('Invalid tenant-owned manager reference');
@@ -293,7 +320,7 @@ export class OpportunitiesService {
         data: {
           tenantId: auth.activeTenantId,
           sellerId,
-          managerId: input.managerId,
+          managerId,
           customerId: input.customerId,
           partnerId: input.partnerId,
           title: input.title.trim(),
@@ -363,11 +390,7 @@ export class OpportunitiesService {
   }
 
   async update(auth: RequestAuth, id: string, input: UpdateOpportunityDto, requestId: string) {
-    if (
-      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL) &&
-      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
-      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)
-    ) {
+    if (!canUpdateOpportunities(auth)) {
       throw new ForbiddenException('Opportunity update is not permitted');
     }
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
@@ -548,15 +571,7 @@ export class OpportunitiesService {
   }
 
   private scope(auth: RequestAuth, forUpdate = false): Prisma.OpportunityWhereInput {
-    if (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL)) return {};
-    if (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_ALL)) return {};
-    if (
-      (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM)) ||
-      (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM))
-    ) {
-      return { OR: [{ managerId: auth.userId }, { sellerId: auth.userId }] };
-    }
-    return { sellerId: auth.userId };
+    return forUpdate ? opportunityUpdateScope(auth) : opportunityReadScope(auth);
   }
 
   private risk(opportunity: OpportunityWithRelations, marginThreshold: number) {

@@ -23,7 +23,15 @@ interface PaletteAction {
   run: () => void;
 }
 
-export function CommandPalette() {
+export function CommandPalette({
+  canCreate,
+  canReview,
+  canReadAlerts,
+}: {
+  canCreate: boolean;
+  canReview: boolean;
+  canReadAlerts: boolean;
+}) {
   const locale = useLocale() as AppLocale;
   const t = useTranslations('navigation.palette');
   const router = useRouter();
@@ -42,8 +50,8 @@ export function CommandPalette() {
     setActive(0);
     dispatch(setCommandPaletteOpen(false));
   };
-  const actions = useMemo<PaletteAction[]>(
-    () => [
+  const actions = useMemo<PaletteAction[]>(() => {
+    const available: PaletteAction[] = [
       {
         id: 'opportunities',
         label: t('findOpportunity'),
@@ -51,30 +59,42 @@ export function CommandPalette() {
         icon: Search,
         run: () => setQuery(''),
       },
-      {
-        id: 'create',
-        label: t('createOpportunity'),
-        hint: t('portfolio'),
-        icon: Plus,
-        run: () => router.push('/app/opportunities/new'),
-      },
-      {
-        id: 'risk',
-        label: t('viewRisk'),
-        hint: t('riskAlerts'),
-        icon: AlertTriangle,
-        run: () => router.push('/app/alerts'),
-      },
-      {
-        id: 'review',
-        label: t('openReview'),
-        hint: t('reviewMode'),
-        icon: Target,
-        run: () => {
-          dispatch(setExperienceMode('REVIEW'));
-          router.push('/app/dashboard');
-        },
-      },
+      ...(canCreate
+        ? [
+            {
+              id: 'create',
+              label: t('createOpportunity'),
+              hint: t('portfolio'),
+              icon: Plus,
+              run: () => router.push('/app/opportunities/new'),
+            } satisfies PaletteAction,
+          ]
+        : []),
+      ...(canReadAlerts
+        ? [
+            {
+              id: 'risk',
+              label: t('viewRisk'),
+              hint: t('riskAlerts'),
+              icon: AlertTriangle,
+              run: () => router.push('/app/alerts'),
+            } satisfies PaletteAction,
+          ]
+        : []),
+      ...(canReview
+        ? [
+            {
+              id: 'review',
+              label: t('openReview'),
+              hint: t('reviewMode'),
+              icon: Target,
+              run: () => {
+                dispatch(setExperienceMode('REVIEW'));
+                router.push('/app/dashboard');
+              },
+            } satisfies PaletteAction,
+          ]
+        : []),
       {
         id: 'copilot',
         label: t('askCopilot'),
@@ -82,9 +102,9 @@ export function CommandPalette() {
         icon: Bot,
         run: () => dispatch(setCopilotPanelOpen(true)),
       },
-    ],
-    [dispatch, router, t],
-  );
+    ];
+    return available;
+  }, [canCreate, canReadAlerts, canReview, dispatch, router, t]);
   const results: PaletteAction[] = [
     ...actions.filter((item) =>
       `${item.label} ${item.hint}`.toLowerCase().includes(query.toLowerCase()),

@@ -33,7 +33,7 @@ const copilotPrompts = [
 const lowerFirst = (value: string) =>
   value.length ? `${value[0]?.toLocaleLowerCase()}${value.slice(1)}` : value;
 
-export function OpportunityDrawer() {
+export function OpportunityDrawer({ canUpdate }: { canUpdate: boolean }) {
   const locale = useLocale() as AppLocale;
   const t = useTranslations('opportunities.drawer');
   const tOpportunities = useTranslations('opportunities');
@@ -178,12 +178,14 @@ export function OpportunityDrawer() {
                 {formatCurrency(opportunity.estimatedAmount, opportunity.currency, locale)}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  href={`/app/opportunities/${opportunity.id}`}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
-                >
-                  {t('updateForecast')} <ArrowUpRight className="size-3" />
-                </Link>
+                {canUpdate && (
+                  <Link
+                    href={`/app/opportunities/${opportunity.id}`}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                  >
+                    {t('updateForecast')} <ArrowUpRight className="size-3" />
+                  </Link>
+                )}
                 <Button
                   variant="outline"
                   size="sm"

@@ -29,6 +29,7 @@ const schema = z.object({
   customerId: z.string().uuid(),
   partnerId: z.string().optional(),
   sellerId: z.string().uuid(),
+  managerId: z.string().uuid().optional().or(z.literal('')),
   stageId: z.string().uuid(),
   forecastCategory: z.enum(['PIPELINE', 'BEST_CASE', 'COMMIT', 'CLOSED', 'OMITTED']),
   estimatedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/),
@@ -58,7 +59,13 @@ type Values = z.infer<typeof schema>;
 const selectClass =
   'h-density-control w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring';
 
-export function OpportunityForm({ reference }: { reference: ReferenceData }) {
+export function OpportunityForm({
+  reference,
+  profile,
+}: {
+  reference: ReferenceData;
+  profile: { user: { id: string }; role: string };
+}) {
   const locale = useLocale() as AppLocale;
   const t = useTranslations('opportunities.form');
   const tOpportunities = useTranslations('opportunities');
@@ -67,6 +74,10 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
   const [serverError, setServerError] = useState('');
   const defaultStage = reference.stages.find((stage) => stage.code === '20') ?? reference.stages[0];
   const sellers = reference.users.filter((user) => user.role === 'SELLER');
+  const managers = reference.users.filter((user) => user.role === 'MANAGER');
+  const isSeller = profile.role === 'SELLER';
+  const isAdmin = ['TENANT_ADMIN', 'PLATFORM_ADMIN'].includes(profile.role);
+  const assignedSeller = sellers.find((seller) => seller.id === profile.user.id);
   const {
     register,
     control,
@@ -78,7 +89,8 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
       title: '',
       customerId: reference.customers[0]?.id,
       partnerId: '',
-      sellerId: sellers[0]?.id,
+      sellerId: isSeller ? assignedSeller?.id : sellers[0]?.id,
+      managerId: '',
       stageId: defaultStage?.id,
       forecastCategory: 'PIPELINE',
       estimatedAmount: '',
@@ -100,6 +112,7 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
       ...values,
       currency: reference.settings.currency,
       partnerId: values.partnerId || undefined,
+      managerId: isAdmin && values.managerId ? values.managerId : undefined,
       expectedBillingDate: values.expectedBillingDate || undefined,
       grossMarginPercent: values.grossMarginPercent || undefined,
       qualificationOverrideReason: values.qualificationOverrideReason || undefined,
@@ -171,16 +184,39 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                   ))}
                 </select>
               </label>
-              <label className="text-sm font-medium">
-                {t('seller')}
-                <select className={`${selectClass} mt-2`} {...register('sellerId')}>
-                  {sellers.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {isSeller ? (
+                <label className="text-sm font-medium">
+                  {t('seller')}
+                  <input type="hidden" {...register('sellerId')} />
+                  <span className="mt-2 flex h-density-control items-center rounded-lg border bg-muted px-3 text-sm">
+                    {assignedSeller?.name}
+                  </span>
+                </label>
+              ) : (
+                <label className="text-sm font-medium">
+                  {t('seller')}
+                  <select className={`${selectClass} mt-2`} {...register('sellerId')}>
+                    {sellers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {isAdmin && (
+                <label className="text-sm font-medium">
+                  {t('manager')}
+                  <select className={`${selectClass} mt-2`} {...register('managerId')}>
+                    <option value="">{t('noManager')}</option>
+                    {managers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="text-sm font-medium">
                 {t('stage')}
                 <select className={`${selectClass} mt-2`} {...register('stageId')}>

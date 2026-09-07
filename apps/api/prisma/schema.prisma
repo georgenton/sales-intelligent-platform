@@ -71,26 +71,32 @@ enum OpportunityReviewEventType {
   OVERRIDE_QUALIFICATION
 }
 
+enum ForecastSnapshotScopeType {
+  TENANT
+  TEAM
+  OWN
+}
+
 model User {
-  id                  String             @id @default(uuid()) @db.Uuid
-  name                String
-  email               String             @unique
-  status              UserStatus         @default(ACTIVE)
-  failedLoginAttempts Int                @default(0) @map("failed_login_attempts")
-  lockedUntil         DateTime?          @map("locked_until")
-  createdAt           DateTime           @default(now()) @map("created_at")
-  updatedAt           DateTime           @updatedAt @map("updated_at")
-  memberships         TenantMembership[]
-  identities          AuthIdentity[]
-  localCredential     LocalCredential?
-  sessions            Session[]
-  sellerOpportunities Opportunity[]      @relation("OpportunitySeller")
-  managerOpportunities Opportunity[]     @relation("OpportunityManager")
-  stageChanges        StageHistory[]
-  quotas              Quota[]
-  auditEvents         AuditEvent[]
-  passwordResetTokens PasswordResetToken[]
-  qualificationUpdates QualificationResponse[] @relation("QualificationResponseUpdater")
+  id                   String                   @id @default(uuid()) @db.Uuid
+  name                 String
+  email                String                   @unique
+  status               UserStatus               @default(ACTIVE)
+  failedLoginAttempts  Int                      @default(0) @map("failed_login_attempts")
+  lockedUntil          DateTime?                @map("locked_until")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+  memberships          TenantMembership[]
+  identities           AuthIdentity[]
+  localCredential      LocalCredential?
+  sessions             Session[]
+  sellerOpportunities  Opportunity[]            @relation("OpportunitySeller")
+  managerOpportunities Opportunity[]            @relation("OpportunityManager")
+  stageChanges         StageHistory[]
+  quotas               Quota[]
+  auditEvents          AuditEvent[]
+  passwordResetTokens  PasswordResetToken[]
+  qualificationUpdates QualificationResponse[]  @relation("QualificationResponseUpdater")
   reviewEvents         OpportunityReviewEvent[] @relation("OpportunityReviewActor")
   targetedReviewEvents OpportunityReviewEvent[] @relation("OpportunityReviewTarget")
 
@@ -98,36 +104,36 @@ model User {
 }
 
 model Tenant {
-  id             String               @id @default(uuid()) @db.Uuid
-  name           String
-  slug           String               @unique
-  status         TenantStatus         @default(ACTIVE)
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
-  settings       TenantSetting?
-  memberships    TenantMembership[]
-  authProviders  TenantAuthProvider[]
-  sessions       Session[]
-  stages         Stage[]
-  brands         Brand[]
-  partners       Partner[]
-  customers      Customer[]
-  opportunities  Opportunity[]
-  lineItems      OpportunityLineItem[]
-  stageHistory   StageHistory[]
-  activities     Activity[]
-  quotas         Quota[]
-  billingRecords BillingRecord[]
-  snapshots      ForecastSnapshot[]
-  snapshotItems  ForecastSnapshotItem[]
-  channelCutoffs ChannelCutoff[]
-  alerts         Alert[]
-  auditEvents    AuditEvent[]
-  aiInteractions AiInteraction[]
-  qualificationCriteria QualificationCriterion[]
+  id                     String                     @id @default(uuid()) @db.Uuid
+  name                   String
+  slug                   String                     @unique
+  status                 TenantStatus               @default(ACTIVE)
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  updatedAt              DateTime                   @updatedAt @map("updated_at")
+  settings               TenantSetting?
+  memberships            TenantMembership[]
+  authProviders          TenantAuthProvider[]
+  sessions               Session[]
+  stages                 Stage[]
+  brands                 Brand[]
+  partners               Partner[]
+  customers              Customer[]
+  opportunities          Opportunity[]
+  lineItems              OpportunityLineItem[]
+  stageHistory           StageHistory[]
+  activities             Activity[]
+  quotas                 Quota[]
+  billingRecords         BillingRecord[]
+  snapshots              ForecastSnapshot[]
+  snapshotItems          ForecastSnapshotItem[]
+  channelCutoffs         ChannelCutoff[]
+  alerts                 Alert[]
+  auditEvents            AuditEvent[]
+  aiInteractions         AiInteraction[]
+  qualificationCriteria  QualificationCriterion[]
   qualificationResponses QualificationResponse[]
-  reviewEvents OpportunityReviewEvent[]
-  featureEntitlements TenantFeatureEntitlement[]
+  reviewEvents           OpportunityReviewEvent[]
+  featureEntitlements    TenantFeatureEntitlement[]
 
   @@map("tenants")
 }
@@ -183,21 +189,21 @@ model PasswordResetToken {
 }
 
 model Session {
-  id              String           @id @default(uuid()) @db.Uuid
-  userId          String           @map("user_id") @db.Uuid
-  tenantId        String           @map("tenant_id") @db.Uuid
-  membershipId    String           @map("membership_id") @db.Uuid
-  tokenHash       String           @unique @map("token_hash")
-  csrfTokenHash   String           @map("csrf_token_hash")
-  expiresAt       DateTime         @map("expires_at")
-  revokedAt       DateTime?        @map("revoked_at")
-  ipAddress       String?          @map("ip_address")
-  userAgent       String?          @map("user_agent")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  lastSeenAt      DateTime         @default(now()) @map("last_seen_at")
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  membership      TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  membershipId  String           @map("membership_id") @db.Uuid
+  tokenHash     String           @unique @map("token_hash")
+  csrfTokenHash String           @map("csrf_token_hash")
+  expiresAt     DateTime         @map("expires_at")
+  revokedAt     DateTime?        @map("revoked_at")
+  ipAddress     String?          @map("ip_address")
+  userAgent     String?          @map("user_agent")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  lastSeenAt    DateTime         @default(now()) @map("last_seen_at")
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  membership    TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
 
   @@index([tokenHash, expiresAt])
   @@map("sessions")
@@ -237,20 +243,20 @@ model TenantAuthProvider {
 }
 
 model Stage {
-  id                 String         @id @default(uuid()) @db.Uuid
-  tenantId           String         @map("tenant_id") @db.Uuid
-  code               String
-  name               String
-  probability        Int
-  sortOrder          Int            @map("sort_order")
-  isClosedWon        Boolean        @default(false) @map("is_closed_won")
-  isBilled           Boolean        @default(false) @map("is_billed")
-  createdAt          DateTime       @default(now()) @map("created_at")
-  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  opportunities      Opportunity[]
-  stageHistoryFrom   StageHistory[] @relation("StageHistoryFrom")
-  stageHistoryTo     StageHistory[] @relation("StageHistoryTo")
-  snapshotItems      ForecastSnapshotItem[]
+  id               String                 @id @default(uuid()) @db.Uuid
+  tenantId         String                 @map("tenant_id") @db.Uuid
+  code             String
+  name             String
+  probability      Int
+  sortOrder        Int                    @map("sort_order")
+  isClosedWon      Boolean                @default(false) @map("is_closed_won")
+  isBilled         Boolean                @default(false) @map("is_billed")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunities    Opportunity[]
+  stageHistoryFrom StageHistory[]         @relation("StageHistoryFrom")
+  stageHistoryTo   StageHistory[]         @relation("StageHistoryTo")
+  snapshotItems    ForecastSnapshotItem[]
 
   @@unique([tenantId, code])
   @@index([tenantId, sortOrder])
@@ -258,13 +264,13 @@ model Stage {
 }
 
 model Brand {
-  id        String                @id @default(uuid()) @db.Uuid
-  tenantId  String                @map("tenant_id") @db.Uuid
-  name      String
-  createdAt DateTime              @default(now()) @map("created_at")
-  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  lineItems OpportunityLineItem[]
-  quotas    Quota[]
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  name           String
+  createdAt      DateTime              @default(now()) @map("created_at")
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lineItems      OpportunityLineItem[]
+  quotas         Quota[]
   billingRecords BillingRecord[]
 
   @@unique([tenantId, name])
@@ -297,44 +303,44 @@ model Customer {
 }
 
 model Opportunity {
-  id                  String                @id @default(uuid()) @db.Uuid
-  tenantId            String                @map("tenant_id") @db.Uuid
-  sellerId            String                @map("seller_id") @db.Uuid
-  managerId           String?               @map("manager_id") @db.Uuid
-  customerId          String                @map("customer_id") @db.Uuid
-  partnerId           String?               @map("partner_id") @db.Uuid
-  title               String
-  status              OpportunityStatus     @default(OPEN)
-  stageId             String                @map("stage_id") @db.Uuid
-  forecastCategory    ForecastCategory      @default(PIPELINE) @map("forecast_category")
-  currency            String                @db.Char(3)
-  estimatedAmount     Decimal               @map("estimated_amount") @db.Decimal(18, 2)
-  grossProfit         Decimal?              @map("gross_profit") @db.Decimal(18, 2)
-  probability         Int
-  expectedCloseDate   DateTime              @map("expected_close_date") @db.Date
-  expectedBillingDate DateTime?             @map("expected_billing_date") @db.Date
-  poNumber            String?               @map("po_number")
-  notes               String?
-  source              String                @default("MANUAL")
-  externalReference   String?               @map("external_reference")
-  lastStageChangedAt  DateTime              @default(now()) @map("last_stage_changed_at")
-  createdAt           DateTime              @default(now()) @map("created_at")
-  updatedAt           DateTime              @updatedAt @map("updated_at")
-  deletedAt           DateTime?             @map("deleted_at")
-  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  seller              User                  @relation("OpportunitySeller", fields: [sellerId], references: [id])
-  manager             User?                 @relation("OpportunityManager", fields: [managerId], references: [id])
-  customer            Customer              @relation(fields: [customerId], references: [id])
-  partner             Partner?              @relation(fields: [partnerId], references: [id])
-  stage               Stage                 @relation(fields: [stageId], references: [id])
-  lineItems           OpportunityLineItem[]
-  stageHistory        StageHistory[]
-  activities          Activity[]
-  billingRecords      BillingRecord[]
-  snapshotItems       ForecastSnapshotItem[]
-  alerts              Alert[]
+  id                     String                   @id @default(uuid()) @db.Uuid
+  tenantId               String                   @map("tenant_id") @db.Uuid
+  sellerId               String                   @map("seller_id") @db.Uuid
+  managerId              String?                  @map("manager_id") @db.Uuid
+  customerId             String                   @map("customer_id") @db.Uuid
+  partnerId              String?                  @map("partner_id") @db.Uuid
+  title                  String
+  status                 OpportunityStatus        @default(OPEN)
+  stageId                String                   @map("stage_id") @db.Uuid
+  forecastCategory       ForecastCategory         @default(PIPELINE) @map("forecast_category")
+  currency               String                   @db.Char(3)
+  estimatedAmount        Decimal                  @map("estimated_amount") @db.Decimal(18, 2)
+  grossProfit            Decimal?                 @map("gross_profit") @db.Decimal(18, 2)
+  probability            Int
+  expectedCloseDate      DateTime                 @map("expected_close_date") @db.Date
+  expectedBillingDate    DateTime?                @map("expected_billing_date") @db.Date
+  poNumber               String?                  @map("po_number")
+  notes                  String?
+  source                 String                   @default("MANUAL")
+  externalReference      String?                  @map("external_reference")
+  lastStageChangedAt     DateTime                 @default(now()) @map("last_stage_changed_at")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  deletedAt              DateTime?                @map("deleted_at")
+  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seller                 User                     @relation("OpportunitySeller", fields: [sellerId], references: [id])
+  manager                User?                    @relation("OpportunityManager", fields: [managerId], references: [id])
+  customer               Customer                 @relation(fields: [customerId], references: [id])
+  partner                Partner?                 @relation(fields: [partnerId], references: [id])
+  stage                  Stage                    @relation(fields: [stageId], references: [id])
+  lineItems              OpportunityLineItem[]
+  stageHistory           StageHistory[]
+  activities             Activity[]
+  billingRecords         BillingRecord[]
+  snapshotItems          ForecastSnapshotItem[]
+  alerts                 Alert[]
   qualificationResponses QualificationResponse[]
-  reviewEvents         OpportunityReviewEvent[]
+  reviewEvents           OpportunityReviewEvent[]
 
   @@unique([tenantId, externalReference])
   @@index([tenantId, status, expectedCloseDate])
@@ -514,34 +520,37 @@ model TenantFeatureEntitlement {
 }
 
 model ForecastSnapshot {
-  id          String                 @id @default(uuid()) @db.Uuid
-  tenantId    String                 @map("tenant_id") @db.Uuid
-  periodStart DateTime               @map("period_start") @db.Date
-  periodEnd   DateTime               @map("period_end") @db.Date
-  createdById String                 @map("created_by_id") @db.Uuid
-  createdAt   DateTime               @default(now()) @map("created_at")
-  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id          String                    @id @default(uuid()) @db.Uuid
+  tenantId    String                    @map("tenant_id") @db.Uuid
+  periodStart DateTime                  @map("period_start") @db.Date
+  periodEnd   DateTime                  @map("period_end") @db.Date
+  createdById String                    @map("created_by_id") @db.Uuid
+  scopeType   ForecastSnapshotScopeType @default(TENANT) @map("scope_type")
+  scopeUserId String?                   @map("scope_user_id") @db.Uuid
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  tenant      Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items       ForecastSnapshotItem[]
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, scopeType, scopeUserId, createdAt])
   @@map("forecast_snapshots")
 }
 
 model ForecastSnapshotItem {
-  id                  String             @id @default(uuid()) @db.Uuid
-  tenantId            String             @map("tenant_id") @db.Uuid
-  snapshotId          String             @map("snapshot_id") @db.Uuid
-  opportunityId       String             @map("opportunity_id") @db.Uuid
-  stageId             String             @map("stage_id") @db.Uuid
+  id                  String            @id @default(uuid()) @db.Uuid
+  tenantId            String            @map("tenant_id") @db.Uuid
+  snapshotId          String            @map("snapshot_id") @db.Uuid
+  opportunityId       String            @map("opportunity_id") @db.Uuid
+  stageId             String            @map("stage_id") @db.Uuid
   status              OpportunityStatus
-  forecastCategory    ForecastCategory   @map("forecast_category")
-  estimatedAmount     Decimal            @map("estimated_amount") @db.Decimal(18, 2)
-  expectedCloseDate   DateTime           @map("expected_close_date") @db.Date
-  expectedBillingDate DateTime?          @map("expected_billing_date") @db.Date
-  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  snapshot            ForecastSnapshot   @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
-  opportunity         Opportunity         @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
-  stage               Stage               @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  forecastCategory    ForecastCategory  @map("forecast_category")
+  estimatedAmount     Decimal           @map("estimated_amount") @db.Decimal(18, 2)
+  expectedCloseDate   DateTime          @map("expected_close_date") @db.Date
+  expectedBillingDate DateTime?         @map("expected_billing_date") @db.Date
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  snapshot            ForecastSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  opportunity         Opportunity       @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  stage               Stage             @relation(fields: [stageId], references: [id], onDelete: Restrict)
 
   @@unique([snapshotId, opportunityId])
   @@index([tenantId, snapshotId])
@@ -597,17 +606,17 @@ model AuditEvent {
 }
 
 model AiInteraction {
-  id             String   @id @default(uuid()) @db.Uuid
-  tenantId       String   @map("tenant_id") @db.Uuid
-  actorId        String   @map("actor_id") @db.Uuid
-  provider       String
-  model          String
-  purpose        String
-  inputTokens    Int?     @map("input_tokens")
-  outputTokens   Int?     @map("output_tokens")
-  durationMs     Int?     @map("duration_ms")
-  createdAt      DateTime @default(now()) @map("created_at")
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  actorId      String   @map("actor_id") @db.Uuid
+  provider     String
+  model        String
+  purpose      String
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  durationMs   Int?     @map("duration_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
   @@map("ai_interactions")

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { opportunityReadScope } from '../authorization/opportunity-scope';
 import { commercialMetrics } from './commercial-metrics';
 import { currentFiscalQuarter } from './fiscal-period';
 
@@ -29,9 +30,9 @@ export class AnalyticsService {
         where: { tenantId: auth.activeTenantId },
       });
       const period = currentFiscalQuarter(new Date(), settings.fiscalYearStartMonth);
-      const sellerScoped = auth.role === 'SELLER';
-      const opportunityScope = sellerScoped ? { sellerId: auth.userId } : {};
-      const quotaAssigneeId = sellerScoped ? auth.userId : null;
+      const opportunityScope = opportunityReadScope(auth);
+      const attributedScope = Object.keys(opportunityScope).length > 0;
+      const quotaAssigneeId = ['MANAGER', 'SELLER'].includes(auth.role) ? auth.userId : null;
       const [opportunities, quotas, billing, brands, activeAlerts] = await Promise.all([
         transaction.opportunity.findMany({
           where: { tenantId: auth.activeTenantId, deletedAt: null, ...opportunityScope },
@@ -53,7 +54,7 @@ export class AnalyticsService {
           where: {
             tenantId: auth.activeTenantId,
             billedAt: { gte: period.start, lte: period.end },
-            ...(sellerScoped ? { opportunity: { sellerId: auth.userId } } : {}),
+            ...(attributedScope ? { opportunity: opportunityScope } : {}),
           },
           include: {
             brand: { select: { id: true, name: true } },
@@ -75,7 +76,7 @@ export class AnalyticsService {
           where: {
             tenantId: auth.activeTenantId,
             resolvedAt: null,
-            ...(sellerScoped ? { opportunity: { sellerId: auth.userId } } : {}),
+            ...(attributedScope ? { opportunity: opportunityScope } : {}),
           },
         }),
       ]);

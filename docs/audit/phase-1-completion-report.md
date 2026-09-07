@@ -6,7 +6,7 @@
 - Required base: `staging` at `0d60cc2e57086a1a9c62890452903a0d7e79b549`
 - Customer production and `main`: untouched
 - Full Phase 2/3 functionality: intentionally not implemented
-- Reviewed correction baseline: `f47e96e8ff6fd0a2fbfa99766c818e35008ea250`
+- Reviewed final role-scope baseline: `e2167578be05810a5ffae3cca64f5a46a29a8828`
 - Private workbook: `PROGRAMA VENTAS.xlsx` was not found in the authorized project, download, document, desktop, iCloud Drive, or CloudStorage locations; no private data was copied, parsed, uploaded, logged, or committed
 
 ## Implemented commercial contract
@@ -27,27 +27,41 @@ CSV and XLSX uploads use a bounded in-memory multipart service with server-side 
 
 Manager updates now use `OPPORTUNITIES_UPDATE_TEAM`, scoped by `managerId == currentUser` or `sellerId == currentUser`. Tenant/Platform Admin retain tenant-wide mutation, Seller remains owner-scoped, and Executive/Viewer remain read-only. The same scope applies to opportunity, qualification, and review mutations, above PostgreSQL RLS.
 
+Analytics, alerts, billing attribution, and forecast snapshots now use that same role scope instead of stopping at tenant RLS. A Manager sees only team-derived pipeline, forecast, Commit, backlog, funnel, GM, seller/brand performance, alerts, and billing linked to those opportunities. A manager-specific quota is used when present; otherwise quota-derived values remain not configured. Brand-only unattributed billing and tenant quota are never used as Manager fallbacks. Snapshot rows carry `scopeType` plus `scopeUserId`, and latest-diff compares only compatible snapshots.
+
+## Final role contract matrix
+
+| Role                  | Data scope                       | Read                                                       | Mutation                                                                                  | Snapshots                             | Dashboard                                                                                   |
+| --------------------- | -------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Tenant/Platform Admin | Tenant-wide                      | All commercial tenant data                                 | Create with explicit Seller/optional Manager; update all                                  | Tenant read/create                    | Tenant total quota and all billing, including unattributed brand-only facts                 |
+| Manager               | Managed or self-sold opportunity | Team opportunities, alerts, reviews, qualification         | Active Seller preserved; backend forces current Manager; team update/review/qualification | Exact `TEAM/current-user` read/create | Team facts only; linked billing only; manager quota or `NOT_CONFIGURED`                     |
+| Seller                | Own opportunity                  | Own opportunities, alerts, reviews, qualification          | Create/update self; own qualification and review response                                 | Exact `OWN/current-user` read-only    | Own facts only; linked billing only; seller quota or `NOT_CONFIGURED`                       |
+| Executive             | Tenant-wide                      | Opportunity, alert, forecast and analytics reads           | None                                                                                      | Tenant read-only                      | Tenant-wide read-only command center                                                        |
+| Viewer                | Tenant-wide                      | Opportunity, forecast and analytics reads; no alert detail | None                                                                                      | Tenant read-only                      | Tenant-wide read-only command center; mutation entry points and alert navigation are hidden |
+
+Executive and Viewer mutation entry points are absent from the shell command palette, dashboard review mode, opportunity list/drawer/detail/qualification, forecast capture, and direct create route. Backend permission guards remain authoritative and return 403 for crafted create/update/snapshot mutation requests.
+
 Local password recovery uses generic responses, rate limits, secure one-time hashed tokens, expiry, Argon2id, session revocation, one-time use, and audit. SMTP is configurable without a paid dependency. Future feature entitlements are disabled by default and managed only through the guarded migration-credential CLI.
 
 ## Verification evidence
 
-| Check                  | Result | Evidence                                                                |
-| ---------------------- | ------ | ----------------------------------------------------------------------- |
-| Formatting             | PASS   | `pnpm format:check`                                                     |
-| Lint                   | PASS   | `pnpm lint`                                                             |
-| Types                  | PASS   | `pnpm typecheck`                                                        |
-| Unit/component tests   | PASS   | 74 tests across API, web, and shared packages                           |
-| API integration        | PASS   | 17 tests: CRUD/auth plus Phase 1 correction and password recovery       |
-| Tenant isolation / RLS | PASS   | 5 tests across all new tenant-owned tables                              |
-| Production build       | PASS   | `pnpm build`                                                            |
-| Migration baseline     | PASS   | Original `staging` init followed by Phase 1 and forward-only correction |
-| Prisma schema          | PASS   | `prisma validate`                                                       |
-| Dependency audit       | PASS   | no high/critical findings; one low and three moderate remain            |
-| Secret scan            | PASS   | Gitleaks: 64-commit history plus uncommitted correction diff            |
-| Docker/API readiness   | PASS   | corrected image build; live 200; ready 200 with database up             |
-| Browser/E2E            | PASS   | 8 commercial, role, responsive, theme, mapping, and EN/ES flows locally |
-| GitHub CI              | PASS   | Run `34146901794` green on correction HEAD `697857e`                    |
-| Vercel Preview         | PASS   | Deployment `6qKZFrDX5LFSmVvNJPQur1TZ2t9F` for correction HEAD, READY    |
+| Check                  | Result  | Evidence                                                                 |
+| ---------------------- | ------- | ------------------------------------------------------------------------ |
+| Formatting             | PASS    | `pnpm format:check`                                                      |
+| Lint                   | PASS    | `pnpm lint`                                                              |
+| Types                  | PASS    | `pnpm typecheck`                                                         |
+| Unit/component tests   | PASS    | 80 tests across API, web, and shared packages                            |
+| API integration        | PASS    | 21 tests, including exact Manager A/B scope and read-only mutations      |
+| Tenant isolation / RLS | PASS    | 5 tests across all new tenant-owned tables                               |
+| Production build       | PASS    | `pnpm build`                                                             |
+| Migration baseline     | PASS    | Four ordered migrations; schema current after final role-scope migration |
+| Prisma schema          | PASS    | `prisma validate`                                                        |
+| Dependency audit       | PASS    | no high/critical findings; one low and three moderate remain             |
+| Secret scan            | PASS    | Gitleaks: 68-commit history plus final role-scope diff                   |
+| Docker/API readiness   | PASS    | corrected image build; live 200; ready 200 with database up              |
+| Browser/E2E            | PASS    | 9 contracts across clean split runs: 7 core flows plus 2 role flows      |
+| GitHub CI              | PENDING | Current final role-scope branch head awaits push and required checks     |
+| Vercel Preview         | PENDING | Current final role-scope branch head awaits Preview deployment           |
 
 ## Commercial acceptance matrix
 
@@ -108,6 +122,6 @@ Neither dependency blocks the implemented Phase 1 application contract. SMTP del
 
 ## Pull request disposition
 
-PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. Application correction HEAD `697857e4305ff1d854ac4ee68b4f1b67ba09eaa6` passed GitHub CI [run 34146901794](https://github.com/georgenton/sales-intelligent-platform/actions/runs/34146901794), including quality and Gitleaks jobs. GitHub reports the PR clean and mergeable.
+PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. The current final role-scope application commit, GitHub CI run, mergeability result, and Vercel Preview deployment are recorded here only after the branch push completes and both remote systems report terminal success.
 
-Vercel Preview deployment `6qKZFrDX5LFSmVvNJPQur1TZ2t9F` completed successfully for that correction HEAD at `https://sales-intelligence-staging-georgenton-gg9fuvf2r.vercel.app`. Vercel Authentication protects anonymous access and redirects `/login` to the Vercel sign-in surface, so this Preview status is build/deployment evidence rather than an unauthenticated application smoke test. Full integrated browser evidence was produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No protection bypass was used, no paid Railway preview environment was created, and no customer production deployment was performed.
+Vercel Authentication may protect anonymous Preview access. Preview status is therefore build/deployment evidence rather than an unauthenticated application smoke test. Full integrated browser evidence is produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No protection bypass is used, no paid Railway preview environment is created, and no customer production deployment is performed.

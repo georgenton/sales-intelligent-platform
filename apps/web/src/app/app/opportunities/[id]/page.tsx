@@ -19,6 +19,11 @@ import type { OpportunityData } from '@/lib/types';
 import type { AppLocale } from '@/i18n/config';
 import { cn, formatCurrency, formatDateOnly, formatDateTime } from '@/lib/utils';
 import { commercialStageLabel } from '@/lib/commercial';
+import { canUpdateOpportunities } from '@/lib/permissions';
+
+interface Profile {
+  permissions: string[];
+}
 
 export default async function OpportunityDetailPage({
   params,
@@ -33,10 +38,14 @@ export default async function OpportunityDetailPage({
   const tValue = await getTranslations('common.value');
   const tAlertCodes = await getTranslations('alerts.codes');
   const tAlertMessages = await getTranslations('alerts.messages');
-  const [opportunity, reference] = await Promise.all([
+  const [opportunity, profile] = await Promise.all([
     apiFetch<OpportunityData>(`/opportunities/${id}`),
-    apiFetch<ReferenceData>('/opportunities/reference-data'),
+    apiFetch<Profile>('/auth/me'),
   ]);
+  const canUpdate = canUpdateOpportunities(profile.permissions);
+  const reference = canUpdate
+    ? await apiFetch<ReferenceData>('/opportunities/reference-data')
+    : null;
   return (
     <div className="space-y-density-section">
       <div>
@@ -132,9 +141,9 @@ export default async function OpportunityDetailPage({
           </CardContent>
         </Card>
       </div>
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+      <div className={cn('grid gap-5', canUpdate && 'xl:grid-cols-[1fr_380px]')}>
         <div className="space-y-5">
-          <QualificationPanel opportunityId={opportunity.id} />
+          <QualificationPanel opportunityId={opportunity.id} readOnly={!canUpdate} />
           <Card>
             <CardHeader>
               <CardTitle>{t('products')}</CardTitle>
@@ -226,7 +235,9 @@ export default async function OpportunityDetailPage({
             </CardContent>
           </Card>
         </div>
-        <UpdateOpportunityPanel opportunity={opportunity} reference={reference} />
+        {canUpdate && reference && (
+          <UpdateOpportunityPanel opportunity={opportunity} reference={reference} />
+        )}
       </div>
     </div>
   );

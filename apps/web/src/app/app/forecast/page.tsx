@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiFetch } from '@/lib/api';
 import { formatCurrency, formatDateOnly, formatDateTime } from '@/lib/utils';
 import type { AppLocale } from '@/i18n/config';
+import { canManageForecast } from '@/lib/permissions';
 
 interface Snapshot {
   id: string;
@@ -32,12 +33,17 @@ interface LatestDiff {
   };
 }
 
+interface Profile {
+  permissions: string[];
+}
+
 export default async function ForecastPage() {
   const locale = (await getLocale()) as AppLocale;
   const t = await getTranslations('forecast');
-  const [snapshots, latest] = await Promise.all([
+  const [snapshots, latest, profile] = await Promise.all([
     apiFetch<Snapshot[]>('/forecast/snapshots'),
     apiFetch<LatestDiff>('/forecast/snapshots/latest-diff'),
+    apiFetch<Profile>('/auth/me'),
   ]);
   return (
     <div className="space-y-density-section">
@@ -47,7 +53,7 @@ export default async function ForecastPage() {
           <h1 className="mt-1 text-page-title font-semibold tracking-[-0.035em]">{t('title')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{t('description')}</p>
         </div>
-        <CreateSnapshotButton />
+        {canManageForecast(profile.permissions) && <CreateSnapshotButton />}
       </div>
       <Card>
         <CardHeader>

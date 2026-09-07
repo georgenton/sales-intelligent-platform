@@ -7,7 +7,11 @@ import {
 import type { Prisma } from '@prisma/client';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { PERMISSIONS } from '../authorization/permissions';
+import {
+  canUpdateOpportunities,
+  opportunityReadScope,
+  opportunityUpdateScope,
+} from '../authorization/opportunity-scope';
 import type { CreateReviewEventDto } from './dto/create-review-event.dto';
 import type { ListReviewEventsDto } from './dto/list-review-events.dto';
 
@@ -44,11 +48,7 @@ export class ReviewsService {
   }
 
   async create(auth: RequestAuth, input: CreateReviewEventDto, requestId: string) {
-    if (
-      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL) &&
-      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
-      !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)
-    ) {
+    if (!canUpdateOpportunities(auth)) {
       throw new ForbiddenException('Commercial review mutation is not permitted');
     }
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
@@ -148,14 +148,6 @@ export class ReviewsService {
   }
 
   private opportunityScope(auth: RequestAuth, forUpdate: boolean): Prisma.OpportunityWhereInput {
-    if (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL)) return {};
-    if (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_ALL)) return {};
-    if (
-      (forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM)) ||
-      (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM))
-    ) {
-      return { OR: [{ managerId: auth.userId }, { sellerId: auth.userId }] };
-    }
-    return { sellerId: auth.userId };
+    return forUpdate ? opportunityUpdateScope(auth) : opportunityReadScope(auth);
   }
 }

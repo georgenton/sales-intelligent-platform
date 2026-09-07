@@ -393,6 +393,8 @@
       "partner": "Partner",
       "noPartner": "No partner",
       "seller": "Seller",
+      "manager": "Manager",
+      "noManager": "No manager assigned",
       "stage": "Stage",
       "expectedClose": "Expected close",
       "billingDate": "Billing date",

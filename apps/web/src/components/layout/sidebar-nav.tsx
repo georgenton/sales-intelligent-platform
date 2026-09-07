@@ -15,14 +15,22 @@ import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-export function SidebarNav({ showAdmin, canImport }: { showAdmin: boolean; canImport: boolean }) {
+export function SidebarNav({
+  showAdmin,
+  canImport,
+  canReadAlerts,
+}: {
+  showAdmin: boolean;
+  canImport: boolean;
+  canReadAlerts: boolean;
+}) {
   const t = useTranslations('navigation');
   const pathname = usePathname();
   const nav = [
     { href: '/app/dashboard', label: t('commandCenter'), icon: Gauge },
     { href: '/app/opportunities', label: t('opportunities'), icon: Target },
     { href: '/app/forecast', label: t('forecast'), icon: Sparkles },
-    { href: '/app/alerts', label: t('alerts'), icon: BellRing },
+    ...(canReadAlerts ? [{ href: '/app/alerts', label: t('alerts'), icon: BellRing }] : []),
     { href: '/app/analytics', label: t('analytics'), icon: ChartNoAxesCombined },
   ];
   const withImport = canImport

@@ -33,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import type { AppLocale } from '@/i18n/config';
 import { commercialStageLabel } from '@/lib/commercial';
+import { canManageForecast, canUpdateOpportunities } from '@/lib/permissions';
 import type { AlertData, DashboardData, OpportunityData } from '@/lib/types';
 import { cn, formatCurrency, formatDateOnly, formatNumber } from '@/lib/utils';
 import { useCreateReviewMutation, useQualificationQuery, useReviewsQuery } from '@/store/api';
@@ -53,6 +54,7 @@ interface ProfileSummary {
   user: { id: string; name: string };
   tenant: { name: string };
   role: string;
+  permissions: string[];
 }
 
 function ScreenHeader({
@@ -233,9 +235,13 @@ function FunnelCard({
 function ManagerStandard({
   data,
   opportunities,
+  allowReview,
+  allowSnapshot,
 }: {
   data: DashboardData;
   opportunities: OpportunityData[];
+  allowReview: boolean;
+  allowSnapshot: boolean;
 }) {
   const locale = useLocale() as AppLocale;
   const t = useTranslations('manager');
@@ -252,13 +258,17 @@ function ManagerStandard({
         title={t('question')}
         meta={t('periodMeta', { period: data.period.label })}
         actions={
-          <>
-            <CreateSnapshotButton />
-            <Button size="sm" onClick={() => dispatch(setExperienceMode('REVIEW'))}>
-              <ClipboardCheck className="size-4" />
-              {t('forecastReview')}
-            </Button>
-          </>
+          allowReview || allowSnapshot ? (
+            <>
+              {allowSnapshot && <CreateSnapshotButton />}
+              {allowReview && (
+                <Button size="sm" onClick={() => dispatch(setExperienceMode('REVIEW'))}>
+                  <ClipboardCheck className="size-4" />
+                  {t('forecastReview')}
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       />
       <div className="grid gap-density-grid xl:grid-cols-[minmax(0,1.7fr)_minmax(260px,0.82fr)]">
@@ -1244,8 +1254,11 @@ export function SalesWorkspace({
     [opportunities, search],
   );
   const seller = profile.role === 'SELLER';
+  const allowReview = canUpdateOpportunities(profile.permissions);
+  const allowSnapshot = canManageForecast(profile.permissions);
+  const safeMode = !seller && mode === 'REVIEW' && !allowReview ? 'STANDARD' : mode;
   return (
-    <div data-experience-mode={mode.toLowerCase()}>
+    <div data-experience-mode={safeMode.toLowerCase()}>
       <FilterBar data={data} />
       {seller && mode === 'FOCUS' ? (
         <SellerFocus data={data} opportunities={visible} />
@@ -1253,12 +1266,18 @@ export function SalesWorkspace({
         <SellerGuided opportunities={visible} />
       ) : seller ? (
         <SellerStandard data={data} opportunities={visible} profile={profile} />
-      ) : mode === 'REVIEW' ? (
+      ) : safeMode === 'REVIEW' ? (
         <ForecastReview data={data} opportunities={visible} />
       ) : (
         <ManagerStandard
-          data={{ ...data, kpis: { ...data.kpis, atRisk: alerts.length } }}
+          data={
+            profile.permissions.includes('alerts.read')
+              ? { ...data, kpis: { ...data.kpis, atRisk: alerts.length } }
+              : data
+          }
           opportunities={visible}
+          allowReview={allowReview}
+          allowSnapshot={allowSnapshot}
         />
       )}
     </div>

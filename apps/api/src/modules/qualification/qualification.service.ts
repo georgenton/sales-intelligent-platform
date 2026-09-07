@@ -7,7 +7,11 @@ import {
 import type { Prisma } from '@prisma/client';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { PERMISSIONS } from '../authorization/permissions';
+import {
+  canUpdateOpportunities,
+  opportunityReadScope,
+  opportunityUpdateScope,
+} from '../authorization/opportunity-scope';
 import { requiredQualificationGates } from '../opportunities/commercial-domain';
 import type { UpsertQualificationResponseDto } from './dto/upsert-qualification-response.dto';
 
@@ -149,32 +153,17 @@ export class QualificationService {
     opportunityId: string,
     forUpdate: boolean,
   ): Promise<void> {
-    const canReadAll = auth.permissions.has(
-      forUpdate ? PERMISSIONS.OPPORTUNITIES_UPDATE_ALL : PERMISSIONS.OPPORTUNITIES_READ_ALL,
-    );
-    const canReadTeam = auth.permissions.has(
-      forUpdate ? PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM : PERMISSIONS.OPPORTUNITIES_READ_TEAM,
-    );
     const opportunity = await transaction.opportunity.findFirst({
       where: {
         id: opportunityId,
         tenantId: auth.activeTenantId,
         deletedAt: null,
-        ...(canReadAll
-          ? {}
-          : canReadTeam
-            ? { OR: [{ sellerId: auth.userId }, { managerId: auth.userId }] }
-            : { sellerId: auth.userId }),
+        ...(forUpdate ? opportunityUpdateScope(auth) : opportunityReadScope(auth)),
       },
       select: { id: true },
     });
     if (!opportunity) {
-      if (
-        forUpdate &&
-        !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL) &&
-        !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM) &&
-        !auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_OWN)
-      ) {
+      if (forUpdate && !canUpdateOpportunities(auth)) {
         throw new ForbiddenException('Qualification update is not permitted');
       }
       throw new NotFoundException('Opportunity not found');

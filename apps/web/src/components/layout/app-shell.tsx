@@ -11,6 +11,7 @@ import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { applyAppearance, ProductProvider } from '@/components/providers/product-provider';
 import { OpportunityDrawer } from '@/components/opportunities/opportunity-drawer';
+import { canCreateOpportunity, canUpdateOpportunities } from '@/lib/permissions';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   setAppearanceMode,
@@ -38,16 +39,22 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
   const copilotOpen = useAppSelector((state) => state.productUi.copilotPanelOpen);
   const seller = profile.role === 'SELLER';
   const admin = ['TENANT_ADMIN', 'PLATFORM_ADMIN'].includes(profile.role);
+  const canCreate = canCreateOpportunity(profile.permissions);
+  const canUpdate = canUpdateOpportunities(profile.permissions);
+  const canReadAlerts = profile.permissions.includes('alerts.read');
   const modes: Array<{ value: ExperienceMode; label: string }> = seller
     ? [
         { value: 'STANDARD', label: t('common.mode.STANDARD') },
         { value: 'FOCUS', label: t('common.mode.FOCUS') },
         { value: 'GUIDED', label: t('common.mode.GUIDED') },
       ]
-    : [
-        { value: 'STANDARD', label: t('common.mode.STANDARD') },
-        { value: 'REVIEW', label: t('common.mode.REVIEW') },
-      ];
+    : canUpdate
+      ? [
+          { value: 'STANDARD', label: t('common.mode.STANDARD') },
+          { value: 'REVIEW', label: t('common.mode.REVIEW') },
+        ]
+      : [{ value: 'STANDARD', label: t('common.mode.STANDARD') }];
+  const selectedMode = modes.some((item) => item.value === mode) ? mode : 'STANDARD';
   const appearanceModes: Array<{ value: AppearanceMode; label: string }> = [
     { value: 'LIGHT', label: t('common.appearance.LIGHT') },
     { value: 'DARK', label: t('common.appearance.DARK') },
@@ -81,7 +88,11 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
             <p className="text-xs text-sidebar-muted">{t('common.commandPlatform')}</p>
           </div>
         </div>
-        <SidebarNav showAdmin={admin} canImport={profile.permissions.includes('imports.manage')} />
+        <SidebarNav
+          showAdmin={admin}
+          canImport={profile.permissions.includes('imports.manage')}
+          canReadAlerts={canReadAlerts}
+        />
         <div className="mt-auto hidden rounded-2xl border border-sidebar-foreground/10 bg-sidebar-foreground/5 p-3 xl:block">
           <p className="text-xs text-sidebar-muted">{t('common.activeWorkspace')}</p>
           <p className="mt-1 truncate text-sm font-medium">{profile.tenant.name}</p>
@@ -109,7 +120,7 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
               <WandSparkles className="size-3.5 text-primary" />
               <span className="sr-only">{t('common.mode.label')}</span>
               <select
-                value={mode}
+                value={selectedMode}
                 onChange={(event) =>
                   dispatch(setExperienceMode(event.target.value as ExperienceMode))
                 }
@@ -164,7 +175,15 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
             <div className="hidden 2xl:block">
               <p className="text-xs font-semibold">{profile.user.name}</p>
               <p className="text-[11px] text-muted-foreground">
-                {seller ? t('common.role.SELLER') : t('common.role.SALES_MANAGER')}
+                {t(
+                  `common.role.${profile.role === 'MANAGER' ? 'SALES_MANAGER' : profile.role}` as
+                    | 'common.role.SELLER'
+                    | 'common.role.SALES_MANAGER'
+                    | 'common.role.TENANT_ADMIN'
+                    | 'common.role.PLATFORM_ADMIN'
+                    | 'common.role.EXECUTIVE'
+                    | 'common.role.VIEWER',
+                )}
               </p>
             </div>
             <LogoutButton />
@@ -193,8 +212,8 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
           {t('navigation.copilot')}
         </button>
       </nav>
-      <CommandPalette />
-      <OpportunityDrawer />
+      <CommandPalette canCreate={canCreate} canReview={canUpdate} canReadAlerts={canReadAlerts} />
+      <OpportunityDrawer canUpdate={canUpdate} />
     </div>
   );
 }

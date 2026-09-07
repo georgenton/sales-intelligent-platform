@@ -393,6 +393,8 @@
       "partner": "Socio",
       "noPartner": "Sin socio",
       "seller": "Vendedor",
+      "manager": "Gerente",
+      "noManager": "Sin gerente asignado",
       "stage": "Etapa",
       "expectedClose": "Fecha de cierre",
       "billingDate": "Fecha de facturación",

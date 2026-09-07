@@ -106,6 +106,7 @@ export class CommercialService {
         where: { tenantId: auth.activeTenantId },
       });
       const period = currentFiscalQuarter(new Date(), settings.fiscalYearStartMonth);
+      let sellerQuotaAssigneeIds: string[] = [];
       if (input.brandQuotas) {
         const brandIds = [...new Set(input.brandQuotas.map((quota) => quota.brandId))];
         const count = await transaction.brand.count({
@@ -115,15 +116,20 @@ export class CommercialService {
       }
       if (input.sellerQuotas) {
         const sellerIds = [...new Set(input.sellerQuotas.map((quota) => quota.sellerId))];
-        const count = await transaction.tenantMembership.count({
+        const sellerMemberships = await transaction.tenantMembership.findMany({
           where: {
             tenantId: auth.activeTenantId,
-            userId: { in: sellerIds },
             role: 'SELLER',
-            status: 'ACTIVE',
           },
+          select: { userId: true, status: true },
         });
-        if (count !== sellerIds.length)
+        sellerQuotaAssigneeIds = sellerMemberships.map((membership) => membership.userId);
+        const activeSellerIds = new Set(
+          sellerMemberships
+            .filter((membership) => membership.status === 'ACTIVE')
+            .map((membership) => membership.userId),
+        );
+        if (sellerIds.some((sellerId) => !activeSellerIds.has(sellerId)))
           throw new BadRequestException('Invalid tenant seller quota');
       }
       if (input.totalQuota !== undefined) {
@@ -175,7 +181,7 @@ export class CommercialService {
         await transaction.quota.deleteMany({
           where: {
             tenantId: auth.activeTenantId,
-            assigneeId: { not: null },
+            assigneeId: { in: sellerQuotaAssigneeIds },
             brandId: null,
             periodStart: period.start,
             periodEnd: period.end,
