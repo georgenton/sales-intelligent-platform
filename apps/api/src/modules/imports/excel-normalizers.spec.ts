@@ -6,6 +6,8 @@ describe('Excel normalizers', () => {
     expect(normalizeText('  Banco\n ABC  ')).toBe('Banco ABC');
     expect(normalizeMoney('$ 123,450.75')).toBe(123_450.75);
     expect(normalizeStage('90%')).toBe(90);
+    expect(normalizeStage('75%')).toBe(80);
+    expect(normalizeStage('60%')).toBe(60);
     expect(normalizeStage('33%')).toBeNull();
   });
 

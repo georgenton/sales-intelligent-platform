@@ -64,7 +64,7 @@ describe('MVP API vertical slice', () => {
       title: 'Synthetic integration opportunity',
       customerId: reference.customers[0]!.id,
       sellerId: seller.id,
-      stageId: reference.stages.find((stage) => stage.code === '25')!.id,
+      stageId: reference.stages.find((stage) => stage.code === '20')!.id,
       forecastCategory: 'PIPELINE',
       currency: 'USD',
       estimatedAmount: '42000.00',
@@ -95,13 +95,18 @@ describe('MVP API vertical slice', () => {
 
   it('reads and updates the opportunity while recording stage history', async () => {
     await agent.get(`/opportunities/${createdOpportunityId}`).expect(200);
-    const proposal = reference.stages.find((stage) => stage.code === '50')!;
+    const qualification = reference.stages.find((stage) => stage.code === '40')!;
+    await agent
+      .patch(`/opportunities/${createdOpportunityId}`)
+      .set('x-csrf-token', csrf)
+      .send({ stageId: qualification.id, forecastCategory: 'BEST_CASE' })
+      .expect(400);
     const updated = await agent
       .patch(`/opportunities/${createdOpportunityId}`)
       .set('x-csrf-token', csrf)
-      .send({ stageId: proposal.id, forecastCategory: 'BEST_CASE' })
+      .send({ stageId: qualification.id, forecastCategory: 'PIPELINE' })
       .expect(200);
-    expect(updated.body.stage.code).toBe('50');
+    expect(updated.body.stage.code).toBe('40');
     const detail = await agent.get(`/opportunities/${createdOpportunityId}`).expect(200);
     expect(detail.body.stageHistory.length).toBeGreaterThanOrEqual(2);
     expect(

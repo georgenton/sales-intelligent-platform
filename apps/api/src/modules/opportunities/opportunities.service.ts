@@ -1,13 +1,32 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ForecastHealth } from '@sip/shared';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { evaluateOpportunityRisk } from '../alerts/forecast-health.engine';
 import { PERMISSIONS } from '../authorization/permissions';
+import {
+  canUpdateOpportunities,
+  opportunityReadScope,
+  opportunityUpdateScope,
+} from '../authorization/opportunity-scope';
 import type { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import type { ListOpportunitiesDto } from './dto/list-opportunities.dto';
 import type { UpdateOpportunityDto } from './dto/update-opportunity.dto';
+import {
+  calculateFinancials,
+  commercialStateIssue,
+  defaultForecastCategory,
+  defaultOpportunityStatus,
+  requiredQualificationGates,
+} from './commercial-domain';
+import { QualificationService } from '../qualification/qualification.service';
+import { currentFiscalQuarter } from '../analytics/fiscal-period';
 
 const opportunityInclude = {
   seller: { select: { id: true, name: true } },
@@ -25,25 +44,37 @@ type OpportunityWithRelations = Prisma.OpportunityGetPayload<{
 
 @Injectable()
 export class OpportunitiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly qualification: QualificationService,
+  ) {}
 
   async list(auth: RequestAuth, query: ListOpportunitiesDto) {
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
+      const accessScope = this.scope(auth);
       const where: Prisma.OpportunityWhereInput = {
         tenantId: auth.activeTenantId,
         deletedAt: null,
-        ...this.scope(auth),
+        AND: [
+          accessScope,
+          ...(query.search
+            ? [
+                {
+                  OR: [
+                    { title: { contains: query.search, mode: Prisma.QueryMode.insensitive } },
+                    {
+                      customer: {
+                        name: { contains: query.search, mode: Prisma.QueryMode.insensitive },
+                      },
+                    },
+                  ],
+                } satisfies Prisma.OpportunityWhereInput,
+              ]
+            : []),
+        ],
         ...(query.status ? { status: query.status } : {}),
         ...(query.stageId ? { stageId: query.stageId } : {}),
         ...(query.brandId ? { lineItems: { some: { brandId: query.brandId } } } : {}),
-        ...(query.search
-          ? {
-              OR: [
-                { title: { contains: query.search, mode: 'insensitive' } },
-                { customer: { name: { contains: query.search, mode: 'insensitive' } } },
-              ],
-            }
-          : {}),
       };
       const [items, total, settings] = await Promise.all([
         transaction.opportunity.findMany({
@@ -84,6 +115,25 @@ export class OpportunitiesService {
                 changedBy: { select: { id: true, name: true } },
               },
               orderBy: { changedAt: 'desc' },
+            },
+            qualificationResponses: {
+              include: {
+                criterion: true,
+                updatedBy: { select: { id: true, name: true } },
+              },
+              orderBy: { criterion: { sortOrder: 'asc' } },
+            },
+            reviewEvents: {
+              include: {
+                actor: { select: { id: true, name: true } },
+                targetUser: { select: { id: true, name: true } },
+                replies: {
+                  include: { actor: { select: { id: true, name: true } } },
+                  orderBy: { createdAt: 'asc' },
+                },
+              },
+              orderBy: { createdAt: 'desc' },
+              take: 50,
             },
           },
         }),
@@ -155,9 +205,20 @@ export class OpportunitiesService {
   }
 
   async create(auth: RequestAuth, input: CreateOpportunityDto, requestId: string) {
-    const sellerId = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL)
-      ? (input.sellerId ?? auth.userId)
-      : auth.userId;
+    const canAssignAnySeller = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_ALL);
+    const canAssignOwnTeam = auth.permissions.has(PERMISSIONS.OPPORTUNITIES_UPDATE_TEAM);
+    if ((canAssignAnySeller || canAssignOwnTeam) && !input.sellerId) {
+      throw new BadRequestException({
+        code: 'SELLER_REQUIRED',
+        message: 'An active tenant seller must be selected',
+      });
+    }
+    const sellerId = canAssignAnySeller || canAssignOwnTeam ? input.sellerId! : auth.userId;
+    const managerId = canAssignAnySeller
+      ? (input.managerId ?? null)
+      : canAssignOwnTeam
+        ? auth.userId
+        : null;
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const [stage, settings, customer, seller] = await Promise.all([
         transaction.stage.findFirst({
@@ -168,11 +229,39 @@ export class OpportunitiesService {
           where: { id: input.customerId, tenantId: auth.activeTenantId },
         }),
         transaction.tenantMembership.findFirst({
-          where: { tenantId: auth.activeTenantId, userId: sellerId, status: 'ACTIVE' },
+          where: {
+            tenantId: auth.activeTenantId,
+            userId: sellerId,
+            role: 'SELLER',
+            status: 'ACTIVE',
+          },
         }),
       ]);
       if (!stage || !customer || !seller)
         throw new ForbiddenException('Invalid tenant-owned reference');
+      if (stage.code === '100') {
+        throw new BadRequestException({
+          code: 'BILLING_FACT_REQUIRED',
+          message: 'Billed stage is reached only through a linked billing confirmation',
+        });
+      }
+      if (managerId) {
+        const manager = await transaction.tenantMembership.findFirst({
+          where: {
+            tenantId: auth.activeTenantId,
+            userId: managerId,
+            status: 'ACTIVE',
+            role: 'MANAGER',
+          },
+        });
+        if (!manager) throw new ForbiddenException('Invalid tenant-owned manager reference');
+      }
+      if (input.partnerId) {
+        const partner = await transaction.partner.findFirst({
+          where: { id: input.partnerId, tenantId: auth.activeTenantId },
+        });
+        if (!partner) throw new ForbiddenException('Invalid tenant-owned partner reference');
+      }
       if (input.lineItems.length) {
         const brandCount = await transaction.brand.count({
           where: {
@@ -184,20 +273,64 @@ export class OpportunitiesService {
           throw new ForbiddenException('Invalid tenant-owned brand reference');
         }
       }
+      const amount = Number(input.estimatedAmount);
+      let financials: ReturnType<typeof calculateFinancials>;
+      try {
+        financials = calculateFinancials({
+          estimatedAmount: amount,
+          grossProfit: input.grossProfit === undefined ? undefined : Number(input.grossProfit),
+          grossMarginPercent:
+            input.grossMarginPercent === undefined ? undefined : Number(input.grossMarginPercent),
+        });
+      } catch (error) {
+        throw new BadRequestException({
+          code: 'INVALID_FINANCIAL_VALUES',
+          message: error instanceof Error ? error.message : 'Invalid financial values',
+        });
+      }
+      if (input.lineItems.length) {
+        const lineTotal = input.lineItems.reduce((total, item) => total + Number(item.amount), 0);
+        if (Math.abs(lineTotal - amount) > 0.01) {
+          throw new BadRequestException({
+            code: 'LINE_ITEM_TOTAL_MISMATCH',
+            message: 'Line item amounts must equal the opportunity amount',
+          });
+        }
+      }
+      const status = input.status ?? defaultOpportunityStatus(stage.code);
+      const forecastCategory = input.forecastCategory ?? defaultForecastCategory(stage.code);
+      const stateIssue = commercialStateIssue({
+        stageCode: stage.code,
+        status,
+        forecastCategory,
+      });
+      if (stateIssue) {
+        throw new BadRequestException({ code: 'INVALID_COMMERCIAL_STATE', message: stateIssue });
+      }
+      const requiresQualification = requiredQualificationGates(stage.code).length > 0;
+      const canOverride = ['MANAGER', 'TENANT_ADMIN', 'PLATFORM_ADMIN'].includes(auth.role);
+      const overrideReason = input.qualificationOverrideReason?.trim();
+      if (requiresQualification && (!canOverride || !overrideReason)) {
+        throw new BadRequestException({
+          code: 'QUALIFICATION_REQUIRED_BEFORE_ADVANCED_STAGE',
+          message: 'Create the opportunity in Prospecting or Qualification before advancing it',
+        });
+      }
       const opportunity = await transaction.opportunity.create({
         data: {
           tenantId: auth.activeTenantId,
           sellerId,
-          managerId: input.managerId,
+          managerId,
           customerId: input.customerId,
           partnerId: input.partnerId,
           title: input.title.trim(),
-          status: input.status,
+          status,
           stageId: stage.id,
-          forecastCategory: input.forecastCategory,
+          forecastCategory,
           currency: input.currency.toUpperCase(),
-          estimatedAmount: new Prisma.Decimal(input.estimatedAmount),
-          grossProfit: input.grossProfit ? new Prisma.Decimal(input.grossProfit) : null,
+          estimatedAmount: new Prisma.Decimal(amount),
+          grossProfit:
+            financials.grossProfit === null ? null : new Prisma.Decimal(financials.grossProfit),
           probability: input.probability ?? stage.probability,
           expectedCloseDate: new Date(input.expectedCloseDate),
           expectedBillingDate: input.expectedBillingDate
@@ -225,11 +358,18 @@ export class OpportunitiesService {
         },
         include: opportunityInclude,
       });
-      await this.replaceAlerts(
-        transaction,
-        opportunity,
-        settings.defaultMarginThreshold.toNumber(),
-      );
+      if (requiresQualification && overrideReason) {
+        await transaction.opportunityReviewEvent.create({
+          data: {
+            tenantId: auth.activeTenantId,
+            opportunityId: opportunity.id,
+            actorId: auth.userId,
+            type: 'OVERRIDE_QUALIFICATION',
+            body: overrideReason,
+          },
+        });
+      }
+      await this.replaceAlerts(transaction, opportunity, settings);
       await transaction.auditEvent.create({
         data: {
           tenantId: auth.activeTenantId,
@@ -250,6 +390,9 @@ export class OpportunitiesService {
   }
 
   async update(auth: RequestAuth, id: string, input: UpdateOpportunityDto, requestId: string) {
+    if (!canUpdateOpportunities(auth)) {
+      throw new ForbiddenException('Opportunity update is not permitted');
+    }
     return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const current = await transaction.opportunity.findFirst({
         where: { id, tenantId: auth.activeTenantId, deletedAt: null, ...this.scope(auth, true) },
@@ -267,22 +410,97 @@ export class OpportunitiesService {
         : current.stage;
       if (!stage) throw new ForbiddenException('Invalid tenant-owned stage reference');
       const stageChanged = stage.id !== current.stageId;
+      if (stageChanged && stage.code === '100') {
+        throw new BadRequestException({
+          code: 'BILLING_FACT_REQUIRED',
+          message: 'Billed stage is reached only through a linked billing confirmation',
+        });
+      }
+      let forecastCategory = input.forecastCategory ?? current.forecastCategory;
+      let status = input.status ?? current.status;
+      let stateIssue = commercialStateIssue({
+        stageCode: stage.code,
+        status,
+        forecastCategory,
+      });
+      if (
+        stageChanged &&
+        input.forecastCategory === undefined &&
+        stateIssue?.includes('Forecast category')
+      ) {
+        forecastCategory = defaultForecastCategory(stage.code);
+      }
+      stateIssue = commercialStateIssue({ stageCode: stage.code, status, forecastCategory });
+      if (stageChanged && input.status === undefined && stateIssue?.includes('status')) {
+        status = defaultOpportunityStatus(stage.code);
+      }
+      stateIssue = commercialStateIssue({ stageCode: stage.code, status, forecastCategory });
+      if (stateIssue) {
+        throw new BadRequestException({ code: 'INVALID_COMMERCIAL_STATE', message: stateIssue });
+      }
+      const gate = stageChanged
+        ? await this.qualification.gateVerdict(
+            transaction,
+            auth.activeTenantId,
+            current.id,
+            stage.code,
+          )
+        : { complete: true, required: 0, satisfied: 0, missing: [] };
+      const overrideReason = input.qualificationOverrideReason?.trim();
+      const canOverride = ['MANAGER', 'TENANT_ADMIN', 'PLATFORM_ADMIN'].includes(auth.role);
+      if (!gate.complete && (!canOverride || !overrideReason)) {
+        throw new BadRequestException({
+          code: 'QUALIFICATION_GATE_BLOCKED',
+          message: 'Required qualification evidence is incomplete',
+          gate,
+        });
+      }
+      const amount =
+        input.estimatedAmount === undefined
+          ? current.estimatedAmount.toNumber()
+          : Number(input.estimatedAmount);
+      let financials: ReturnType<typeof calculateFinancials> | undefined;
+      if (
+        input.estimatedAmount !== undefined ||
+        input.grossProfit !== undefined ||
+        input.grossMarginPercent !== undefined
+      ) {
+        try {
+          financials = calculateFinancials({
+            estimatedAmount: amount,
+            grossProfit:
+              input.grossProfit === undefined
+                ? input.grossMarginPercent === undefined
+                  ? current.grossProfit?.toNumber()
+                  : undefined
+                : Number(input.grossProfit),
+            grossMarginPercent:
+              input.grossMarginPercent === undefined ? undefined : Number(input.grossMarginPercent),
+          });
+        } catch (error) {
+          throw new BadRequestException({
+            code: 'INVALID_FINANCIAL_VALUES',
+            message: error instanceof Error ? error.message : 'Invalid financial values',
+          });
+        }
+      }
       await transaction.opportunity.update({
         where: { id },
         data: {
           ...(input.title !== undefined ? { title: input.title.trim() } : {}),
-          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.status !== undefined || stageChanged ? { status } : {}),
           ...(input.stageId !== undefined
             ? { stageId: stage.id, probability: input.probability ?? stage.probability }
             : {}),
-          ...(input.forecastCategory !== undefined
-            ? { forecastCategory: input.forecastCategory }
-            : {}),
-          ...(input.estimatedAmount !== undefined
-            ? { estimatedAmount: new Prisma.Decimal(input.estimatedAmount) }
-            : {}),
-          ...(input.grossProfit !== undefined
-            ? { grossProfit: new Prisma.Decimal(input.grossProfit) }
+          ...(input.forecastCategory !== undefined || stageChanged ? { forecastCategory } : {}),
+          ...(financials
+            ? {
+                estimatedAmount: new Prisma.Decimal(amount),
+                grossProfit:
+                  financials.grossProfit === null
+                    ? null
+                    : new Prisma.Decimal(financials.grossProfit),
+              }
             : {}),
           ...(input.expectedCloseDate !== undefined
             ? { expectedCloseDate: new Date(input.expectedCloseDate) }
@@ -303,7 +521,18 @@ export class OpportunitiesService {
             fromStageId: current.stageId,
             toStageId: stage.id,
             changedById: auth.userId,
-            reason: input.notes?.slice(0, 500),
+            reason: overrideReason?.slice(0, 500) ?? input.notes?.slice(0, 500),
+          },
+        });
+      }
+      if (!gate.complete && overrideReason) {
+        await transaction.opportunityReviewEvent.create({
+          data: {
+            tenantId: auth.activeTenantId,
+            opportunityId: id,
+            actorId: auth.userId,
+            type: 'OVERRIDE_QUALIFICATION',
+            body: overrideReason,
           },
         });
       }
@@ -314,7 +543,7 @@ export class OpportunitiesService {
       const settings = await transaction.tenantSetting.findUniqueOrThrow({
         where: { tenantId: auth.activeTenantId },
       });
-      await this.replaceAlerts(transaction, updated, settings.defaultMarginThreshold.toNumber());
+      await this.replaceAlerts(transaction, updated, settings);
       await transaction.auditEvent.create({
         data: {
           tenantId: auth.activeTenantId,
@@ -324,7 +553,12 @@ export class OpportunitiesService {
           entityId: id,
           requestId,
           metadata: stageChanged
-            ? { fromStageId: current.stageId, toStageId: stage.id }
+            ? {
+                fromStageId: current.stageId,
+                toStageId: stage.id,
+                qualificationOverride: !gate.complete,
+                qualificationMissing: gate.missing.map((item) => item.code),
+              }
             : { fields: Object.keys(input) },
         },
       });
@@ -337,16 +571,7 @@ export class OpportunitiesService {
   }
 
   private scope(auth: RequestAuth, forUpdate = false): Prisma.OpportunityWhereInput {
-    if (
-      auth.permissions.has(
-        forUpdate ? PERMISSIONS.OPPORTUNITIES_UPDATE_ALL : PERMISSIONS.OPPORTUNITIES_READ_ALL,
-      )
-    )
-      return {};
-    if (!forUpdate && auth.permissions.has(PERMISSIONS.OPPORTUNITIES_READ_TEAM)) {
-      return { OR: [{ managerId: auth.userId }, { sellerId: auth.userId }] };
-    }
-    return { sellerId: auth.userId };
+    return forUpdate ? opportunityUpdateScope(auth) : opportunityReadScope(auth);
   }
 
   private risk(opportunity: OpportunityWithRelations, marginThreshold: number) {
@@ -359,6 +584,8 @@ export class OpportunitiesService {
       expectedBillingDate: opportunity.expectedBillingDate,
       lastStageChangedAt: opportunity.lastStageChangedAt,
       marginThreshold,
+      status: opportunity.status,
+      forecastCategory: opportunity.forecastCategory,
     });
   }
 
@@ -369,6 +596,7 @@ export class OpportunitiesService {
     estimatedAmount: number;
     grossProfit: number | null;
     margin: number | null;
+    grossMarginPercent: number | null;
     health: ForecastHealth;
   } {
     const amount = opportunity.estimatedAmount.toNumber();
@@ -378,6 +606,8 @@ export class OpportunitiesService {
       estimatedAmount: amount,
       grossProfit,
       margin: grossProfit === null || amount === 0 ? null : (grossProfit / amount) * 100,
+      grossMarginPercent:
+        grossProfit === null || amount === 0 ? null : (grossProfit / amount) * 100,
       lineItems: opportunity.lineItems.map((item) => ({
         ...item,
         amount: item.amount.toNumber(),
@@ -390,9 +620,30 @@ export class OpportunitiesService {
   private async replaceAlerts(
     transaction: Prisma.TransactionClient,
     opportunity: OpportunityWithRelations,
-    marginThreshold: number,
+    settings: { defaultMarginThreshold: { toNumber(): number }; fiscalYearStartMonth: number },
   ): Promise<void> {
-    const risk = this.risk(opportunity, marginThreshold);
+    const period = currentFiscalQuarter(new Date(), settings.fiscalYearStartMonth);
+    const qualification = await this.qualification.gateVerdict(
+      transaction,
+      opportunity.tenantId,
+      opportunity.id,
+      opportunity.stage.code,
+    );
+    const risk = evaluateOpportunityRisk({
+      amount: opportunity.estimatedAmount.toNumber(),
+      grossProfit: opportunity.grossProfit?.toNumber() ?? null,
+      stageProbability: opportunity.stage.probability,
+      poNumber: opportunity.poNumber,
+      expectedCloseDate: opportunity.expectedCloseDate,
+      expectedBillingDate: opportunity.expectedBillingDate,
+      lastStageChangedAt: opportunity.lastStageChangedAt,
+      marginThreshold: settings.defaultMarginThreshold.toNumber(),
+      status: opportunity.status,
+      forecastCategory: opportunity.forecastCategory,
+      qualificationComplete: qualification.complete,
+      periodStart: period.start,
+      periodEnd: period.end,
+    });
     await transaction.alert.deleteMany({
       where: { tenantId: opportunity.tenantId, opportunityId: opportunity.id, resolvedAt: null },
     });

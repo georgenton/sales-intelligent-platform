@@ -61,10 +61,12 @@ async function main(): Promise<void> {
     );
     await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${role}`);
     await prisma.$executeRawUnsafe(
-      `GRANT SELECT ON users, tenants, tenant_memberships, auth_identities, local_credentials, sessions TO ${role}`,
+      `GRANT SELECT ON users, tenants, tenant_memberships, auth_identities, local_credentials, sessions, password_reset_tokens TO ${role}`,
     );
     await prisma.$executeRawUnsafe(`GRANT UPDATE ON users TO ${role}`);
+    await prisma.$executeRawUnsafe(`GRANT UPDATE ON local_credentials TO ${role}`);
     await prisma.$executeRawUnsafe(`GRANT INSERT, UPDATE ON sessions TO ${role}`);
+    await prisma.$executeRawUnsafe(`GRANT INSERT, UPDATE ON password_reset_tokens TO ${role}`);
 
     const state = await prisma.$queryRaw<Array<{ rolsuper: boolean; rolbypassrls: boolean }>>`
       SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = ${runtimeUser}

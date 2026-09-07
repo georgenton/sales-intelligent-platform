@@ -11,14 +11,17 @@ interface Profile {
   user: { id: string; name: string };
   tenant: { name: string };
   role: string;
+  permissions: string[];
 }
 
 export default async function DashboardPage() {
-  const [dashboard, alerts, opportunityList, profile] = await Promise.all([
+  const profile = await apiFetch<Profile>('/auth/me');
+  const [dashboard, alerts, opportunityList] = await Promise.all([
     apiFetch<DashboardData>('/analytics/dashboard'),
-    apiFetch<AlertData[]>('/alerts'),
+    profile.permissions.includes('alerts.read')
+      ? apiFetch<AlertData[]>('/alerts')
+      : Promise.resolve([]),
     apiFetch<OpportunityList>('/opportunities?perPage=100'),
-    apiFetch<Profile>('/auth/me'),
   ]);
 
   return (

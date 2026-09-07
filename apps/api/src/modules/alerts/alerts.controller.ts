@@ -7,6 +7,7 @@ import { PermissionGuard } from '../authorization/permission.guard';
 import { PERMISSIONS } from '../authorization/permissions';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { opportunityReadScope } from '../authorization/opportunity-scope';
 
 @ApiTags('alerts')
 @Controller('alerts')
@@ -17,9 +18,14 @@ export class AlertsController {
 
   @Get()
   async list(@CurrentAuth() auth: RequestAuth) {
+    const opportunityScope = opportunityReadScope(auth);
     return this.prisma.withTenant(auth.activeTenantId, (transaction) =>
       transaction.alert.findMany({
-        where: { tenantId: auth.activeTenantId, resolvedAt: null },
+        where: {
+          tenantId: auth.activeTenantId,
+          resolvedAt: null,
+          ...(Object.keys(opportunityScope).length ? { opportunity: opportunityScope } : {}),
+        },
         include: { opportunity: { select: { id: true, title: true } } },
         orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
         take: 100,

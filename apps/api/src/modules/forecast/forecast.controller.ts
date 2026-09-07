@@ -21,6 +21,12 @@ export class ForecastController {
     return this.forecast.list(auth);
   }
 
+  @Get('latest-diff')
+  @RequirePermissions(PERMISSIONS.FORECAST_READ)
+  latestDiff(@CurrentAuth() auth: RequestAuth) {
+    return this.forecast.latestDiff(auth);
+  }
+
   @Post()
   @UseGuards(CsrfGuard)
   @RequirePermissions(PERMISSIONS.FORECAST_MANAGE)

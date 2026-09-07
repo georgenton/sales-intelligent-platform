@@ -5,9 +5,10 @@ import { AuthService } from './auth.service';
 import { CsrfGuard } from './csrf.guard';
 import { LocalIdentityProvider } from './local-identity.provider';
 import { SessionGuard } from './session.guard';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, MailModule],
   controllers: [AuthController],
   providers: [AuthService, LocalIdentityProvider, SessionGuard, CsrfGuard],
   exports: [SessionGuard, CsrfGuard],

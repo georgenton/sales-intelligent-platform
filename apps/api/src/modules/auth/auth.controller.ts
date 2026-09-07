@@ -8,6 +8,8 @@ import { AuthService } from './auth.service';
 import { CsrfGuard } from './csrf.guard';
 import { CurrentAuth } from './current-auth.decorator';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SessionGuard } from './session.guard';
 
 @ApiTags('auth')
@@ -51,6 +53,27 @@ export class AuthController {
       tenant: { id: result.claims.tenantId, name: result.claims.tenantName },
       role: result.claims.role,
     };
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 3, ttl: 60 * 60_000 } })
+  forgotPassword(@Body() input: ForgotPasswordDto, @Req() request: Request) {
+    return this.authService.forgotPassword(
+      input.email,
+      (request as AuthenticatedRequest).requestId,
+    );
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60 * 60_000 } })
+  resetPassword(@Body() input: ResetPasswordDto, @Req() request: Request) {
+    return this.authService.resetPassword(
+      input.token,
+      input.newPassword,
+      (request as AuthenticatedRequest).requestId,
+    );
   }
 
   @Get('me')

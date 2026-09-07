@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 import type { OpportunityData } from '@/lib/types';
 import { cn, formatCurrency, formatDateOnly } from '@/lib/utils';
 import { useAppDispatch } from '@/store/hooks';
@@ -55,7 +56,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
         header: t('columns.stage'),
         cell: ({ row }) => (
           <Badge className="bg-secondary text-secondary-foreground">
-            {row.original.stage.code}% · {row.original.stage.name}
+            {row.original.stage.code}% · {commercialStageLabel(row.original.stage, locale)}
           </Badge>
         ),
       }),
@@ -153,7 +154,7 @@ export function OpportunityTable({ data }: { data: OpportunityData[] }) {
             </span>
             <span className="mt-3 flex flex-wrap items-center gap-2">
               <Badge className="bg-secondary text-secondary-foreground">
-                {original.stage.code}% · {original.stage.name}
+                {original.stage.code}% · {commercialStageLabel(original.stage, locale)}
               </Badge>
               {original.alerts[0] && (
                 <RiskBadge severity={original.alerts[0].severity} code={original.alerts[0].code} />

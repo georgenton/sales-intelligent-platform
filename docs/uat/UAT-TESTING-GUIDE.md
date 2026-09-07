@@ -313,6 +313,77 @@ Actions may include:
 
 Evaluate whether this workflow could realistically be used during a weekly forecast meeting.
 
+Phase 1 traceability checks:
+
+1. Open a Commit opportunity and inspect the persisted 60% and 80% evidence verdicts.
+2. Record **Keep Commit** and confirm it appears in Review traceability after a refresh.
+3. Enter an evidence-backed question and choose **Ask Seller**.
+4. Sign in as that opportunity's seller. Confirm the question appears in **Manager questions**.
+5. Respond, return as Manager, and confirm the parent question is resolved with its reply.
+6. Move a valid 60% or 80% opportunity to Best Case and confirm category, review event, and audit trail agree.
+
+---
+
+## 13A. Canonical stage and qualification flow
+
+Use a synthetic UAT opportunity only.
+
+1. Create it at `20 Prospecting / Prospección` with amount, GM %, close date, and line items.
+2. Move it to `40 Qualification / Calificación`.
+3. Attempt `60 Proposal / Propuesta` before completing the 60% gate; the change must be blocked.
+4. Complete every required 60% criterion with a `YES` answer and meaningful evidence.
+5. Move to 60% / Best Case.
+6. Attempt `80 Negotiation / Negociación` / Commit before completing the 80% gate; it must be blocked.
+7. Complete every required 80% criterion and move to 80% / Commit.
+8. Verify the stage history and audit trail. No synthetic UI text may be presented as qualification evidence.
+
+A Manager or Tenant Admin may separately test an override. The reason must be at least 10 characters and commercially meaningful. Confirm an `OVERRIDE_QUALIFICATION` review event and audit evidence are created. A Seller must never be able to override.
+
+---
+
+## 13B. Manager revenue and brand truth
+
+For the active fiscal quarter, independently verify:
+
+- quota, billed revenue, forecast, Commit, backlog, gap, coverage, and GM;
+- brand rows for quota, billed, forecast, Commit, gap, attainment, and GM;
+- opportunities outside the quarter do not contaminate forecast or coverage;
+- coverage is unavailable with an explicit explanation when quota is missing;
+- coverage says no more coverage is required when billed already fulfills quota;
+- a Seller without an individual quota sees **Quota not configured**, not `$0`, and is not assigned an implicit share of team quota.
+
+Tenant Admin can edit fiscal start, currency, GM threshold, total quota, brand quotas, optional seller quotas, and qualification criterion flags in **Commercial configuration**. Verify changes persist after refresh and affect only the active tenant.
+
+---
+
+## 13C. Commercial import
+
+Use sanitized synthetic fixtures; never upload the private workbook to an unapproved environment.
+
+1. Upload an opportunity CSV. Confirm server analysis shows only source headers, detected sheets, row counts, and suggested mappings; it must not expose complete row contents.
+2. Inspect every source-to-destination mapping. Confirm required mappings explicitly and verify the quality gate remains blocked for an unmapped required field, duplicate destination, duplicate source, or unconfirmed mapping.
+3. Validate the confirmed mapping. Confirm the dry run reports rows read and `READY`, `WARNING`, or `BLOCKED` without creating records.
+4. Execute only a non-blocked plan and confirm imported opportunity count. A source opportunity at stage 100 must be blocked because billing is authoritative.
+5. Upload an XLSX containing `Oppty`, `Facturado Daily`, and optionally `Resumen` / `Canales Proceso`.
+6. Confirm source sheets are recognized correctly, while derived and Phase 2 sheets are not imported. Do not map `Orders` to invoice unless the approved customer contract explicitly establishes that meaning.
+7. If `Facturado Daily` has no per-row billing date, enter and confirm the workbook snapshot `asOfDate`; the application must never substitute today's date.
+8. Execute and confirm opportunity and billing counts, billed total, brand attainment, and projected gap. A billing row linked to an appropriate stage-90 opportunity may move it to stage 100; a brand-only billing row must increase billed KPI without changing an opportunity.
+9. Reimport the identical file. Imported count must remain zero for the same facts and duplicates must be reported.
+10. Verify no workbook row contents appear in application logs.
+
+---
+
+## 13D. Password recovery
+
+1. On the login page choose **Forgot password?**.
+2. Request recovery for a known and unknown address; visible responses must be identical.
+3. With SMTP configured, follow the delivered one-time link.
+4. Verify weak passwords are rejected and a valid strong password succeeds.
+5. Confirm the old password and every pre-reset session no longer work.
+6. Confirm the token cannot be reused or used after expiration.
+
+Staging email delivery is `EXTERNAL_CONFIGURATION_REQUIRED` until the documented SMTP variables are present. Never place reset links, tokens, or passwords in UAT evidence.
+
 ---
 
 ## 14. Copilot
@@ -412,11 +483,35 @@ and:
 
 `viewer@techdistribution.demo`
 
-Verify their actual RBAC behavior.
+Verify the final Phase 1 contract:
 
-Do not treat missing dedicated Executive UX as a Sprint 1 defect if it is documented as intentionally deferred.
+| Role      | Data/read scope                                                                         | Mutation UI/API                                                         | Snapshot scope              | Dashboard                                                        |
+| --------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------- |
+| Executive | Tenant-wide opportunities, analytics, alerts, reviews, qualification and forecast reads | No create/edit/stage/qualification/review controls; API mutation is 403 | Tenant snapshots, read-only | Tenant-wide read-only commercial command center                  |
+| Viewer    | Tenant-wide opportunities, analytics and forecast reads; no alert-detail route          | No create/edit/stage/qualification/review controls; API mutation is 403 | Tenant snapshots, read-only | Tenant-wide read-only command center; no alert-detail navigation |
 
-Viewer must remain read-only where required.
+For each account:
+
+1. Confirm the dashboard does not expose Forecast Review or Capture Snapshot.
+2. Open the command palette and confirm Create Opportunity and Forecast Review are absent.
+3. Open Opportunities and confirm New Opportunity is absent.
+4. Open an Opportunity drawer and confirm Update Forecast is absent.
+5. Open an Opportunity detail URL and confirm stage/status/category inputs, qualification controls, and Save Changes are absent.
+6. Open Forecast and confirm historical tenant snapshots are readable but Capture Snapshot is absent.
+7. Attempt the create, update, qualification/review, and snapshot APIs with a valid CSRF token; expect 403.
+8. Navigate directly to `/app/opportunities/new`; expect redirect to `/app/opportunities`.
+
+The dedicated Executive information architecture remains a later UX enhancement; read-only enforcement is a Phase 1 acceptance requirement.
+
+### Complete role-scope reference
+
+| Role                  | Data scope                                    | Commercial mutations                                                        | Snapshot scope                  | Dashboard billing/quota                                                                 |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
+| Tenant/Platform Admin | Entire active tenant                          | All; creation requires explicit active Seller and supports explicit Manager | Tenant read/create              | Tenant quota; all linked and unattributed brand-only billing                            |
+| Manager               | `managerId=userId OR sellerId=userId`         | Team updates; create preserves selected Seller and forces current Manager   | Exact `TEAM/userId` read/create | Team-linked billing only; manager-specific quota or not configured                      |
+| Seller                | `sellerId=userId`                             | Own create/update/qualification/review response                             | Exact `OWN/userId` read-only    | Own-linked billing only; seller-specific quota or not configured                        |
+| Executive             | Tenant-wide                                   | None                                                                        | Tenant read-only                | Tenant-wide read-only                                                                   |
+| Viewer                | Tenant-wide except detailed Alerts permission | None                                                                        | Tenant read-only                | Tenant-wide read-only; aggregate alert KPI may appear without the detailed Alerts route |
 
 ---
 

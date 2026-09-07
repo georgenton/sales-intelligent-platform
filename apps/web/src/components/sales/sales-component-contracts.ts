@@ -1,10 +1,10 @@
 export type QuotaProgressState =
-  | { state: 'AVAILABLE'; quota: number; billed: number; forecast: number }
+  | { state: 'AVAILABLE'; quota: number; billed: number; openForecast: number }
   | {
       state: 'LOADING' | 'NOT_CONFIGURED' | 'UNAVAILABLE' | 'ERROR';
       quota?: never;
       billed?: never;
-      forecast?: never;
+      openForecast?: never;
     };
 
 export type ResolvedQuotaProgress =
@@ -12,7 +12,7 @@ export type ResolvedQuotaProgress =
       state: 'AVAILABLE';
       quota: number;
       billed: number;
-      forecast: number;
+      openForecast: number;
       billedPct: number;
       forecastPct: number;
       projectedPct: number;
@@ -42,15 +42,18 @@ export function resolveQuotaProgress(input: QuotaProgressState): ResolvedQuotaPr
   }
 
   const billedPct = Math.min(100, Math.max(0, (input.billed / input.quota) * 100));
-  const forecastPct = Math.min(100 - billedPct, Math.max(0, (input.forecast / input.quota) * 100));
+  const forecastPct = Math.min(
+    100 - billedPct,
+    Math.max(0, (input.openForecast / input.quota) * 100),
+  );
   return {
     state: input.state,
     quota: input.quota,
     billed: input.billed,
-    forecast: input.forecast,
+    openForecast: input.openForecast,
     billedPct,
     forecastPct,
-    projectedPct: Math.max(0, ((input.billed + input.forecast) / input.quota) * 100),
+    projectedPct: Math.max(0, ((input.billed + input.openForecast) / input.quota) * 100),
   };
 }
 

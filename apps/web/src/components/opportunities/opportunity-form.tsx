@@ -3,15 +3,17 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { csrfToken } from '@/lib/utils';
+import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 
 export interface ReferenceData {
   stages: Array<{ id: string; code: string; name: string; probability: number }>;
@@ -27,14 +29,17 @@ const schema = z.object({
   customerId: z.string().uuid(),
   partnerId: z.string().optional(),
   sellerId: z.string().uuid(),
+  managerId: z.string().uuid().optional().or(z.literal('')),
   stageId: z.string().uuid(),
   forecastCategory: z.enum(['PIPELINE', 'BEST_CASE', 'COMMIT', 'CLOSED', 'OMITTED']),
   estimatedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  grossProfit: z
+  grossMarginPercent: z
     .string()
     .regex(/^\d+(\.\d{1,2})?$/)
+    .refine((value) => Number(value) >= 0 && Number(value) <= 100)
     .optional()
     .or(z.literal('')),
+  qualificationOverrideReason: z.string().max(500).optional().or(z.literal('')),
   expectedCloseDate: z.string().min(1),
   expectedBillingDate: z.string().optional(),
   poNumber: z.string().max(100).optional(),
@@ -54,14 +59,25 @@ type Values = z.infer<typeof schema>;
 const selectClass =
   'h-density-control w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring';
 
-export function OpportunityForm({ reference }: { reference: ReferenceData }) {
+export function OpportunityForm({
+  reference,
+  profile,
+}: {
+  reference: ReferenceData;
+  profile: { user: { id: string }; role: string };
+}) {
+  const locale = useLocale() as AppLocale;
   const t = useTranslations('opportunities.form');
   const tOpportunities = useTranslations('opportunities');
   const tCategory = useTranslations('common.forecastCategory');
   const router = useRouter();
   const [serverError, setServerError] = useState('');
-  const defaultStage = reference.stages.find((stage) => stage.code === '25') ?? reference.stages[0];
+  const defaultStage = reference.stages.find((stage) => stage.code === '20') ?? reference.stages[0];
   const sellers = reference.users.filter((user) => user.role === 'SELLER');
+  const managers = reference.users.filter((user) => user.role === 'MANAGER');
+  const isSeller = profile.role === 'SELLER';
+  const isAdmin = ['TENANT_ADMIN', 'PLATFORM_ADMIN'].includes(profile.role);
+  const assignedSeller = sellers.find((seller) => seller.id === profile.user.id);
   const {
     register,
     control,
@@ -73,11 +89,13 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
       title: '',
       customerId: reference.customers[0]?.id,
       partnerId: '',
-      sellerId: sellers[0]?.id,
+      sellerId: isSeller ? assignedSeller?.id : sellers[0]?.id,
+      managerId: '',
       stageId: defaultStage?.id,
       forecastCategory: 'PIPELINE',
       estimatedAmount: '',
-      grossProfit: '',
+      grossMarginPercent: '',
+      qualificationOverrideReason: '',
       expectedCloseDate: '',
       expectedBillingDate: '',
       poNumber: '',
@@ -94,8 +112,10 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
       ...values,
       currency: reference.settings.currency,
       partnerId: values.partnerId || undefined,
+      managerId: isAdmin && values.managerId ? values.managerId : undefined,
       expectedBillingDate: values.expectedBillingDate || undefined,
-      grossProfit: values.grossProfit || undefined,
+      grossMarginPercent: values.grossMarginPercent || undefined,
+      qualificationOverrideReason: values.qualificationOverrideReason || undefined,
       poNumber: values.poNumber || undefined,
       notes: values.notes || undefined,
       lineItems: values.lineItems.map((item) => ({ ...item, cost: item.cost || undefined })),
@@ -113,6 +133,10 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
     router.push(`/app/opportunities/${created.id}`);
     router.refresh();
   });
+  const amount = Number(useWatch({ control, name: 'estimatedAmount' }));
+  const margin = Number(useWatch({ control, name: 'grossMarginPercent' }));
+  const derivedGrossProfit =
+    Number.isFinite(amount) && Number.isFinite(margin) ? (amount * margin) / 100 : null;
 
   return (
     <form onSubmit={submit} className="space-y-density-section">
@@ -160,24 +184,49 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
                   ))}
                 </select>
               </label>
-              <label className="text-sm font-medium">
-                {t('seller')}
-                <select className={`${selectClass} mt-2`} {...register('sellerId')}>
-                  {sellers.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {isSeller ? (
+                <label className="text-sm font-medium">
+                  {t('seller')}
+                  <input type="hidden" {...register('sellerId')} />
+                  <span className="mt-2 flex h-density-control items-center rounded-lg border bg-muted px-3 text-sm">
+                    {assignedSeller?.name}
+                  </span>
+                </label>
+              ) : (
+                <label className="text-sm font-medium">
+                  {t('seller')}
+                  <select className={`${selectClass} mt-2`} {...register('sellerId')}>
+                    {sellers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {isAdmin && (
+                <label className="text-sm font-medium">
+                  {t('manager')}
+                  <select className={`${selectClass} mt-2`} {...register('managerId')}>
+                    <option value="">{t('noManager')}</option>
+                    {managers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="text-sm font-medium">
                 {t('stage')}
                 <select className={`${selectClass} mt-2`} {...register('stageId')}>
-                  {reference.stages.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.code}% · {item.name}
-                    </option>
-                  ))}
+                  {reference.stages
+                    .filter((item) => item.code !== '100')
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code}% · {commercialStageLabel(item, locale)}
+                      </option>
+                    ))}
                 </select>
               </label>
             </CardContent>
@@ -282,9 +331,13 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
               <Input className="mt-2" inputMode="decimal" {...register('estimatedAmount')} />
             </label>
             <label className="block text-sm font-medium">
-              {t('grossProfit')}
-              <Input className="mt-2" inputMode="decimal" {...register('grossProfit')} />
+              {t('grossMarginPercent')}
+              <Input className="mt-2" inputMode="decimal" {...register('grossMarginPercent')} />
             </label>
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              {t('derivedGrossProfit')}:{' '}
+              {derivedGrossProfit === null ? '—' : derivedGrossProfit.toFixed(2)}
+            </p>
             <label className="block text-sm font-medium">
               {t('expectedClose')}
               <Input className="mt-2" type="date" {...register('expectedCloseDate')} />
@@ -296,6 +349,16 @@ export function OpportunityForm({ reference }: { reference: ReferenceData }) {
             <label className="block text-sm font-medium">
               {t('poNumber')}
               <Input className="mt-2" {...register('poNumber')} />
+            </label>
+            <label className="block text-sm font-medium">
+              {t('overrideReason')}
+              <textarea
+                className="mt-2 min-h-20 w-full rounded-lg border bg-background p-3 text-sm"
+                {...register('qualificationOverrideReason')}
+              />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {t('overrideReasonHint')}
+              </span>
             </label>
             {Object.keys(errors).length > 0 && (
               <p className="text-sm text-danger">{t('reviewFields')}</p>

@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import Link from 'next/link';
 
 const schema = z.object({ email: z.email(), password: z.string().min(10) });
 type LoginValues = z.infer<typeof schema>;
@@ -73,6 +74,11 @@ export function LoginForm() {
               {error}
             </p>
           )}
+          <div className="text-right">
+            <Link href="/forgot-password" className="text-sm font-semibold text-primary">
+              {t('forgotPassword')}
+            </Link>
+          </div>
           <Button className="h-density-control w-full" type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               t('signingIn')

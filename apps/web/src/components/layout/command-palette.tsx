@@ -2,8 +2,10 @@
 
 import { AlertTriangle, Bot, BriefcaseBusiness, Plus, Search, Target, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 import { useOpportunitiesQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
@@ -21,7 +23,16 @@ interface PaletteAction {
   run: () => void;
 }
 
-export function CommandPalette() {
+export function CommandPalette({
+  canCreate,
+  canReview,
+  canReadAlerts,
+}: {
+  canCreate: boolean;
+  canReview: boolean;
+  canReadAlerts: boolean;
+}) {
+  const locale = useLocale() as AppLocale;
   const t = useTranslations('navigation.palette');
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -39,8 +50,8 @@ export function CommandPalette() {
     setActive(0);
     dispatch(setCommandPaletteOpen(false));
   };
-  const actions = useMemo<PaletteAction[]>(
-    () => [
+  const actions = useMemo<PaletteAction[]>(() => {
+    const available: PaletteAction[] = [
       {
         id: 'opportunities',
         label: t('findOpportunity'),
@@ -48,30 +59,42 @@ export function CommandPalette() {
         icon: Search,
         run: () => setQuery(''),
       },
-      {
-        id: 'create',
-        label: t('createOpportunity'),
-        hint: t('portfolio'),
-        icon: Plus,
-        run: () => router.push('/app/opportunities/new'),
-      },
-      {
-        id: 'risk',
-        label: t('viewRisk'),
-        hint: t('riskAlerts'),
-        icon: AlertTriangle,
-        run: () => router.push('/app/alerts'),
-      },
-      {
-        id: 'review',
-        label: t('openReview'),
-        hint: t('reviewMode'),
-        icon: Target,
-        run: () => {
-          dispatch(setExperienceMode('REVIEW'));
-          router.push('/app/dashboard');
-        },
-      },
+      ...(canCreate
+        ? [
+            {
+              id: 'create',
+              label: t('createOpportunity'),
+              hint: t('portfolio'),
+              icon: Plus,
+              run: () => router.push('/app/opportunities/new'),
+            } satisfies PaletteAction,
+          ]
+        : []),
+      ...(canReadAlerts
+        ? [
+            {
+              id: 'risk',
+              label: t('viewRisk'),
+              hint: t('riskAlerts'),
+              icon: AlertTriangle,
+              run: () => router.push('/app/alerts'),
+            } satisfies PaletteAction,
+          ]
+        : []),
+      ...(canReview
+        ? [
+            {
+              id: 'review',
+              label: t('openReview'),
+              hint: t('reviewMode'),
+              icon: Target,
+              run: () => {
+                dispatch(setExperienceMode('REVIEW'));
+                router.push('/app/dashboard');
+              },
+            } satisfies PaletteAction,
+          ]
+        : []),
       {
         id: 'copilot',
         label: t('askCopilot'),
@@ -79,9 +102,9 @@ export function CommandPalette() {
         icon: Bot,
         run: () => dispatch(setCopilotPanelOpen(true)),
       },
-    ],
-    [dispatch, router, t],
-  );
+    ];
+    return available;
+  }, [canCreate, canReadAlerts, canReview, dispatch, router, t]);
   const results: PaletteAction[] = [
     ...actions.filter((item) =>
       `${item.label} ${item.hint}`.toLowerCase().includes(query.toLowerCase()),
@@ -89,7 +112,7 @@ export function CommandPalette() {
     ...(data?.items.slice(0, 6).map((opportunity) => ({
       id: opportunity.id,
       label: opportunity.title,
-      hint: `${opportunity.customer.name} · ${opportunity.stage.name}`,
+      hint: `${opportunity.customer.name} · ${commercialStageLabel(opportunity.stage, locale)}`,
       icon: BriefcaseBusiness,
       run: () => {
         dispatch(selectOpportunity(opportunity.id));

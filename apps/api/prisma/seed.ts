@@ -113,6 +113,20 @@ async function seedDemo(
     { name: 'Sofía Torres', email: 'sofia@techdistribution.demo', role: MembershipRole.SELLER },
     { name: 'Diego Andrade', email: 'diego@techdistribution.demo', role: MembershipRole.SELLER },
     { name: 'Camila Paz', email: 'camila@techdistribution.demo', role: MembershipRole.SELLER },
+    ...(!stagingBootstrap
+      ? [
+          {
+            name: 'Elena Executive',
+            email: 'executive@techdistribution.demo',
+            role: MembershipRole.EXECUTIVE,
+          },
+          {
+            name: 'Victor Viewer',
+            email: 'viewer@techdistribution.demo',
+            role: MembershipRole.VIEWER,
+          },
+        ]
+      : []),
   ];
   const users = [];
   for (const person of people) {
@@ -127,7 +141,12 @@ async function seedDemo(
         : passwordHash;
     const user = await prisma.user.upsert({
       where: { email: person.email },
-      update: { name: person.name, status: 'ACTIVE' },
+      update: {
+        name: person.name,
+        status: 'ACTIVE',
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
       create: { name: person.name, email: person.email, status: 'ACTIVE' },
     });
     await prisma.localCredential.upsert({
@@ -149,13 +168,13 @@ async function seedDemo(
   }
 
   const stageDefinitions = [
-    { code: '0', name: 'Identified', probability: 0, sortOrder: 0 },
-    { code: '25', name: 'Discovery', probability: 25, sortOrder: 1 },
-    { code: '50', name: 'Proposal', probability: 50, sortOrder: 2 },
-    { code: '75', name: 'Commit', probability: 75, sortOrder: 3 },
+    { code: '20', name: 'Prospecting', probability: 20, sortOrder: 0 },
+    { code: '40', name: 'Qualification', probability: 40, sortOrder: 1 },
+    { code: '60', name: 'Proposal', probability: 60, sortOrder: 2 },
+    { code: '80', name: 'Negotiation', probability: 80, sortOrder: 3 },
     {
       code: '90',
-      name: 'Closed won · pending billing',
+      name: 'Closing',
       probability: 90,
       sortOrder: 4,
       isClosedWon: true,
@@ -178,6 +197,88 @@ async function seedDemo(
         create: { tenantId: tenant.id, ...definition },
       }),
     );
+  }
+
+  const qualificationDefinitions = [
+    ['60', 'BUDGET_CONFIRMED', 'Budget confirmed', 'Presupuesto confirmado'],
+    ['60', 'BUSINESS_NEED_CONFIRMED', 'Business need confirmed', 'Necesidad de negocio confirmada'],
+    ['60', 'DECISION_MAKER_IDENTIFIED', 'Decision maker identified', 'Decisor identificado'],
+    ['60', 'BUYING_PROCESS_UNDERSTOOD', 'Buying process understood', 'Proceso de compra entendido'],
+    ['60', 'KEY_STAKEHOLDER_ACCESS', 'Access to key stakeholders', 'Acceso a interesados clave'],
+    ['60', 'TARGET_DATE_EXISTS', 'Target date exists', 'Existe fecha objetivo'],
+    [
+      '60',
+      'TECHNICAL_SOLUTION_VALIDATED',
+      'Technical solution validated',
+      'Solución técnica validada',
+    ],
+    ['60', 'COMPETITION_IDENTIFIED', 'Competition identified', 'Competencia identificada'],
+    ['80', 'FINAL_PROPOSAL_VALIDATED', 'Final proposal validated', 'Propuesta final validada'],
+    [
+      '80',
+      'COMMERCIAL_TERMS_ACCEPTED',
+      'Commercial conditions accepted',
+      'Condiciones comerciales aceptadas',
+    ],
+    ['80', 'PROCUREMENT_ALIGNED', 'Procurement aligned', 'Compras alineadas'],
+    [
+      '80',
+      'EXPECTED_ORDER_DATE_KNOWN',
+      'Expected order date known',
+      'Fecha esperada de orden conocida',
+    ],
+    [
+      '80',
+      'PO_PROCESS_CONFIRMED',
+      'PO expected or process confirmed',
+      'OC esperada o proceso confirmado',
+    ],
+    ['80', 'PARTNER_READY', 'Partner ready', 'Canal listo'],
+    [
+      '80',
+      'COMMERCIAL_CREDIT_AVAILABLE',
+      'Commercial credit available',
+      'Crédito comercial disponible',
+    ],
+    [
+      '80',
+      'FINANCE_VALIDATED',
+      'Internal finance validation completed',
+      'Validación financiera interna completada',
+    ],
+    ['80', 'BILLING_DATE_REALISTIC', 'Billing date realistic', 'Fecha de facturación realista'],
+  ] as const;
+  const qualificationCriteria = [];
+  for (const [index, [gateCode, code, labelEn, labelEs]] of qualificationDefinitions.entries()) {
+    qualificationCriteria.push(
+      await prisma.qualificationCriterion.upsert({
+        where: { tenantId_gateCode_code: { tenantId: tenant.id, gateCode, code } },
+        update: { labelEn, labelEs, required: true, evidenceRequired: true, sortOrder: index },
+        create: {
+          tenantId: tenant.id,
+          gateCode,
+          code,
+          labelEn,
+          labelEs,
+          required: true,
+          evidenceRequired: true,
+          sortOrder: index,
+        },
+      }),
+    );
+  }
+  for (const featureKey of [
+    'CRM_PROCESS_INTELLIGENCE',
+    'CHANNEL_CUTOFF_INTELLIGENCE',
+    'AI_CONTEXTUAL_REAL',
+    'AI_MANAGER_BRIEF',
+    'AI_PREDICTIVE',
+  ]) {
+    await prisma.tenantFeatureEntitlement.upsert({
+      where: { tenantId_featureKey: { tenantId: tenant.id, featureKey } },
+      update: {},
+      create: { tenantId: tenant.id, featureKey, enabled: false },
+    });
   }
 
   const brands = [];
@@ -234,6 +335,18 @@ async function seedDemo(
       amount: new Prisma.Decimal(2_200_000),
     },
   });
+  for (const brand of brands) {
+    await prisma.quota.create({
+      data: {
+        tenantId: tenant.id,
+        brandId: brand.id,
+        periodStart: period.start,
+        periodEnd: period.end,
+        currency: 'USD',
+        amount: new Prisma.Decimal(440_000),
+      },
+    });
+  }
 
   for (let index = 0; index < 40; index += 1) {
     const stage = stages[index % stages.length]!;
@@ -249,15 +362,15 @@ async function seedDemo(
     const forecastCategory =
       status === OpportunityStatus.WON
         ? ForecastCategory.CLOSED
-        : stage.probability >= 75
+        : stage.code === '80'
           ? ForecastCategory.COMMIT
-          : stage.probability >= 50
+          : stage.code === '60'
             ? ForecastCategory.BEST_CASE
             : ForecastCategory.PIPELINE;
     const externalReference = `DEMO-${String(index + 1).padStart(3, '0')}`;
     const expectedCloseDate = addDays(now, -55 + index * 4);
     const expectedBillingDate =
-      stage.probability >= 75 && index % 7 !== 0 ? addDays(expectedCloseDate, 14) : null;
+      stage.probability >= 80 && index % 7 !== 0 ? addDays(expectedCloseDate, 14) : null;
     const poNumber = stage.probability >= 90 && index % 2 === 1 ? `PO-DEMO-${index + 1}` : null;
     const opportunity = await prisma.opportunity.upsert({
       where: { tenantId_externalReference: { tenantId: tenant.id, externalReference } },
@@ -323,6 +436,32 @@ async function seedDemo(
         },
       });
     }
+    const applicableCriteria = qualificationCriteria.filter(
+      (criterion) => Number(criterion.gateCode) <= stage.probability,
+    );
+    for (const criterion of applicableCriteria) {
+      await prisma.qualificationResponse.upsert({
+        where: {
+          opportunityId_criterionId: {
+            opportunityId: opportunity.id,
+            criterionId: criterion.id,
+          },
+        },
+        update: {
+          answer: 'YES',
+          evidence: 'Synthetic UAT seed evidence',
+          updatedById: seller.id,
+        },
+        create: {
+          tenantId: tenant.id,
+          opportunityId: opportunity.id,
+          criterionId: criterion.id,
+          answer: 'YES',
+          evidence: 'Synthetic UAT seed evidence',
+          updatedById: seller.id,
+        },
+      });
+    }
     await prisma.alert.deleteMany({ where: { opportunityId: opportunity.id } });
     const alerts = [];
     if (stage.probability >= 90 && !poNumber) {
@@ -336,7 +475,7 @@ async function seedDemo(
       alerts.push({
         code: 'LOW_MARGIN',
         severity: 'WARNING' as const,
-        message: 'Margin is below the 10% tenant threshold',
+        message: 'Margin is below the tenant threshold',
       });
     }
     if (index % 9 === 0) {
@@ -366,10 +505,14 @@ async function seedDemo(
       data: {
         tenantId: tenant.id,
         opportunityId: opportunity.id,
+        brandId: brands[index % brands.length]!.id,
         invoiceNumber: `INV-DEMO-${index + 1}`,
         amount: opportunity.estimatedAmount,
+        grossProfit: opportunity.grossProfit,
         currency: 'USD',
         billedAt: addDays(period.start, 10 + index * 7),
+        source: 'DEMO_SEED',
+        externalReference: `BILLING-DEMO-${index + 1}`,
       },
     });
   }

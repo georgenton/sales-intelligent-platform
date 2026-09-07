@@ -1,0 +1,135 @@
+# Phase 1 commercial domain
+
+## Canonical opportunity lifecycle
+
+Stage `code` is the stable commercial contract. Names are tenant data, while known canonical codes are localized by the web application.
+
+| Code | English       | Español      | Default status | Default forecast | Meaning                                               |
+| ---: | ------------- | ------------ | -------------- | ---------------- | ----------------------------------------------------- |
+|   20 | Prospecting   | Prospección  | `OPEN`         | `PIPELINE`       | Initial identified motion.                            |
+|   40 | Qualification | Calificación | `OPEN`         | `PIPELINE`       | Discovery and buying context.                         |
+|   60 | Proposal      | Propuesta    | `OPEN`         | `BEST_CASE`      | Qualified proposal with gate-60 evidence.             |
+|   80 | Negotiation   | Negociación  | `OPEN`         | `COMMIT`         | Commercial negotiation with gates 60 and 80 complete. |
+|   90 | Closing       | Cierre       | `WON`          | `CLOSED`         | Won, awaiting billing.                                |
+|  100 | Billed        | Facturado    | `WON`          | `CLOSED`         | Operational terminal revenue outcome.                 |
+
+Stage 100 is excluded from the active open funnel. Lost and cancelled are statuses; an opportunity retains its last historical stage instead of moving to a synthetic 0% stage.
+
+The supported status values are `OPEN`, `WON`, `LOST`, and `CANCELLED`. Forecast category is separate from both status and stage: `PIPELINE`, `BEST_CASE`, `COMMIT`, `CLOSED`, or `OMITTED`. The compatibility contract permits only `PIPELINE`/`OMITTED` at stages 20 and 40, adds `BEST_CASE` at stage 60, and adds `COMMIT` at stage 80. It also permits deliberate manager downgrades such as an 80% opportunity in Best Case. Stages 90 and 100 require `CLOSED` while active.
+
+The data migration preserves stage identifiers where possible. Legacy 0/25/50/75 codes are transformed or remapped to 20/40/60/80 and every dependent opportunity, history, and snapshot reference is retained.
+
+## Fiscal calendar and forecast
+
+The fiscal-year start month is tenant configuration. The demo tenant uses December through November, yielding quarters Dec–Feb, Mar–May, Jun–Aug, and Sep–Nov. Quarter boundaries are inclusive and calendar-safe, including leap-year February.
+
+Pipeline, open forecast, Commit, snapshots, and coverage use only opportunities whose expected close date is inside the current fiscal quarter. Open forecast equals eligible open `BEST_CASE + COMMIT`; Commit is eligible open `COMMIT`. A snapshot stores only the active quarter. The latest diff reports added/removed opportunities and changes to amount, stage, category, close date, and billing date, plus the total open-forecast delta.
+
+## Quota, billing, gap, and coverage
+
+Quota can be configured for the tenant total, by brand, and optionally by seller. Missing seller quota remains `null` and the UI says "Quota not configured"; the team quota is never apportioned implicitly.
+
+Billing records are actual-revenue facts. An opportunity link is optional, but every import row must have enough attribution to identify a tenant brand, amount, currency, billing date, source, and deterministic external reference. This supports Facturado Daily without creating artificial opportunities.
+
+`BillingRecord` is the only source of actual billed revenue. Sellers and managers cannot manually select stage 100. A linked billing fact may atomically and auditably advance an appropriate stage-90 Won opportunity to stage 100. An unmatched brand-level billing fact still contributes to billed revenue and brand attainment without changing any opportunity. The application never fabricates a billing record from an opportunity stage.
+
+Definitions:
+
+```text
+remaining quota = max(total quota - billed, 0)
+projected revenue = billed + open forecast
+projected gap = max(total quota - projected revenue, 0)
+billing attainment = billed / total quota
+projected attainment = projected revenue / total quota
+pipeline coverage = current-quarter eligible open pipeline / remaining quota
+weighted coverage = current-quarter weighted eligible open pipeline / remaining quota
+```
+
+All quota-derived values are `null` when quota is not configured; the API never substitutes a fake zero. Coverage is also `null` with status `FULFILLED` when remaining quota is zero, avoiding division by zero and indicating that more coverage is not required. Brand performance returns quota, billed, remaining quota, open forecast, projected revenue, projected gap, billing/projected attainment, pipeline, Commit, backlog, and GM from one consolidated domain response.
+
+## Gross margin
+
+The operational seller input is GM percentage:
+
+```text
+gross profit = estimated amount × gross margin percent / 100
+GM percent = gross profit / estimated amount × 100
+```
+
+Gross profit remains the persisted financial value. If an API client sends both values, a difference greater than one cent is rejected. When line-item cost exists, brand allocation uses line amount minus cost; otherwise opportunity gross profit is apportioned by line amount. Low-margin alerts use the tenant's configurable `defaultMarginThreshold`.
+
+## Qualification gates
+
+Qualification is tenant data rather than JSX rules. Criteria have bilingual labels, gate code, required/evidence-required flags, ordering, and enabled state. Responses are unique per opportunity and criterion, record `YES`, `NO`, or `UNKNOWN`, store evidence, and identify the updating user.
+
+- Gate 60 requires all enabled required 60% criteria to be `YES`, including evidence where configured.
+- Gate 80 requires both gate 60 and gate 80.
+- Stages 90 and 100 use the same combined evidence requirement as stage 80.
+- A seller cannot bypass a gate.
+- A Manager, Tenant Admin, or Platform Admin can override only with a mandatory reason. The override creates a durable review event and an audit event.
+
+The Opportunity view, drawer, and Forecast Review consume persisted qualification responses. They do not manufacture evidence from stage, PO, health score, or UI state.
+
+## Review traceability
+
+Forecast decisions use a durable opportunity review log: `KEEP_COMMIT`, `MOVE_BEST_CASE`, `ASK_SELLER`, `SELLER_RESPONSE`, `MANAGER_NOTE`, `GUIDED_ACTION`, and `OVERRIDE_QUALIFICATION`. Move-to-Best-Case changes the category in the same tenant transaction as the review record. Ask Seller targets the opportunity owner; a seller response resolves the parent request. Redux is limited to temporary presentation state.
+
+## Imports
+
+Both CSV and XLSX are parsed server-side from bounded multipart uploads (10 MB maximum) with no permanent file storage. The safe workflow is analyze → inspect and confirm column mapping → validate → review the `READY`, `WARNING`, or `BLOCKED` quality gate → execute. Analysis returns headers and sample-free metadata, not source rows. Required fields, duplicate destinations or sources, unknown critical mappings, and unconfirmed mappings block execution. Execution uses the exact confirmed mapping contract, deterministic external references, and idempotency.
+
+- CSV and workbook sheet `Oppty` import opportunity source rows.
+- `Facturado Daily` imports billing source rows.
+- `Orders` is not treated as an invoice identifier unless a real source contract proves that meaning; it is currently left unmapped for explicit operator review.
+- A billing date must be mapped per row or supplied as an explicit `asOfDate` for an aggregate snapshot. Today's date is never inferred.
+- `Resumen` is recognized as a derived/report sheet and is not imported.
+- `Canales Proceso` is recognized as future Phase 2 scope and is not imported.
+- Unsupported sheets are reported without being used as primary facts.
+
+The private workbook is never committed, uploaded, or logged. `PROGRAMA VENTAS.xlsx` was not found in the authorized workspace, project, download, document, desktop, iCloud Drive, or CloudStorage search locations during the correction pass. Consequently, the customer-specific `Facturado Daily` and quota/target mappings remain `EXTERNAL_CONFIGURATION_REQUIRED`; synthetic parser coverage is not presented as real-workbook verification.
+
+## Role scope
+
+| Role                          | Data scope                                  | Read contract                                                                | Mutation contract                                                                                | Snapshot contract                               | Dashboard contract                                                                                                 |
+| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Tenant Admin / Platform Admin | Entire active tenant                        | All tenant opportunities, alerts, reviews and analytics                      | Create with explicit active Seller and optional Manager; update all tenant commercial records    | Read/create tenant snapshots                    | Tenant totals, tenant quota, all attributed and unattributed billing                                               |
+| Manager                       | `managerId == userId OR sellerId == userId` | Team opportunities, alerts, reviews and qualification                        | Create with an active Seller while backend forces `managerId=userId`; update/review team records | Read/create only `TEAM/userId` snapshots        | Team-only pipeline/forecast/Commit/backlog/GM/alerts; linked team billing; own manager quota or not configured     |
+| Seller                        | `sellerId == userId`                        | Own opportunities, alerts, reviews and qualification                         | Create as self; update own records and qualification; respond to own opportunity review requests | Read only `OWN/userId`; cannot create snapshots | Own pipeline/forecast/Commit/backlog/GM/alerts; linked own billing; own seller quota or not configured             |
+| Executive                     | Entire active tenant                        | Tenant commercial analysis, alerts and opportunity detail                    | None                                                                                             | Read tenant snapshots; cannot create            | Read-only tenant-wide command center                                                                               |
+| Viewer                        | Entire active tenant                        | Tenant opportunity, forecast and analytics reads; no alert-detail permission | None                                                                                             | Read tenant snapshots; cannot create            | Read-only tenant-wide command center; aggregate alert count may be present but alert-detail navigation is withheld |
+
+Manager scope is intentionally derived from the existing `Opportunity.managerId`; no parallel team subsystem exists. Manager and Seller billing totals include only records linked to an opportunity inside their scope. Unattributed brand-only billing remains visible to tenant-wide Admin/Executive/Viewer analytics and is excluded from Manager/Seller totals. Manager quota is a direct manager-specific quota row or `NOT_CONFIGURED`; tenant totals are never copied or divided as a fallback.
+
+Snapshots persist `scopeType` and `scopeUserId`. Latest-diff compares only the newest two snapshots with the exact same scope. Existing pre-scope snapshots are backfilled as tenant snapshots. PostgreSQL tenant RLS remains the independent tenant-isolation boundary beneath these service-level role scopes.
+
+## Password recovery and mail
+
+Local authentication supports one-time password reset tokens. Only SHA-256 token hashes are stored. Tokens expire, become invalid after use, and successful reset uses Argon2id, clears lockout state, revokes all active sessions, consumes all outstanding tokens, and writes audit events. Forgot-password responses are intentionally generic and endpoints are rate limited.
+
+Mail is provided through SMTP without a paid-platform dependency. Required hosted configuration:
+
+```text
+APP_URL=https://the-web-origin.example
+PASSWORD_RESET_TTL_MINUTES=30
+SMTP_HOST=smtp.example
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_FROM=no-reply@example
+SMTP_USER=optional-when-server-allows-anonymous-auth
+SMTP_PASSWORD=required-whenever-SMTP_USER-is-set
+```
+
+Tests and local development use an in-memory provider. A hosted environment without SMTP remains healthy and preserves a generic response, but external delivery is not available.
+
+## Future feature entitlements
+
+Only optional future capabilities use tenant entitlements: `CRM_PROCESS_INTELLIGENCE`, `CHANNEL_CUTOFF_INTELLIGENCE`, `AI_CONTEXTUAL_REAL`, `AI_MANAGER_BRIEF`, and `AI_PREDICTIVE`. All are disabled by default. Enabled keys are exposed in authenticated profile capabilities.
+
+The operator interface is a migration-credential CLI, not a cross-tenant UI:
+
+```bash
+pnpm platform:feature -- --environment staging --tenant <tenant-slug> --list
+pnpm platform:feature -- --environment staging --tenant <tenant-slug> --feature AI_CONTEXTUAL_REAL --enable
+```
+
+The explicit `--environment` value must exactly match `APP_ENV`. The command requires `MIGRATION_DATABASE_URL`; staging operations additionally require `ALLOW_PLATFORM_FEATURE_CHANGES=true`. Production requires `ALLOW_PRODUCTION_FEATURE_CHANGES=true` and an exact `--confirm-production <tenant-slug>` argument. The CLI audits feature metadata and never logs credentials. Full Phase 2/3 capabilities and a paid real AI provider are intentionally not implemented.

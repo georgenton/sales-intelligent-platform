@@ -16,6 +16,10 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ForecastModule } from './modules/forecast/forecast.module';
 import { AiModule } from './modules/ai/ai.module';
 import { UsersModule } from './modules/users/users.module';
+import { QualificationModule } from './modules/qualification/qualification.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { CommercialModule } from './modules/commercial/commercial.module';
+import { ImportsModule } from './modules/imports/imports.module';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { UsersModule } from './modules/users/users.module';
     ForecastModule,
     AiModule,
     UsersModule,
+    QualificationModule,
+    ReviewsModule,
+    CommercialModule,
+    ImportsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
@@ -50,6 +58,8 @@ export class AppModule implements NestModule {
               'req.headers.cookie',
               'req.headers.x-csrf-token',
               'req.body.password',
+              'req.body.newPassword',
+              'req.body.token',
               'res.headers["set-cookie"]',
             ],
             censor: '[REDACTED]',

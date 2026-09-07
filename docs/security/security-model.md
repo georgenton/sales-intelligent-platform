@@ -11,6 +11,18 @@ Mutations require a random double-submit CSRF value whose hash is bound to the s
 The readable CSRF cookie is not an authentication credential. The session token is never exposed to
 JavaScript or browser storage.
 
+Password recovery uses 256-bit random one-time tokens delivered only through the mail provider.
+The database stores a SHA-256 token hash, expiry, and consumed timestamp—never the bearer token.
+Forgot-password responses do not disclose account existence and have a stricter per-client rate
+limit. Successful reset hashes the new password with Argon2id, consumes outstanding tokens, clears
+lockout state, revokes every active session, and emits tenant audit evidence. Request bodies named
+`token`, `password`, or `newPassword` are redacted from structured logs.
+
+Hosted mail delivery is optional external configuration through `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_SECURE`, `SMTP_FROM`, and an optional `SMTP_USER`/`SMTP_PASSWORD` pair. Local and test runs use
+an in-memory provider. Missing SMTP does not change the generic public response and does not make the
+application unhealthy.
+
 ## Authorization
 
 Identity and RBAC are independent. Session resolution validates the current user, tenant and
@@ -40,6 +52,11 @@ a NOLOGIN capability role; Railway staging grants it to a restricted `NOINHERIT`
 - Append-only application audit events and immutable snapshot tables through database privileges.
 - Consistent error envelopes with no production stack traces.
 - Frozen lockfile, Dependabot, dependency audit and Gitleaks CI.
+- Commercial uploads are parsed in memory on the server, restricted to CSV/XLSX and 10 MB, and are
+  never written to permanent upload storage or copied into logs.
+- Future feature entitlements default disabled. Their operator CLI requires migration credentials,
+  explicit environment guards, and an exact additional production confirmation; application users
+  cannot mutate cross-tenant entitlements.
 
 ## Hosted verification
 

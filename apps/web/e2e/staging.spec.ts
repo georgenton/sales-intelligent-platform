@@ -5,6 +5,10 @@ const adminEmail = process.env.STAGING_ADMIN_EMAIL ?? 'admin@techdistribution.de
 const adminPassword = process.env.STAGING_ADMIN_PASSWORD;
 const sellerEmail = process.env.STAGING_SELLER_EMAIL;
 const sellerPassword = process.env.STAGING_SELLER_PASSWORD;
+const executiveEmail = process.env.STAGING_EXECUTIVE_EMAIL;
+const executivePassword = process.env.STAGING_EXECUTIVE_PASSWORD;
+const viewerEmail = process.env.STAGING_VIEWER_EMAIL;
+const viewerPassword = process.env.STAGING_VIEWER_PASSWORD;
 const vercelAutomationBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 let adminContext: BrowserContext;
@@ -147,7 +151,7 @@ test('admin can manage a synthetic opportunity', async () => {
   await page.keyboard.press('Enter');
   await page.getByLabel('Opportunity title', { exact: true }).fill(title);
   await page.getByLabel('Estimated amount', { exact: true }).fill('12500');
-  await page.getByLabel('Gross profit', { exact: true }).fill('2500');
+  await page.getByLabel('GM %', { exact: true }).fill('20');
   await page.getByLabel('Expected close', { exact: true }).fill(closeDate);
   await page.getByLabel('Description 1', { exact: true }).fill('Synthetic E2E line item');
   await page.getByLabel('Amount 1', { exact: true }).fill('12500');
@@ -158,20 +162,55 @@ test('admin can manage a synthetic opportunity', async () => {
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
   await page
     .getByRole('combobox', { name: 'Stage', exact: true })
-    .selectOption({ label: '50% · Proposal' });
+    .selectOption({ label: '40% · Qualification' });
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toHaveText('Changes saved.');
-  await expect(page.getByText('50% · Proposal').first()).toBeVisible();
+  await expect(page.getByText('40% · Qualification').first()).toBeVisible();
+  await expect(page.getByText('20.0%').first()).toBeVisible();
+
+  const stage = page.getByRole('combobox', { name: 'Stage', exact: true });
+  const category = page.getByRole('combobox', { name: 'Forecast category', exact: true });
+  await expect(stage.locator('option[value]').filter({ hasText: '100% · Billed' })).toHaveCount(0);
+  await stage.selectOption({ label: '60% · Proposal' });
+  await category.selectOption('BEST_CASE');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('status')).toHaveText('Opportunity could not be updated.');
+
+  const completeGate = async (code: '60' | '80') => {
+    const gate = page.locator(`section[aria-labelledby="gate-${code}"]`);
+    const rows = gate.locator(':scope > div.space-y-3 > div');
+    const count = await rows.count();
+    expect(count).toBeGreaterThan(0);
+    for (let index = 0; index < count; index += 1) {
+      const row = rows.nth(index);
+      await row.locator('input').fill(`E2E qualification evidence ${code}-${index + 1}`);
+      await row.getByRole('combobox').selectOption('YES');
+      await expect(gate.getByText(new RegExp(`${index + 1}/${count}`))).toBeVisible();
+    }
+  };
+
+  await completeGate('60');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('status')).toHaveText('Changes saved.');
+  await expect(page.getByText('60% · Proposal').first()).toBeVisible();
+
+  await completeGate('80');
+  await stage.selectOption({ label: '80% · Negotiation' });
+  await category.selectOption('COMMIT');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('status')).toHaveText('Changes saved.');
+  await expect(page.getByText('80% · Negotiation').first()).toBeVisible();
+  await expect(page.getByText(/OPPORTUNITY STAGE CHANGED/).first()).toBeVisible();
 });
 
 test('manager drills into the funnel, opens context and closes with Escape', async () => {
   const page = adminPage;
   await page.goto('/app/dashboard');
 
-  const commit = page.getByRole('button', { name: /^Commit:/ }).first();
-  await expect(commit).toBeVisible();
-  await commit.click();
-  await expect(page.getByText(/Commit · \d+ opportunities/)).toBeVisible();
+  const negotiation = page.getByRole('button', { name: /^Negotiation:/ }).first();
+  await expect(negotiation).toBeVisible();
+  await negotiation.click();
+  await expect(page.getByText(/Negotiation · \d+ opportunities/)).toBeVisible();
 
   const opportunity = page.getByRole('button', { name: /Health \d+/ }).first();
   await expect(opportunity).toBeVisible();
@@ -237,7 +276,9 @@ test('funnel semantics stay accessible without horizontal page overflow', async 
   const semanticTable = page.getByRole('table', { name: 'Datos del embudo de ventas' });
   await expect(semanticTable).toBeAttached();
   await expect(semanticTable.getByRole('row')).toHaveCount(5);
-  await expect(semanticTable.getByRole('cell', { name: 'Commit', exact: true })).toBeAttached();
+  await expect(
+    semanticTable.getByRole('cell', { name: 'Negociación', exact: true }),
+  ).toBeAttached();
   expect(
     await semanticTable
       .locator('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -277,13 +318,13 @@ test('funnel semantics stay accessible without horizontal page overflow', async 
     .poll(async () => hiddenContainer.boundingBox())
     .toMatchObject({ width: 1, height: 1 });
 
-  const commit = page.getByRole('button', { name: /^Commit:/ }).first();
-  await commit.focus();
-  await expect(commit).toBeFocused();
+  const negotiation = page.getByRole('button', { name: /^Negociación:/ }).first();
+  await negotiation.focus();
+  await expect(negotiation).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.getByText(/Commit · \d+ oportunidades/)).toBeVisible();
+  await expect(page.getByText(/Negociación · \d+ oportunidades/)).toBeVisible();
   await page.keyboard.press('Enter');
-  await expect(page.getByText(/Commit · \d+ oportunidades/)).toBeHidden();
+  await expect(page.getByText(/Negociación · \d+ oportunidades/)).toBeHidden();
 
   await page.getByLabel('Apariencia').selectOption('SYSTEM');
   await page.getByLabel('Idioma').selectOption('en');
@@ -317,7 +358,7 @@ test('manager review advances only after an explicit decision', async () => {
   await expect(page.getByLabel('Appearance')).toHaveValue('SYSTEM');
 });
 
-test('critical Copilot and import contracts block unsafe interaction', async () => {
+test('critical Copilot and server import contracts block unsafe interaction', async () => {
   const page = adminPage;
   await page.setViewportSize({ width: 1024, height: 768 });
   let requests = 0;
@@ -360,13 +401,13 @@ test('critical Copilot and import contracts block unsafe interaction', async () 
   await expect(panel).toBeHidden();
   await expect(launcher).toBeFocused();
 
-  let opportunityPosts = 0;
+  let executePosts = 0;
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === '/backend/opportunities'
+      new URL(request.url()).pathname === '/backend/imports/execute'
     ) {
-      opportunityPosts += 1;
+      executePosts += 1;
     }
   });
   await page.goto('/app/import');
@@ -377,35 +418,30 @@ test('critical Copilot and import contracts block unsafe interaction', async () 
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: Buffer.from('not-an-excel-workbook'),
   });
-  await expect(page.locator('#import-file-error')).toContainText('Unsupported file type');
-  await expect(page.getByText('Upload', { exact: true }).last()).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'could not be analyzed' })).toBeVisible();
 
   await fileInput.setInputFiles({
     name: 'opportunities.csv',
     mimeType: 'text/csv',
     buffer: Buffer.from(
       [
-        'Opportunity,Customer,Stage,Amount,Expected close,Brand',
-        'Synthetic blocked row,Unknown customer,Unknown stage,1000,2026-10-15,Unknown brand',
+        'Opportunity,Customer,Stage,Amount,Expected close,Brand,Seller email',
+        'Synthetic blocked row,Unknown customer,Unknown stage,1000,2026-10-15,Unknown brand,missing@example.test',
       ].join('\n'),
     ),
   });
-  await expect(page.getByText('Template detection', { exact: true }).last()).toBeVisible();
-  await page.getByRole('button', { name: /Continue/ }).click();
-  await expect(page.getByText('Mapping validation: Blocked')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
-
-  const confirm = page.getByRole('button', { name: 'Confirm mapping' });
-  while ((await confirm.count()) > 0) await confirm.first().click();
-  await expect(page.getByText('Mapping validation: Pass')).toBeVisible();
-  await page.getByRole('button', { name: /Continue/ }).click();
-  await page.getByRole('button', { name: /Continue/ }).click();
-  await expect(page.getByText('Data quality: Blocked')).toBeVisible();
-  await expect(page.getByText('Every row is BLOCKED')).toBeVisible();
-  await page.getByRole('button', { name: 'Revalidate file' }).click();
-  await expect(page.getByText('Data quality: Blocked')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Continue/ })).toBeDisabled();
-  expect(opportunityPosts).toBe(0);
+  await expect(page.getByRole('heading', { name: 'Column mapping confirmation' })).toBeVisible();
+  const mappingConfirmations = page.getByRole('checkbox');
+  const confirmationCount = await mappingConfirmations.count();
+  expect(confirmationCount).toBeGreaterThan(0);
+  for (let index = 0; index < confirmationCount; index += 1) {
+    await mappingConfirmations.nth(index).check();
+  }
+  await page.getByRole('button', { name: 'Validate confirmed mapping' }).click();
+  await expect(page.getByRole('heading', { name: 'Dry-run validation' })).toBeVisible();
+  await expect(page.getByText('BLOCKED', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Execute validated import' })).toBeDisabled();
+  expect(executePosts).toBe(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/app/dashboard');
@@ -458,10 +494,84 @@ test('seller completes Focus and advances the Guided queue', async ({ browser })
   }
 });
 
+test('Executive and Viewer surfaces remain read-only', async ({ browser }) => {
+  const principals = [
+    { label: 'Executive', email: executiveEmail, password: executivePassword },
+    { label: 'Viewer', email: viewerEmail, password: viewerPassword },
+  ];
+  test.skip(
+    principals.some((principal) => !principal.email || !principal.password),
+    'Executive and Viewer staging credentials are optional',
+  );
+
+  for (const principal of principals) {
+    const context = await browser.newContext(browserContextOptions());
+    const page = await context.newPage();
+    const consoleErrors: string[] = [];
+    const unexpectedResponses: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+    page.on('response', (response) => {
+      if (response.status() >= 500) {
+        unexpectedResponses.push(`${response.status()} ${response.url()}`);
+      }
+    });
+    try {
+      await signIn(page, principal.email!, principal.password!);
+      await expect(page).toHaveURL(/\/app\/dashboard$/);
+      await expect(page.getByRole('button', { name: 'Forecast review' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Capture snapshot' })).toHaveCount(0);
+      await expect(page.getByLabel('Cognitive mode').locator('option[value="REVIEW"]')).toHaveCount(
+        0,
+      );
+
+      await page.keyboard.press('Control+k');
+      const palette = page.getByRole('dialog', { name: 'Command palette' });
+      await expect(palette).toBeVisible();
+      await expect(palette.getByText('Create opportunity', { exact: true })).toHaveCount(0);
+      await expect(palette.getByText('Open forecast review', { exact: true })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      await page.goto('/app/opportunities', { waitUntil: 'networkidle' });
+      await expect(page.getByText('New opportunity', { exact: true })).toHaveCount(0);
+      const firstOpportunity = await page.evaluate(async () => {
+        const response = await fetch('/backend/opportunities?perPage=1');
+        const payload = (await response.json()) as { items: Array<{ id: string; title: string }> };
+        return payload.items[0];
+      });
+      expect(
+        firstOpportunity,
+        `${principal.label} needs a readable opportunity fixture`,
+      ).toBeTruthy();
+      await page.getByRole('button', { name: firstOpportunity!.title, exact: true }).click();
+      const drawer = page.getByRole('dialog').last();
+      await expect(drawer).toBeVisible();
+      await expect(drawer.getByText('Update forecast', { exact: true })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      await page.goto(`/app/opportunities/${firstOpportunity!.id}`, { waitUntil: 'networkidle' });
+      await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+      await expect(page.getByRole('combobox', { name: /^Answer for / })).toHaveCount(0);
+
+      await page.goto('/app/forecast', { waitUntil: 'networkidle' });
+      await expect(page.getByRole('button', { name: 'Capture snapshot' })).toHaveCount(0);
+      await page.goto('/app/opportunities/new');
+      await expect(page).toHaveURL(/\/app\/opportunities$/);
+      expect(consoleErrors).toEqual([]);
+      expect(unexpectedResponses).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 test('language persists without changing route, theme, mode or session boundaries', async () => {
   const page = adminPage;
-  await page.goto('/app/dashboard');
+  await page.goto('/app/dashboard', { waitUntil: 'networkidle' });
   await page.getByLabel('Appearance').selectOption('DARK');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByLabel('Cognitive mode').selectOption('REVIEW');
   const route = new URL(page.url()).pathname;
 
