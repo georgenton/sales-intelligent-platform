@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Save } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -12,6 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import type { OpportunityData } from '@/lib/types';
 import { csrfToken } from '@/lib/utils';
+import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 import type { ReferenceData } from './opportunity-form';
 
 const schema = z.object({
@@ -19,14 +21,16 @@ const schema = z.object({
   stageId: z.string().uuid(),
   forecastCategory: z.enum(['PIPELINE', 'BEST_CASE', 'COMMIT', 'CLOSED', 'OMITTED']),
   estimatedAmount: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  grossProfit: z
+  grossMarginPercent: z
     .string()
     .regex(/^\d+(\.\d{1,2})?$/)
+    .refine((value) => Number(value) >= 0 && Number(value) <= 100)
     .optional()
     .or(z.literal('')),
   expectedCloseDate: z.string().min(1),
   expectedBillingDate: z.string().optional(),
   poNumber: z.string().optional(),
+  qualificationOverrideReason: z.string().max(500).optional().or(z.literal('')),
 });
 type Values = z.infer<typeof schema>;
 const selectClass =
@@ -39,6 +43,7 @@ export function UpdateOpportunityPanel({
   opportunity: OpportunityData;
   reference: ReferenceData;
 }) {
+  const locale = useLocale() as AppLocale;
   const t = useTranslations('opportunities.update');
   const tStatus = useTranslations('common.status');
   const tCategory = useTranslations('common.forecastCategory');
@@ -55,10 +60,12 @@ export function UpdateOpportunityPanel({
       stageId: opportunity.stage.id,
       forecastCategory: opportunity.forecastCategory as Values['forecastCategory'],
       estimatedAmount: String(opportunity.estimatedAmount),
-      grossProfit: opportunity.grossProfit === null ? '' : String(opportunity.grossProfit),
+      grossMarginPercent:
+        opportunity.grossMarginPercent === null ? '' : String(opportunity.grossMarginPercent),
       expectedCloseDate: opportunity.expectedCloseDate.slice(0, 10),
       expectedBillingDate: opportunity.expectedBillingDate?.slice(0, 10) ?? '',
       poNumber: opportunity.poNumber ?? '',
+      qualificationOverrideReason: '',
     },
   });
   const submit = handleSubmit(async (values) => {
@@ -68,7 +75,8 @@ export function UpdateOpportunityPanel({
       headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken() },
       body: JSON.stringify({
         ...values,
-        grossProfit: values.grossProfit || undefined,
+        grossMarginPercent: values.grossMarginPercent || undefined,
+        qualificationOverrideReason: values.qualificationOverrideReason || undefined,
         expectedBillingDate: values.expectedBillingDate || undefined,
         poNumber: values.poNumber || undefined,
       }),
@@ -98,7 +106,7 @@ export function UpdateOpportunityPanel({
             <select className={selectClass} {...register('stageId')}>
               {reference.stages.map((stage) => (
                 <option key={stage.id} value={stage.id}>
-                  {stage.code}% · {stage.name}
+                  {stage.code}% · {commercialStageLabel(stage, locale)}
                 </option>
               ))}
             </select>
@@ -119,8 +127,8 @@ export function UpdateOpportunityPanel({
               <Input className="mt-2" {...register('estimatedAmount')} />
             </label>
             <label className="text-sm font-medium">
-              {t('grossProfit')}
-              <Input className="mt-2" {...register('grossProfit')} />
+              {t('grossMarginPercent')}
+              <Input className="mt-2" {...register('grossMarginPercent')} />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -136,6 +144,16 @@ export function UpdateOpportunityPanel({
           <label className="block text-sm font-medium">
             {t('poNumber')}
             <Input className="mt-2" {...register('poNumber')} />
+          </label>
+          <label className="block text-sm font-medium">
+            {t('overrideReason')}
+            <textarea
+              className="mt-2 min-h-20 w-full rounded-lg border bg-background p-3 text-sm"
+              {...register('qualificationOverrideReason')}
+            />
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {t('overrideReasonHint')}
+            </span>
           </label>
           {message && (
             <p role="status" className="text-sm text-muted-foreground">

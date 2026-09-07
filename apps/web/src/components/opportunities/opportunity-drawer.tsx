@@ -16,8 +16,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ForecastConfidence, RiskBadge, StageVelocity } from '@/components/sales/sales-components';
 import { Button } from '@/components/ui/button';
 import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 import { formatCurrency, formatDateOnly, formatDateTime, formatRelativeTime } from '@/lib/utils';
-import { useOpportunityQuery } from '@/store/api';
+import { useOpportunityQuery, useQualificationQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectOpportunity, setCopilotContext, setCopilotPanelOpen } from '@/store/ui-slice';
 
@@ -48,6 +49,7 @@ export function OpportunityDrawer() {
     isFetching,
     isError,
   } = useOpportunityQuery(selectedId ?? '', { skip: !selectedId });
+  const { data: qualification } = useQualificationQuery(selectedId ?? '', { skip: !selectedId });
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const [openedAt] = useState(() => Date.now());
@@ -61,20 +63,27 @@ export function OpportunityDrawer() {
   }, [selectedId]);
 
   const evidence = useMemo(() => {
-    if (!opportunity) return { present: [] as string[], missing: [] as string[] };
-    const present = [
-      opportunity.poNumber ? t('purchaseOrderRecorded') : null,
-      opportunity.partner ? t('partnerAttached') : null,
-      opportunity.expectedBillingDate ? t('billingDateConfirmed') : null,
-      opportunity.health.score >= 70 ? t('healthAbove') : null,
-    ].filter(Boolean) as string[];
-    const missing = [
-      !opportunity.poNumber ? t('purchaseOrder') : null,
-      !opportunity.expectedBillingDate ? t('billingDate') : null,
-      opportunity.health.score < 70 ? t('healthEvidence') : null,
-    ].filter(Boolean) as string[];
+    if (!opportunity || !qualification) return { present: [] as string[], missing: [] as string[] };
+    const criteria = qualification.gates.flatMap((gate) => gate.criteria);
+    const label = (criterion: (typeof criteria)[number]) =>
+      locale === 'es' ? criterion.labelEs : criterion.labelEn;
+    const present = criteria
+      .filter(
+        (criterion) =>
+          criterion.response?.answer === 'YES' &&
+          (!criterion.evidenceRequired || Boolean(criterion.response.evidence?.trim())),
+      )
+      .map(label);
+    const missing = criteria
+      .filter(
+        (criterion) =>
+          criterion.required &&
+          (criterion.response?.answer !== 'YES' ||
+            (criterion.evidenceRequired && !criterion.response.evidence?.trim())),
+      )
+      .map(label);
     return { present, missing };
-  }, [opportunity, t]);
+  }, [locale, opportunity, qualification]);
 
   if (!selectedId) return null;
   const ageDays = opportunity
@@ -152,7 +161,7 @@ export function OpportunityDrawer() {
                   label={tStatus(opportunity.health.status)}
                 />
                 <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
-                  {opportunity.stage.code}% · {opportunity.stage.name}
+                  {opportunity.stage.code}% · {commercialStageLabel(opportunity.stage, locale)}
                 </span>
               </div>
               <h2
@@ -285,7 +294,7 @@ export function OpportunityDrawer() {
                   <div>
                     <dt className="text-muted-foreground">{tOpportunities('margin')}</dt>
                     <dd className="tnum mt-1 font-semibold">
-                      {opportunity.margin?.toFixed(1) ?? tValue('notAvailable')}%
+                      {opportunity.grossMarginPercent?.toFixed(1) ?? tValue('notAvailable')}%
                     </dd>
                   </div>
                   <div>
@@ -303,7 +312,10 @@ export function OpportunityDrawer() {
                 </dl>
               </section>
               <section>
-                <StageVelocity stage={opportunity.stage.name} daysInStage={ageDays} />
+                <StageVelocity
+                  stage={commercialStageLabel(opportunity.stage, locale)}
+                  daysInStage={ageDays}
+                />
               </section>
               {opportunity.alerts.length > 0 && (
                 <section aria-labelledby="alerts-title">
@@ -340,8 +352,10 @@ export function OpportunityDrawer() {
                     {opportunity.stageHistory.slice(0, 4).map((entry) => (
                       <li key={entry.id} className="border-l-2 pl-3 text-xs">
                         <b>
-                          {entry.fromStage ? `${entry.fromStage.name} → ` : ''}
-                          {entry.toStage.name}
+                          {entry.fromStage
+                            ? `${commercialStageLabel(entry.fromStage, locale)} → `
+                            : ''}
+                          {commercialStageLabel(entry.toStage, locale)}
                         </b>
                         <p className="mt-1 text-muted-foreground">
                           {entry.changedBy.name} · {formatDateTime(entry.changedAt, locale)}

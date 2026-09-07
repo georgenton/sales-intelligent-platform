@@ -26,6 +26,7 @@ export interface AppProfile {
   tenant: { id: string; name: string; slug: string };
   role: string;
   permissions: string[];
+  capabilities: string[];
 }
 
 function Shell({ profile, children }: { profile: AppProfile; children: React.ReactNode }) {
@@ -80,7 +81,7 @@ function Shell({ profile, children }: { profile: AppProfile; children: React.Rea
             <p className="text-xs text-sidebar-muted">{t('common.commandPlatform')}</p>
           </div>
         </div>
-        <SidebarNav showAdmin={admin} />
+        <SidebarNav showAdmin={admin} canImport={profile.permissions.includes('imports.manage')} />
         <div className="mt-auto hidden rounded-2xl border border-sidebar-foreground/10 bg-sidebar-foreground/5 p-3 xl:block">
           <p className="text-xs text-sidebar-muted">{t('common.activeWorkspace')}</p>
           <p className="mt-1 truncate text-sm font-medium">{profile.tenant.name}</p>

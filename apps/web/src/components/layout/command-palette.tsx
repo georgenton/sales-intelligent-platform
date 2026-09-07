@@ -2,8 +2,10 @@
 
 import { AlertTriangle, Bot, BriefcaseBusiness, Plus, Search, Target, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 import { useOpportunitiesQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
@@ -22,6 +24,7 @@ interface PaletteAction {
 }
 
 export function CommandPalette() {
+  const locale = useLocale() as AppLocale;
   const t = useTranslations('navigation.palette');
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -89,7 +92,7 @@ export function CommandPalette() {
     ...(data?.items.slice(0, 6).map((opportunity) => ({
       id: opportunity.id,
       label: opportunity.title,
-      hint: `${opportunity.customer.name} · ${opportunity.stage.name}`,
+      hint: `${opportunity.customer.name} · ${commercialStageLabel(opportunity.stage, locale)}`,
       icon: BriefcaseBusiness,
       run: () => {
         dispatch(selectOpportunity(opportunity.id));

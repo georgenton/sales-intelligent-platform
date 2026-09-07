@@ -513,6 +513,7 @@ export function ForecastConfidence(props: ForecastConfidenceProps) {
 
 export interface FunnelStageDatum {
   stage: string;
+  stageCode: string;
   probability: number;
   count: number;
   amount: number;

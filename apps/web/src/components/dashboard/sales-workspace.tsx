@@ -32,9 +32,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import type { AppLocale } from '@/i18n/config';
+import { commercialStageLabel } from '@/lib/commercial';
 import type { AlertData, DashboardData, OpportunityData } from '@/lib/types';
 import { cn, formatCurrency, formatDateOnly, formatNumber } from '@/lib/utils';
-import { useUpdateOpportunityMutation } from '@/store/api';
+import { useCreateReviewMutation, useQualificationQuery, useReviewsQuery } from '@/store/api';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   recordForecastDecision,
@@ -133,8 +134,8 @@ function OpportunityRow({ opportunity }: { opportunity: OpportunityData }) {
           )}
         </span>
         <span className="mt-1 block text-xs text-muted-foreground">
-          {opportunity.stage.name} · {opportunity.seller.name} · {t('expectedClose')}{' '}
-          {formatDateOnly(opportunity.expectedCloseDate, locale)}
+          {commercialStageLabel(opportunity.stage, locale)} · {opportunity.seller.name} ·{' '}
+          {t('expectedClose')} {formatDateOnly(opportunity.expectedCloseDate, locale)}
         </span>
       </span>
       <span className="text-right">
@@ -164,10 +165,13 @@ function FunnelCard({
   const stages = useMemo<FunnelStageDatum[]>(
     () =>
       data.funnel.map((stage) => {
-        const rows = opportunities.filter((opportunity) => opportunity.stage.name === stage.stage);
+        const rows = opportunities.filter(
+          (opportunity) => opportunity.stage.code === stage.stageCode,
+        );
         const risky = rows.filter((opportunity) => opportunity.alerts.length > 0);
         return {
           ...stage,
+          stage: commercialStageLabel({ code: stage.stageCode, name: stage.stage }, locale),
           atRisk: risky.length,
           atRiskAmount: risky.reduce(
             (total, opportunity) => total + opportunity.estimatedAmount,
@@ -179,7 +183,7 @@ function FunnelCard({
           likelyToSlip: undefined,
         };
       }),
-    [data.funnel, opportunities],
+    [data.funnel, locale, opportunities],
   );
   return (
     <Card>
@@ -198,7 +202,7 @@ function FunnelCard({
           onSelectStage={(stage) => dispatch(setExpandedFunnelStage(stage))}
           renderDetail={(stage) => {
             const rows = opportunities.filter(
-              (opportunity) => opportunity.stage.name === stage?.stage,
+              (opportunity) => opportunity.stage.code === stage?.stageCode,
             );
             return (
               <div>
@@ -240,7 +244,7 @@ function ManagerStandard({
   const risky = opportunities
     .filter((opportunity) => opportunity.alerts.length > 0)
     .sort((a, b) => b.estimatedAmount - a.estimatedAmount);
-  const attainment = data.kpis.quota ? (data.kpis.forecast / data.kpis.quota) * 100 : 0;
+  const attainment = data.kpis.forecastAttainment;
   return (
     <>
       <ScreenHeader
@@ -266,19 +270,21 @@ function ManagerStandard({
               value={data.kpis.forecast}
               currency={data.currency}
               detail={t('likelyAttainment', {
-                value: formatNumber(attainment, locale, { maximumFractionDigits: 1 }),
+                value: formatNumber(attainment ?? 0, locale, { maximumFractionDigits: 1 }),
               })}
               icon={<TrendingUp className="size-4" />}
             />
             <RevenueKPI
               label={t('quota')}
-              value={data.kpis.quota}
+              value={data.kpis.quota ?? t('quotaNotConfigured')}
+              format={data.kpis.quota === null ? 'raw' : 'currency'}
               currency={data.currency}
               detail={data.period.label}
             />
             <RevenueKPI
               label={t('gap')}
-              value={data.kpis.gap}
+              value={data.kpis.gap ?? t('notAvailable')}
+              format={data.kpis.gap === null ? 'raw' : 'currency'}
               currency={data.currency}
               tone="risk"
               detail={t('remainingToQuota')}
@@ -287,7 +293,7 @@ function ManagerStandard({
           </div>
           <Card>
             <CardContent className="p-density-card">
-              {data.kpis.quota > 0 ? (
+              {data.kpis.quota !== null && data.kpis.quota > 0 ? (
                 <QuotaProgress
                   state="AVAILABLE"
                   quota={data.kpis.quota}
@@ -311,11 +317,15 @@ function ManagerStandard({
               value={data.kpis.billed}
               currency={data.currency}
               tone="positive"
-              detail={t('ofQuota', {
-                value: formatNumber(data.kpis.billingAttainment, locale, {
-                  maximumFractionDigits: 1,
-                }),
-              })}
+              detail={
+                data.kpis.billingAttainment === null
+                  ? t('quotaNotConfigured')
+                  : t('ofQuota', {
+                      value: formatNumber(data.kpis.billingAttainment, locale, {
+                        maximumFractionDigits: 1,
+                      }),
+                    })
+              }
             />
             <RevenueKPI
               label={t('commit')}
@@ -325,9 +335,31 @@ function ManagerStandard({
             />
             <RevenueKPI
               label={t('coverage')}
-              value={data.kpis.pipelineCoverage}
-              format="multiple"
-              detail={t('pipelineGap')}
+              value={
+                data.kpis.coverageStatus === 'FULFILLED'
+                  ? t('quotaFulfilled')
+                  : (data.kpis.pipelineCoverage ?? t('notAvailable'))
+              }
+              format={data.kpis.pipelineCoverage === null ? 'raw' : 'multiple'}
+              detail={
+                data.kpis.coverageStatus === 'FULFILLED'
+                  ? t('coverageNotRequired')
+                  : t('pipelineGap')
+              }
+            />
+          </div>
+          <div className="grid gap-density-grid sm:grid-cols-2">
+            <RevenueKPI
+              label={t('backlog')}
+              value={data.kpis.backlog}
+              currency={data.currency}
+              detail={t('wonNotBilled')}
+            />
+            <RevenueKPI
+              label={t('grossMargin')}
+              value={data.kpis.averageMargin ?? t('notAvailable')}
+              format={data.kpis.averageMargin === null ? 'raw' : 'percent'}
+              detail={t('weightedCurrentQuarter')}
             />
           </div>
         </div>
@@ -339,7 +371,7 @@ function ManagerStandard({
                 {t('commandInsight')}
               </p>
               <p className="mt-3 text-lg font-semibold">
-                {data.kpis.gap > 0
+                {data.kpis.gap !== null && data.kpis.gap > 0
                   ? t('gapRemains', {
                       amount: formatCurrency(data.kpis.gap, data.currency, locale),
                     })
@@ -385,29 +417,64 @@ function ManagerStandard({
             {!risky.length && <p className="text-sm text-muted-foreground">{t('noRisk')}</p>}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>{t('brands')}</CardTitle>
-            <p className="text-xs text-muted-foreground">{t('pipelineContribution')}</p>
+            <p className="text-xs text-muted-foreground">{t('brandPerformance')}</p>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {data.byBrand.slice(0, 6).map((brand) => (
-              <div
-                key={brand.brand}
-                className="grid grid-cols-[80px_minmax(0,1fr)_auto] items-center gap-3 text-xs"
-              >
-                <span className="truncate font-semibold">{brand.brand}</span>
-                <span className="h-2 overflow-hidden rounded-full bg-surface-sunken">
-                  <span
-                    className="block h-full bg-chart-2"
-                    style={{
-                      width: `${Math.max(8, (brand.amount / (data.byBrand[0]?.amount || 1)) * 100)}%`,
-                    }}
-                  />
-                </span>
-                <b className="tnum">{formatCurrency(brand.amount, data.currency, locale)}</b>
-              </div>
-            ))}
+          <CardContent className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead className="text-muted-foreground">
+                <tr>
+                  {[
+                    'brand',
+                    'quota',
+                    'billed',
+                    'forecast',
+                    'commit',
+                    'gap',
+                    'attainment',
+                    'gm',
+                  ].map((column) => (
+                    <th key={column} className="px-2 py-2 font-semibold">
+                      {t(`brandColumns.${column}`)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.brandPerformance.map((brand) => (
+                  <tr key={brand.brandId} className="border-t">
+                    <th className="px-2 py-3 font-semibold">{brand.brand}</th>
+                    <td className="tnum px-2 py-3">
+                      {brand.quota === null
+                        ? t('notConfigured')
+                        : formatCurrency(brand.quota, data.currency, locale)}
+                    </td>
+                    <td className="tnum px-2 py-3">
+                      {formatCurrency(brand.billed, data.currency, locale)}
+                    </td>
+                    <td className="tnum px-2 py-3">
+                      {formatCurrency(brand.forecast, data.currency, locale)}
+                    </td>
+                    <td className="tnum px-2 py-3">
+                      {formatCurrency(brand.commit, data.currency, locale)}
+                    </td>
+                    <td className="tnum px-2 py-3">
+                      {brand.gap === null ? '—' : formatCurrency(brand.gap, data.currency, locale)}
+                    </td>
+                    <td className="tnum px-2 py-3">
+                      {brand.billingAttainment === null
+                        ? '—'
+                        : `${brand.billingAttainment.toFixed(1)}%`}
+                    </td>
+                    <td className="tnum px-2 py-3">
+                      {brand.grossMargin === null ? '—' : `${brand.grossMargin.toFixed(1)}%`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       </div>
@@ -467,13 +534,6 @@ function SellerStandard({
   const tCommon = useTranslations('common');
   const tValue = useTranslations('common.value');
   const dispatch = useAppDispatch();
-  const pipeline = opportunities.reduce(
-    (total, opportunity) => total + opportunity.estimatedAmount,
-    0,
-  );
-  const commit = opportunities
-    .filter((opportunity) => opportunity.forecastCategory === 'COMMIT')
-    .reduce((total, opportunity) => total + opportunity.estimatedAmount, 0);
   const risky = opportunities
     .filter((opportunity) => opportunity.alerts.length)
     .sort((a, b) => b.estimatedAmount - a.estimatedAmount);
@@ -482,6 +542,7 @@ function SellerStandard({
       (current, opportunity) => {
         const existing = current[opportunity.stage.id] ?? {
           stage: opportunity.stage.name,
+          stageCode: opportunity.stage.code,
           probability: opportunity.stage.probability,
           count: 0,
           amount: 0,
@@ -513,20 +574,26 @@ function SellerStandard({
             <RevenueKPI
               hero
               label={t('likelyAttainment')}
-              value={tValue('notAvailable')}
-              format="raw"
-              detail={t('quotaUnavailable')}
+              value={
+                data.kpis.forecastAttainment === null
+                  ? tValue('notAvailable')
+                  : data.kpis.forecastAttainment
+              }
+              format={data.kpis.forecastAttainment === null ? 'raw' : 'percent'}
+              detail={
+                data.kpis.quotaConfigured ? t('sellerQuotaConfigured') : t('quotaUnavailable')
+              }
               icon={<Gauge className="size-4" />}
             />
             <RevenueKPI
               label={t('myPipeline')}
-              value={pipeline}
+              value={data.kpis.pipeline}
               currency={data.currency}
               detail={tCommon('opportunityCount', { count: opportunities.length })}
             />
             <RevenueKPI
               label={t('myCommit')}
-              value={commit}
+              value={data.kpis.commit}
               currency={data.currency}
               detail={t('explicitCategory')}
             />
@@ -538,10 +605,13 @@ function SellerStandard({
         </div>
         <div className="space-y-density-grid">
           <QuotaGap
-            gap={null}
+            gap={data.kpis.gap}
             currency={data.currency}
-            interpretation={t('personalQuotaRequired')}
+            interpretation={
+              data.kpis.quotaConfigured ? t('personalGap') : t('personalQuotaRequired')
+            }
           />
+          <SellerQuestions />
           <Card>
             <CardHeader>
               <CardTitle>{t('focusToday')}</CardTitle>
@@ -557,6 +627,60 @@ function SellerStandard({
         </div>
       </div>
     </>
+  );
+}
+
+function SellerQuestions() {
+  const t = useTranslations('seller.questions');
+  const { data: questions = [], isLoading } = useReviewsQuery({ pendingOnly: true });
+  const [createReview, mutation] = useCreateReviewMutation();
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('title')}</CardTitle>
+        <p className="text-xs text-muted-foreground">{t('description')}</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? <p className="text-sm text-muted-foreground">{t('loading')}</p> : null}
+        {questions.map((question) => (
+          <div key={question.id} className="rounded-xl border p-3">
+            <p className="text-xs text-muted-foreground">
+              {question.opportunity.title} · {question.actor.name}
+            </p>
+            <p className="mt-1 text-sm font-semibold">{question.body}</p>
+            <div className="mt-3 flex gap-2">
+              <Input
+                value={answers[question.id] ?? ''}
+                placeholder={t('answerPlaceholder')}
+                onChange={(event) =>
+                  setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                }
+              />
+              <Button
+                size="sm"
+                disabled={!answers[question.id]?.trim() || mutation.isLoading}
+                onClick={async () => {
+                  await createReview({
+                    opportunityId: question.opportunityId,
+                    type: 'SELLER_RESPONSE',
+                    parentEventId: question.id,
+                    body: answers[question.id]?.trim(),
+                  }).unwrap();
+                  setAnswers((current) => ({ ...current, [question.id]: '' }));
+                }}
+              >
+                {t('send')}
+              </Button>
+            </div>
+          </div>
+        ))}
+        {!isLoading && !questions.length ? (
+          <p className="text-sm text-muted-foreground">{t('empty')}</p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -679,10 +803,16 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
   const decisions = useAppSelector((state) => state.productUi.guidedReviewProgress);
   const [index, setIndex] = useState(0);
   const [other, setOther] = useState('');
+  const [createReview] = useCreateReviewMutation();
   const queue = opportunities.filter((opportunity) => opportunity.alerts.length);
   const opportunity = queue[index];
-  const decide = (action: string) => {
+  const decide = async (action: string) => {
     if (!opportunity) return;
+    await createReview({
+      opportunityId: opportunity.id,
+      type: 'GUIDED_ACTION',
+      body: action,
+    }).unwrap();
     dispatch(recordGuidedDecision({ opportunityId: opportunity.id, action }));
     setOther('');
     setIndex((value) => Math.min(queue.length - 1, value + 1));
@@ -736,7 +866,7 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
                 {opportunity.customer.name} · {opportunity.title}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                {opportunity.stage.name} ·{' '}
+                {commercialStageLabel(opportunity.stage, locale)} ·{' '}
                 {t('closes', { date: formatDateOnly(opportunity.expectedCloseDate, locale) })}
               </p>
             </div>
@@ -788,7 +918,7 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
               <Button
                 variant="outline"
                 disabled={!other.trim()}
-                onClick={() => decide(`CUSTOM:${other}`)}
+                onClick={() => void decide(`CUSTOM:${other}`)}
               >
                 {t('record')}
               </Button>
@@ -813,7 +943,7 @@ function SellerGuided({ opportunities }: { opportunities: OpportunityData[] }) {
                   <Bot className="size-4" />
                   {t('askCopilot')}
                 </Button>
-                <Button size="sm" onClick={() => decide(recommendedId)}>
+                <Button size="sm" onClick={() => void decide(recommendedId)}>
                   {t('chooseRecommendation')} <ChevronRight className="size-4" />
                 </Button>
               </div>
@@ -863,22 +993,29 @@ function ForecastReview({
   const tAlertMessages = useTranslations('alerts.messages');
   const dispatch = useAppDispatch();
   const decisions = useAppSelector((state) => state.productUi.forecastReviewProgress);
-  const [updateOpportunity, mutation] = useUpdateOpportunityMutation();
+  const [createReview, mutation] = useCreateReviewMutation();
   const [index, setIndex] = useState(0);
   const [note, setNote] = useState('');
   const queue = opportunities
     .filter((opportunity) => opportunity.forecastCategory === 'COMMIT' || opportunity.alerts.length)
     .sort((a, b) => b.estimatedAmount - a.estimatedAmount);
   const opportunity = queue[index];
+  const { data: qualification } = useQualificationQuery(opportunity?.id ?? '', {
+    skip: !opportunity,
+  });
+  const { data: reviewEvents = [] } = useReviewsQuery(
+    opportunity ? { opportunityId: opportunity.id } : undefined,
+    { skip: !opportunity },
+  );
   const decide = async (action: 'KEEP_COMMIT' | 'MOVE_UPSIDE' | 'ASK_SELLER' | 'ADD_NOTE') => {
     if (!opportunity) return;
-    if (action === 'MOVE_UPSIDE')
-      await updateOpportunity({
-        id: opportunity.id,
-        changes: { forecastCategory: 'BEST_CASE' },
-      }).unwrap();
-    if (action === 'ADD_NOTE' && note.trim())
-      await updateOpportunity({ id: opportunity.id, changes: { notes: note.trim() } }).unwrap();
+    const type =
+      action === 'MOVE_UPSIDE' ? 'MOVE_BEST_CASE' : action === 'ADD_NOTE' ? 'MANAGER_NOTE' : action;
+    await createReview({
+      opportunityId: opportunity.id,
+      type,
+      body: action === 'ASK_SELLER' || action === 'ADD_NOTE' ? note.trim() : undefined,
+    }).unwrap();
     dispatch(recordForecastDecision({ opportunityId: opportunity.id, action }));
     setNote('');
     setIndex((value) => Math.min(queue.length - 1, value + 1));
@@ -919,7 +1056,7 @@ function ForecastReview({
                 {opportunity.customer.name} · {opportunity.title}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                {opportunity.seller.name} · {opportunity.stage.name}
+                {opportunity.seller.name} · {commercialStageLabel(opportunity.stage, locale)}
               </p>
             </div>
             <b className="tnum text-2xl">
@@ -937,20 +1074,33 @@ function ForecastReview({
                 .join(' ')}
             />
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border p-3">
-                <p className="text-xs font-semibold text-success">{t('evidence')}</p>
-                <p className="mt-2 text-sm">
-                  {opportunity.poNumber
-                    ? t('poRecorded', { po: opportunity.poNumber })
-                    : t('stageRecorded')}
-                </p>
-              </div>
-              <div className="rounded-xl border p-3">
-                <p className="text-xs font-semibold text-warning">{t('missingEvidence')}</p>
-                <p className="mt-2 text-sm">
-                  {opportunity.poNumber ? t('validateActivity') : t('poMissing')}
-                </p>
-              </div>
+              {qualification?.gates.map((gate) => (
+                <div key={gate.gateCode} className="rounded-xl border p-3">
+                  <p
+                    className={`text-xs font-semibold ${gate.verdict.complete ? 'text-success' : 'text-warning'}`}
+                  >
+                    {t('qualificationGate', { code: gate.gateCode })}
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {gate.criteria
+                      .filter((criterion) => criterion.required)
+                      .map((criterion) => {
+                        const complete =
+                          criterion.response?.answer === 'YES' &&
+                          (!criterion.evidenceRequired ||
+                            Boolean(criterion.response.evidence?.trim()));
+                        return (
+                          <li key={criterion.id} className="flex gap-2">
+                            <span className={complete ? 'text-success' : 'text-danger'}>
+                              {complete ? '✓' : '✕'}
+                            </span>
+                            {locale === 'es' ? criterion.labelEs : criterion.labelEn}
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </div>
+              ))}
             </div>
             {opportunity.alerts.map((alert) => (
               <div key={alert.id} className="rounded-xl bg-surface-danger-soft p-3">
@@ -972,7 +1122,12 @@ function ForecastReview({
               >
                 {t('moveUpside')}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => decide('ASK_SELLER')}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!note.trim() || mutation.isLoading}
+                onClick={() => decide('ASK_SELLER')}
+              >
                 <MessageSquare className="size-4" />
                 {t('askSeller')}
               </Button>
@@ -1011,6 +1166,30 @@ function ForecastReview({
               >
                 {t('addNote')}
               </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('reviewHistory')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {reviewEvents.slice(0, 6).map((event) => (
+                <div key={event.id} className="rounded-lg border p-2 text-xs">
+                  <b>{t(`eventTypes.${event.type}`)}</b>
+                  <p className="mt-1 text-muted-foreground">
+                    {event.actor.name}
+                    {event.body ? ` · ${event.body}` : ''}
+                  </p>
+                  {event.replies.map((reply) => (
+                    <p key={reply.id} className="mt-2 rounded bg-muted p-2">
+                      {reply.actor.name}: {reply.body}
+                    </p>
+                  ))}
+                </div>
+              ))}
+              {!reviewEvents.length ? (
+                <p className="text-sm text-muted-foreground">{t('noReviewHistory')}</p>
+              ) : null}
             </CardContent>
           </Card>
           <Card>

@@ -10,6 +10,7 @@ import {
 import Link from 'next/link';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { UpdateOpportunityPanel } from '@/components/opportunities/update-opportunity-panel';
+import { QualificationPanel } from '@/components/opportunities/qualification-panel';
 import type { ReferenceData } from '@/components/opportunities/opportunity-form';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,7 @@ import { apiFetch } from '@/lib/api';
 import type { OpportunityData } from '@/lib/types';
 import type { AppLocale } from '@/i18n/config';
 import { cn, formatCurrency, formatDateOnly, formatDateTime } from '@/lib/utils';
+import { commercialStageLabel } from '@/lib/commercial';
 
 export default async function OpportunityDetailPage({
   params,
@@ -50,7 +52,7 @@ export default async function OpportunityDetailPage({
             <div className="flex flex-wrap items-center gap-2">
               <Badge>{tStatus(opportunity.status)}</Badge>
               <Badge className="bg-secondary text-secondary-foreground">
-                {opportunity.stage.code}% · {opportunity.stage.name}
+                {opportunity.stage.code}% · {commercialStageLabel(opportunity.stage, locale)}
               </Badge>
               <Badge>{tCategory(opportunity.forecastCategory)}</Badge>
             </div>
@@ -104,7 +106,9 @@ export default async function OpportunityDetailPage({
               <CircleDollarSign className="size-4" />
               {t('margin')}
             </div>
-            <p className="mt-3 text-2xl font-semibold">{opportunity.margin?.toFixed(1) ?? '—'}%</p>
+            <p className="mt-3 text-2xl font-semibold">
+              {opportunity.grossMarginPercent?.toFixed(1) ?? '—'}%
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -130,6 +134,7 @@ export default async function OpportunityDetailPage({
       </div>
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <div className="space-y-5">
+          <QualificationPanel opportunityId={opportunity.id} />
           <Card>
             <CardHeader>
               <CardTitle>{t('products')}</CardTitle>
@@ -187,8 +192,8 @@ export default async function OpportunityDetailPage({
                   <li key={entry.id} className="relative border-l-2 border-secondary pl-5">
                     <span className="absolute top-1 -left-[5px] size-2 rounded-full bg-primary" />
                     <p className="text-sm font-semibold">
-                      {entry.fromStage ? `${entry.fromStage.name} → ` : ''}
-                      {entry.toStage.name}
+                      {entry.fromStage ? `${commercialStageLabel(entry.fromStage, locale)} → ` : ''}
+                      {commercialStageLabel(entry.toStage, locale)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {entry.changedBy.name} · {formatDateTime(entry.changedAt, locale)}
