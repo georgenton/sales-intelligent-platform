@@ -316,4 +316,3 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   tenant_feature_entitlements,
   password_reset_tokens
 TO app_runtime;
-
