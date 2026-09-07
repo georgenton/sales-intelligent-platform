@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const prisma = new PrismaClient();
+const ownerDatabaseUrl = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!ownerDatabaseUrl) throw new Error('An owner database URL is required for isolation setup');
+const prisma = new PrismaClient({ datasources: { db: { url: ownerDatabaseUrl } } });
 const runId = randomUUID().slice(0, 8);
 const tenantIds: string[] = [];
 const userIds: string[] = [];

@@ -8,7 +8,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { ApiExceptionFilter } from '../src/common/http/api-exception.filter';
 
-const prisma = new PrismaClient();
+const ownerDatabaseUrl = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!ownerDatabaseUrl) throw new Error('An owner database URL is required for integration setup');
+const prisma = new PrismaClient({ datasources: { db: { url: ownerDatabaseUrl } } });
 
 describe('Phase 1 commercial operating flows', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>;

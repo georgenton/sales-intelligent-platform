@@ -11,7 +11,9 @@ import { ApiExceptionFilter } from '../src/common/http/api-exception.filter';
 import { hashToken } from '../src/modules/auth/auth.service';
 import { InMemoryMailProvider } from '../src/modules/mail/in-memory-mail.provider';
 
-const prisma = new PrismaClient();
+const ownerDatabaseUrl = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!ownerDatabaseUrl) throw new Error('An owner database URL is required for integration setup');
+const prisma = new PrismaClient({ datasources: { db: { url: ownerDatabaseUrl } } });
 
 describe('local password recovery', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>;
@@ -46,8 +48,8 @@ describe('local password recovery', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    await prisma.user.delete({ where: { id: userId } });
+    if (app) await app.close();
+    if (userId) await prisma.user.delete({ where: { id: userId } });
     await prisma.$disconnect();
   });
 
