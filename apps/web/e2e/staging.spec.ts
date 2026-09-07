@@ -54,7 +54,7 @@ test.afterAll(async () => {
 
 async function signIn(page: Page, email: string, password: string, locale: 'en' | 'es' = 'en') {
   await page.context().addCookies([{ name: 'sip_locale', value: locale, url: baseUrl! }]);
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
   const emailInput = page.getByLabel(locale === 'es' ? 'Correo electrónico' : 'Email', {
     exact: true,
   });
@@ -64,10 +64,40 @@ async function signIn(page: Page, email: string, password: string, locale: 'en' 
   await emailInput.fill(email);
   await passwordInput.fill(password);
   await expect(emailInput).toHaveValue(email);
-  await page
-    .getByRole('button', { name: locale === 'es' ? 'Iniciar sesión' : 'Sign in', exact: true })
-    .click();
+  const submit = page.getByRole('button', {
+    name: locale === 'es' ? 'Iniciar sesión' : 'Sign in',
+    exact: true,
+  });
+  await expect(submit).toBeEnabled();
+  await submit.click();
 }
+
+test('login cannot serialize credentials into the URL before hydration', async ({ browser }) => {
+  const context = await browser.newContext({
+    ...browserContextOptions(),
+    javaScriptEnabled: false,
+  });
+  await context.addCookies([{ name: 'sip_locale', value: 'en', url: baseUrl! }]);
+  const page = await context.newPage();
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+
+  const form = page.locator('form');
+  await expect(form).toHaveAttribute('method', 'post');
+  await expect(form).toHaveAttribute('action', /\/backend\/auth\/login$/);
+  await page.getByLabel('Email', { exact: true }).fill('pre-hydration@example.test');
+  await page.getByLabel('Password', { exact: true }).fill('not-a-real-password');
+
+  const loginRequest = page.waitForRequest((request) =>
+    request.url().includes('/backend/auth/login'),
+  );
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const request = await loginRequest;
+
+  expect(request.method()).toBe('POST');
+  expect(new URL(request.url()).search).toBe('');
+
+  await context.close();
+});
 
 test('login defaults to Spanish and preserves locale, route, theme and authentication', async ({
   browser,

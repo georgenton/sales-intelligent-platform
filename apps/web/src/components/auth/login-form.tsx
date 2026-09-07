@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { LOGIN_FORM_NATIVE_FALLBACK } from './login-contract';
 import Link from 'next/link';
 
 const schema = z.object({ email: z.email(), password: z.string().min(10) });
@@ -50,7 +51,13 @@ export function LoginForm() {
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('prompt')}</p>
       </CardHeader>
       <CardContent className="px-0">
-        <form className="space-y-4" onSubmit={submit} noValidate>
+        <form
+          action={LOGIN_FORM_NATIVE_FALLBACK.action}
+          method={LOGIN_FORM_NATIVE_FALLBACK.method}
+          className="space-y-4"
+          onSubmit={submit}
+          noValidate
+        >
           <label className="block text-sm font-medium">
             {t('email')}
             <Input className="mt-2" autoComplete="email" {...register('email')} />
