@@ -26,21 +26,21 @@ Local password recovery uses generic responses, rate limits, secure one-time has
 
 ## Verification evidence
 
-| Check                  | Result  | Evidence                                                                      |
-| ---------------------- | ------- | ----------------------------------------------------------------------------- |
-| Formatting             | PASS    | `pnpm format:check`                                                           |
-| Lint                   | PASS    | `pnpm lint`                                                                   |
-| Types                  | PASS    | `pnpm typecheck`                                                              |
-| Unit/component tests   | PASS    | 68 tests across API, web, and shared packages                                 |
-| API integration        | PASS    | 16 tests: CRUD/auth plus Phase 1 and password recovery                        |
-| Tenant isolation / RLS | PASS    | 5 tests across all new tenant-owned tables                                    |
-| Production build       | PASS    | `pnpm build`                                                                  |
-| Dependency audit       | PASS    | no high or critical vulnerability                                             |
-| Secret scan            | PASS    | Gitleaks over tracked worktree and history                                    |
-| Docker/API readiness   | PASS    | image build; live and ready probes with database up                           |
-| Browser/E2E            | PASS    | 8 commercial, role, responsive, theme, import, and EN/ES flows on local stack |
-| GitHub CI              | PENDING | Awaiting pull-request checks                                                  |
-| Vercel Preview         | PENDING | Awaiting the branch deployment                                                |
+| Check                  | Result | Evidence                                                                      |
+| ---------------------- | ------ | ----------------------------------------------------------------------------- |
+| Formatting             | PASS   | `pnpm format:check`                                                           |
+| Lint                   | PASS   | `pnpm lint`                                                                   |
+| Types                  | PASS   | `pnpm typecheck`                                                              |
+| Unit/component tests   | PASS   | 68 tests across API, web, and shared packages                                 |
+| API integration        | PASS   | 16 tests: CRUD/auth plus Phase 1 and password recovery                        |
+| Tenant isolation / RLS | PASS   | 5 tests across all new tenant-owned tables                                    |
+| Production build       | PASS   | `pnpm build`                                                                  |
+| Dependency audit       | PASS   | no high or critical vulnerability                                             |
+| Secret scan            | PASS   | Gitleaks over tracked worktree and history                                    |
+| Docker/API readiness   | PASS   | image build; live and ready probes with database up                           |
+| Browser/E2E            | PASS   | 8 commercial, role, responsive, theme, import, and EN/ES flows on local stack |
+| GitHub CI              | PASS   | Run `34082528570`: quality and Gitleaks jobs completed successfully           |
+| Vercel Preview         | PASS   | Deployment `dpl_5WJBYvictsyECZCnKH8yLHKDfiqC`, commit `1945978`, READY        |
 
 ## Commercial acceptance matrix
 
@@ -95,4 +95,6 @@ Neither dependency blocks the implemented Phase 1 application contract. SMTP del
 
 ## Pull request disposition
 
-The Phase 1 branch is proposed to `staging` for contractual UAT. It must not be merged automatically. No Railway paid preview environment was created, and no customer production deployment was performed.
+PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) proposes the Phase 1 branch to `staging` for contractual UAT. GitHub CI run [34082528570](https://github.com/georgenton/sales-intelligent-platform/actions/runs/34082528570) is green and the PR is clean/mergeable. It must not be merged automatically.
+
+The Vercel Preview for commit `1945978` is READY at `https://sales-intelligence-staging-georgenton-g82scu8in.vercel.app`; its protected `/login` route returned HTTP 200. Full integrated browser evidence was produced against the local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the staging Railway API. No paid Railway preview environment was created, and no customer production deployment was performed.
