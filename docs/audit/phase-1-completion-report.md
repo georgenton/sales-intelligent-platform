@@ -31,23 +31,23 @@ Local password recovery uses generic responses, rate limits, secure one-time has
 
 ## Verification evidence
 
-| Check                  | Result         | Evidence                                                                |
-| ---------------------- | -------------- | ----------------------------------------------------------------------- |
-| Formatting             | PASS           | `pnpm format:check`                                                     |
-| Lint                   | PASS           | `pnpm lint`                                                             |
-| Types                  | PASS           | `pnpm typecheck`                                                        |
-| Unit/component tests   | PASS           | 74 tests across API, web, and shared packages                           |
-| API integration        | PASS           | 17 tests: CRUD/auth plus Phase 1 correction and password recovery       |
-| Tenant isolation / RLS | PASS           | 5 tests across all new tenant-owned tables                              |
-| Production build       | PASS           | `pnpm build`                                                            |
-| Migration baseline     | PASS           | Original `staging` init followed by Phase 1 and forward-only correction |
-| Prisma schema          | PASS           | `prisma validate`                                                       |
-| Dependency audit       | PASS           | no high/critical findings; one low and three moderate remain            |
-| Secret scan            | PASS           | Gitleaks: 64-commit history plus uncommitted correction diff            |
-| Docker/API readiness   | PASS           | corrected image build; live 200; ready 200 with database up             |
-| Browser/E2E            | PASS           | 8 commercial, role, responsive, theme, mapping, and EN/ES flows locally |
-| GitHub CI              | PENDING REMOTE | Final correction HEAD must be green on PR #17                           |
-| Vercel Preview         | PENDING REMOTE | Final correction HEAD must reach READY                                  |
+| Check                  | Result | Evidence                                                                |
+| ---------------------- | ------ | ----------------------------------------------------------------------- |
+| Formatting             | PASS   | `pnpm format:check`                                                     |
+| Lint                   | PASS   | `pnpm lint`                                                             |
+| Types                  | PASS   | `pnpm typecheck`                                                        |
+| Unit/component tests   | PASS   | 74 tests across API, web, and shared packages                           |
+| API integration        | PASS   | 17 tests: CRUD/auth plus Phase 1 correction and password recovery       |
+| Tenant isolation / RLS | PASS   | 5 tests across all new tenant-owned tables                              |
+| Production build       | PASS   | `pnpm build`                                                            |
+| Migration baseline     | PASS   | Original `staging` init followed by Phase 1 and forward-only correction |
+| Prisma schema          | PASS   | `prisma validate`                                                       |
+| Dependency audit       | PASS   | no high/critical findings; one low and three moderate remain            |
+| Secret scan            | PASS   | Gitleaks: 64-commit history plus uncommitted correction diff            |
+| Docker/API readiness   | PASS   | corrected image build; live 200; ready 200 with database up             |
+| Browser/E2E            | PASS   | 8 commercial, role, responsive, theme, mapping, and EN/ES flows locally |
+| GitHub CI              | PASS   | Run `34146901794` green on correction HEAD `697857e`                    |
+| Vercel Preview         | PASS   | Deployment `6qKZFrDX5LFSmVvNJPQur1TZ2t9F` for correction HEAD, READY    |
 
 ## Commercial acceptance matrix
 
@@ -108,6 +108,6 @@ Neither dependency blocks the implemented Phase 1 application contract. SMTP del
 
 ## Pull request disposition
 
-PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. The final correction HEAD, GitHub CI run, mergeability state, and Vercel Preview are verified after the correction commits are pushed and then recorded here in a final evidence-only update.
+PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. Application correction HEAD `697857e4305ff1d854ac4ee68b4f1b67ba09eaa6` passed GitHub CI [run 34146901794](https://github.com/georgenton/sales-intelligent-platform/actions/runs/34146901794), including quality and Gitleaks jobs. GitHub reports the PR clean and mergeable.
 
-Full integrated browser evidence was produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No paid Railway preview environment was created, and no customer production deployment was performed.
+Vercel Preview deployment `6qKZFrDX5LFSmVvNJPQur1TZ2t9F` completed successfully for that correction HEAD at `https://sales-intelligence-staging-georgenton-gg9fuvf2r.vercel.app`. Vercel Authentication protects anonymous access and redirects `/login` to the Vercel sign-in surface, so this Preview status is build/deployment evidence rather than an unauthenticated application smoke test. Full integrated browser evidence was produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No protection bypass was used, no paid Railway preview environment was created, and no customer production deployment was performed.
