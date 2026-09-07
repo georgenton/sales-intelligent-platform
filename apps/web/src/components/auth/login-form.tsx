@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -16,30 +16,11 @@ import Link from 'next/link';
 const schema = z.object({ email: z.email(), password: z.string().min(10) });
 type LoginValues = z.infer<typeof schema>;
 
-let hydrationCommitted = false;
-const subscribeToHydrationCommit = (onStoreChange: () => void) => {
-  let active = true;
-  queueMicrotask(() => {
-    if (!active || hydrationCommitted) return;
-    hydrationCommitted = true;
-    onStoreChange();
-  });
-  return () => {
-    active = false;
-  };
-};
-const getHydrationSnapshot = () => hydrationCommitted;
-const getServerSnapshot = () => false;
-
 export function LoginForm() {
   const t = useTranslations('auth');
   const router = useRouter();
   const [error, setError] = useState('');
-  const hydrationReady = useSyncExternalStore(
-    subscribeToHydrationCommit,
-    getHydrationSnapshot,
-    getServerSnapshot,
-  );
+  const [nativeSubmitReady, setNativeSubmitReady] = useState(false);
   const {
     register,
     handleSubmit,
@@ -63,6 +44,27 @@ export function LoginForm() {
     router.replace('/app/dashboard');
     router.refresh();
   });
+  const submitRef = useRef(submit);
+
+  useEffect(() => {
+    submitRef.current = submit;
+  }, [submit]);
+
+  const bindForm = useCallback((form: HTMLFormElement | null) => {
+    if (!form) return;
+    const handleNativeSubmit = (event: SubmitEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void submitRef.current();
+    };
+    form.addEventListener('submit', handleNativeSubmit, { capture: true });
+    // The control must not enable until its native submit guard is installed.
+    setNativeSubmitReady(true);
+    return () => {
+      form.removeEventListener('submit', handleNativeSubmit, { capture: true });
+      setNativeSubmitReady(false);
+    };
+  }, []);
 
   return (
     <Card className="w-full max-w-sm border-0 shadow-none">
@@ -72,15 +74,20 @@ export function LoginForm() {
       </CardHeader>
       <CardContent className="px-0">
         <form
+          ref={bindForm}
           action={LOGIN_FORM_NATIVE_FALLBACK.action}
           method={LOGIN_FORM_NATIVE_FALLBACK.method}
           className="space-y-4"
-          onSubmit={submit}
           noValidate
         >
           <label className="block text-sm font-medium">
             {t('email')}
-            <Input className="mt-2" autoComplete="email" {...register('email')} />
+            <Input
+              className="mt-2"
+              autoComplete="email"
+              disabled={!nativeSubmitReady}
+              {...register('email')}
+            />
           </label>
           {errors.email && <p className="text-sm text-danger">{t('invalidEmail')}</p>}
           <label className="block text-sm font-medium">
@@ -89,6 +96,7 @@ export function LoginForm() {
               className="mt-2"
               type="password"
               autoComplete="current-password"
+              disabled={!nativeSubmitReady}
               {...register('password')}
             />
           </label>
@@ -109,7 +117,7 @@ export function LoginForm() {
           <Button
             className="h-density-control w-full"
             type="submit"
-            disabled={!hydrationReady || isSubmitting}
+            disabled={!nativeSubmitReady || isSubmitting}
           >
             {isSubmitting ? (
               t('signingIn')
