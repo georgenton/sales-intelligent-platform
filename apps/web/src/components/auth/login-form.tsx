@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,19 @@ import Link from 'next/link';
 const schema = z.object({ email: z.email(), password: z.string().min(10) });
 type LoginValues = z.infer<typeof schema>;
 
+const subscribeToHydration = () => () => undefined;
+const getHydratedSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export function LoginForm() {
   const t = useTranslations('auth');
   const router = useRouter();
   const [error, setError] = useState('');
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerSnapshot,
+  );
   const {
     register,
     handleSubmit,
@@ -86,7 +95,11 @@ export function LoginForm() {
               {t('forgotPassword')}
             </Link>
           </div>
-          <Button className="h-density-control w-full" type="submit" disabled={isSubmitting}>
+          <Button
+            className="h-density-control w-full"
+            type="submit"
+            disabled={!hydrated || isSubmitting}
+          >
             {isSubmitting ? (
               t('signingIn')
             ) : (
