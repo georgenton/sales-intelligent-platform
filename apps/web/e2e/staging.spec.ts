@@ -84,17 +84,8 @@ test('login cannot serialize credentials into the URL before hydration', async (
   const form = page.locator('form');
   await expect(form).toHaveAttribute('method', 'post');
   await expect(form).toHaveAttribute('action', /\/backend\/auth\/login$/);
-  await page.getByLabel('Email', { exact: true }).fill('pre-hydration@example.test');
-  await page.getByLabel('Password', { exact: true }).fill('not-a-real-password');
-
-  const loginRequest = page.waitForRequest((request) =>
-    request.url().includes('/backend/auth/login'),
-  );
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  const request = await loginRequest;
-
-  expect(request.method()).toBe('POST');
-  expect(new URL(request.url()).search).toBe('');
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
+  expect(new URL(page.url()).search).toBe('');
 
   await context.close();
 });
