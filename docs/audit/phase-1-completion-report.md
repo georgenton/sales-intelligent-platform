@@ -45,23 +45,23 @@ Local password recovery uses generic responses, rate limits, secure one-time has
 
 ## Verification evidence
 
-| Check                  | Result  | Evidence                                                                 |
-| ---------------------- | ------- | ------------------------------------------------------------------------ |
-| Formatting             | PASS    | `pnpm format:check`                                                      |
-| Lint                   | PASS    | `pnpm lint`                                                              |
-| Types                  | PASS    | `pnpm typecheck`                                                         |
-| Unit/component tests   | PASS    | 80 tests across API, web, and shared packages                            |
-| API integration        | PASS    | 21 tests, including exact Manager A/B scope and read-only mutations      |
-| Tenant isolation / RLS | PASS    | 5 tests across all new tenant-owned tables                               |
-| Production build       | PASS    | `pnpm build`                                                             |
-| Migration baseline     | PASS    | Four ordered migrations; schema current after final role-scope migration |
-| Prisma schema          | PASS    | `prisma validate`                                                        |
-| Dependency audit       | PASS    | no high/critical findings; one low and three moderate remain             |
-| Secret scan            | PASS    | Gitleaks: 68-commit history plus final role-scope diff                   |
-| Docker/API readiness   | PASS    | corrected image build; live 200; ready 200 with database up              |
-| Browser/E2E            | PASS    | 9 contracts across clean split runs: 7 core flows plus 2 role flows      |
-| GitHub CI              | PENDING | Current final role-scope branch head awaits push and required checks     |
-| Vercel Preview         | PENDING | Current final role-scope branch head awaits Preview deployment           |
+| Check                  | Result | Evidence                                                                 |
+| ---------------------- | ------ | ------------------------------------------------------------------------ |
+| Formatting             | PASS   | `pnpm format:check`                                                      |
+| Lint                   | PASS   | `pnpm lint`                                                              |
+| Types                  | PASS   | `pnpm typecheck`                                                         |
+| Unit/component tests   | PASS   | 80 tests across API, web, and shared packages                            |
+| API integration        | PASS   | 21 tests, including exact Manager A/B scope and read-only mutations      |
+| Tenant isolation / RLS | PASS   | 5 tests across all new tenant-owned tables                               |
+| Production build       | PASS   | `pnpm build`                                                             |
+| Migration baseline     | PASS   | Four ordered migrations; schema current after final role-scope migration |
+| Prisma schema          | PASS   | `prisma validate`                                                        |
+| Dependency audit       | PASS   | no high/critical findings; one low and three moderate remain             |
+| Secret scan            | PASS   | Gitleaks: 68-commit history plus final role-scope diff                   |
+| Docker/API readiness   | PASS   | corrected image build; live 200; ready 200 with database up              |
+| Browser/E2E            | PASS   | 9 contracts across clean split runs: 7 core flows plus 2 role flows      |
+| GitHub CI              | PASS   | Run `34155380450` green on application HEAD `c44ccdf`                    |
+| Vercel Preview         | PASS   | Deployment `dpl_8Q2emHm6WPgrMKLrMj5tp6wsJedT` for `c44ccdf`, READY       |
 
 ## Commercial acceptance matrix
 
@@ -122,6 +122,6 @@ Neither dependency blocks the implemented Phase 1 application contract. SMTP del
 
 ## Pull request disposition
 
-PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. The current final role-scope application commit, GitHub CI run, mergeability result, and Vercel Preview deployment are recorded here only after the branch push completes and both remote systems report terminal success.
+PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. Final role-scope application commit `c44ccdf9b269dbd052a00942f5992ed4aefa149e` passed GitHub CI [run 34155380450](https://github.com/georgenton/sales-intelligent-platform/actions/runs/34155380450), including quality, migration, 80 unit/component tests, 21 integration tests, 5 RLS/tenant isolation tests, build, dependency audit, and Gitleaks jobs. The dependency audit reports zero high/critical findings, with one low and three moderate remaining. GitHub reports the PR clean and mergeable.
 
-Vercel Authentication may protect anonymous Preview access. Preview status is therefore build/deployment evidence rather than an unauthenticated application smoke test. Full integrated browser evidence is produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No protection bypass is used, no paid Railway preview environment is created, and no customer production deployment is performed.
+Vercel Preview deployment `dpl_8Q2emHm6WPgrMKLrMj5tp6wsJedT` cloned commit `c44ccdf`, compiled successfully with Node 24, and reached READY at `https://sales-intelligence-staging-georgenton-55t8yt8a3.vercel.app`. Vercel Authentication may protect anonymous Preview access. Preview status is therefore build/deployment evidence rather than an unauthenticated application smoke test. Full integrated browser evidence is produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No protection bypass is used, no paid Railway preview environment is created, and no customer production deployment is performed.
