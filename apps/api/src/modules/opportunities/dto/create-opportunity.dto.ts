@@ -58,11 +58,11 @@ export class CreateOpportunityDto {
 
   @IsOptional()
   @IsEnum(OpportunityStatus)
-  status: OpportunityStatus = OpportunityStatus.OPEN;
+  status?: OpportunityStatus;
 
   @IsOptional()
   @IsEnum(ForecastCategory)
-  forecastCategory: ForecastCategory = ForecastCategory.PIPELINE;
+  forecastCategory?: ForecastCategory;
 
   @IsString()
   @Length(3, 3)
@@ -74,6 +74,10 @@ export class CreateOpportunityDto {
   @IsOptional()
   @IsNumberString()
   grossProfit?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  grossMarginPercent?: string;
 
   @IsOptional()
   @IsInt()
@@ -97,6 +101,11 @@ export class CreateOpportunityDto {
   @IsString()
   @MaxLength(5_000)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(10, 500)
+  qualificationOverrideReason?: string;
 
   @IsOptional()
   @IsArray()

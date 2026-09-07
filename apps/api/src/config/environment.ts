@@ -17,6 +17,16 @@ const environmentSchema = z
     AI_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
     AI_MODEL: z.string().min(1).default('gpt-5-mini'),
     OPENAI_API_KEY: z.string().min(1).optional(),
+    PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(120).default(30),
+    SMTP_HOST: z.string().min(1).optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASSWORD: z.string().min(1).optional(),
+    SMTP_FROM: z.string().email().optional(),
   })
   .superRefine((value, context) => {
     if (value.APP_ENV === 'local') return;
@@ -48,6 +58,20 @@ const environmentSchema = z
           message: 'Migration and runtime database credentials must be separate',
         });
       }
+    }
+    if (value.SMTP_HOST && !value.SMTP_FROM) {
+      context.addIssue({
+        code: 'custom',
+        path: ['SMTP_FROM'],
+        message: 'SMTP_FROM is required when SMTP_HOST is configured',
+      });
+    }
+    if ((value.SMTP_USER && !value.SMTP_PASSWORD) || (!value.SMTP_USER && value.SMTP_PASSWORD)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['SMTP_USER'],
+        message: 'SMTP_USER and SMTP_PASSWORD must be configured together',
+      });
     }
   });
 

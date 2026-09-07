@@ -29,7 +29,8 @@
     "db:bootstrap:staging": "pnpm --filter @sip/api db:bootstrap:staging",
     "db:rotate:staging-admin": "pnpm --filter @sip/api db:rotate:staging-admin",
     "import:excel": "pnpm --filter @sip/api import:excel",
-    "security:audit": "pnpm audit --audit-level high"
+    "security:audit": "pnpm audit --audit-level high",
+    "platform:feature": "pnpm --filter @sip/api platform:feature"
   },
   "pnpm": {
     "overrides": {

@@ -10,6 +10,11 @@ export interface OpportunityRiskInput {
   lastStageChangedAt: Date;
   marginThreshold: number;
   now?: Date;
+  status?: 'OPEN' | 'WON' | 'LOST' | 'CANCELLED';
+  forecastCategory?: 'PIPELINE' | 'BEST_CASE' | 'COMMIT' | 'CLOSED' | 'OMITTED';
+  qualificationComplete?: boolean;
+  periodStart?: Date;
+  periodEnd?: Date;
 }
 
 export interface RiskAlert {
@@ -74,6 +79,43 @@ export function evaluateOpportunityRisk(input: OpportunityRiskInput): {
       'WARNING',
       `Opportunity has remained ${daysInStage} days in stage`,
     );
+  if (input.status === 'OPEN' && input.expectedCloseDate < now) {
+    add('PAST_CLOSE_DATE', -15, 'HIGH', 'Expected close date is in the past');
+  }
+  if (
+    input.expectedBillingDate &&
+    input.expectedBillingDate.getTime() < input.expectedCloseDate.getTime()
+  ) {
+    add(
+      'BILLING_DATE_BEFORE_CLOSE',
+      -15,
+      'HIGH',
+      'Expected billing date is before the expected close date',
+    );
+  }
+  if (
+    input.periodStart &&
+    input.periodEnd &&
+    ['BEST_CASE', 'COMMIT'].includes(input.forecastCategory ?? '') &&
+    (input.expectedCloseDate < input.periodStart || input.expectedCloseDate > input.periodEnd)
+  ) {
+    add(
+      'FORECAST_OUTSIDE_CURRENT_QUARTER',
+      -10,
+      'WARNING',
+      'Forecast opportunity closes outside the current fiscal quarter',
+    );
+  }
+  if (input.qualificationComplete === false && input.stageProbability >= 60) {
+    add(
+      input.forecastCategory === 'COMMIT' ? 'COMMIT_WITHOUT_EVIDENCE' : 'QUALIFICATION_INCOMPLETE',
+      -20,
+      'HIGH',
+      input.forecastCategory === 'COMMIT'
+        ? 'Commit lacks required qualification evidence'
+        : 'Qualification evidence is incomplete',
+    );
+  }
 
   const score = Math.max(
     0,

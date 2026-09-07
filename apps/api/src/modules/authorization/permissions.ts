@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   TENANT_MANAGE: 'tenant.manage',
   ALERTS_READ: 'alerts.read',
   ANALYTICS_READ: 'analytics.read',
+  IMPORT_MANAGE: 'imports.manage',
 } as const;
 
 const allPermissions = Object.values(PERMISSIONS);
@@ -28,6 +29,7 @@ const ROLE_PERMISSIONS: Record<MembershipRole, readonly string[]> = {
     PERMISSIONS.FORECAST_MANAGE,
     PERMISSIONS.ALERTS_READ,
     PERMISSIONS.ANALYTICS_READ,
+    PERMISSIONS.IMPORT_MANAGE,
   ],
   SELLER: [
     PERMISSIONS.OPPORTUNITIES_READ_OWN,

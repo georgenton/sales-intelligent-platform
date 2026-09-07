@@ -55,6 +55,22 @@ enum AlertSeverity {
   CRITICAL
 }
 
+enum QualificationAnswer {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum OpportunityReviewEventType {
+  KEEP_COMMIT
+  MOVE_BEST_CASE
+  ASK_SELLER
+  SELLER_RESPONSE
+  MANAGER_NOTE
+  GUIDED_ACTION
+  OVERRIDE_QUALIFICATION
+}
+
 model User {
   id                  String             @id @default(uuid()) @db.Uuid
   name                String
@@ -73,6 +89,10 @@ model User {
   stageChanges        StageHistory[]
   quotas              Quota[]
   auditEvents         AuditEvent[]
+  passwordResetTokens PasswordResetToken[]
+  qualificationUpdates QualificationResponse[] @relation("QualificationResponseUpdater")
+  reviewEvents         OpportunityReviewEvent[] @relation("OpportunityReviewActor")
+  targetedReviewEvents OpportunityReviewEvent[] @relation("OpportunityReviewTarget")
 
   @@map("users")
 }
@@ -104,6 +124,10 @@ model Tenant {
   alerts         Alert[]
   auditEvents    AuditEvent[]
   aiInteractions AiInteraction[]
+  qualificationCriteria QualificationCriterion[]
+  qualificationResponses QualificationResponse[]
+  reviewEvents OpportunityReviewEvent[]
+  featureEntitlements TenantFeatureEntitlement[]
 
   @@map("tenants")
 }
@@ -143,6 +167,19 @@ model LocalCredential {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("local_credentials")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model Session {
@@ -228,6 +265,7 @@ model Brand {
   tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   lineItems OpportunityLineItem[]
   quotas    Quota[]
+  billingRecords BillingRecord[]
 
   @@unique([tenantId, name])
   @@map("brands")
@@ -295,6 +333,8 @@ model Opportunity {
   billingRecords      BillingRecord[]
   snapshotItems       ForecastSnapshotItem[]
   alerts              Alert[]
+  qualificationResponses QualificationResponse[]
+  reviewEvents         OpportunityReviewEvent[]
 
   @@unique([tenantId, externalReference])
   @@index([tenantId, status, expectedCloseDate])
@@ -372,19 +412,105 @@ model Quota {
 }
 
 model BillingRecord {
-  id            String      @id @default(uuid()) @db.Uuid
-  tenantId      String      @map("tenant_id") @db.Uuid
-  opportunityId String      @map("opportunity_id") @db.Uuid
-  invoiceNumber String?     @map("invoice_number")
-  amount        Decimal     @db.Decimal(18, 2)
-  currency      String      @db.Char(3)
-  billedAt      DateTime    @map("billed_at") @db.Date
-  createdAt     DateTime    @default(now()) @map("created_at")
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  id                String       @id @default(uuid()) @db.Uuid
+  tenantId          String       @map("tenant_id") @db.Uuid
+  opportunityId     String?      @map("opportunity_id") @db.Uuid
+  brandId           String?      @map("brand_id") @db.Uuid
+  invoiceNumber     String?      @map("invoice_number")
+  amount            Decimal      @db.Decimal(18, 2)
+  grossProfit       Decimal?     @map("gross_profit") @db.Decimal(18, 2)
+  currency          String       @db.Char(3)
+  billedAt          DateTime     @map("billed_at") @db.Date
+  source            String       @default("MANUAL")
+  externalReference String?      @map("external_reference")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunity       Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  brand             Brand?       @relation(fields: [brandId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, externalReference])
   @@index([tenantId, billedAt])
+  @@index([tenantId, brandId, billedAt])
   @@map("billing_records")
+}
+
+model QualificationCriterion {
+  id               String                  @id @default(uuid()) @db.Uuid
+  tenantId         String                  @map("tenant_id") @db.Uuid
+  gateCode         String                  @map("gate_code")
+  code             String
+  labelEn          String                  @map("label_en")
+  labelEs          String                  @map("label_es")
+  descriptionEn    String?                 @map("description_en")
+  descriptionEs    String?                 @map("description_es")
+  required         Boolean                 @default(true)
+  evidenceRequired Boolean                 @default(true) @map("evidence_required")
+  sortOrder        Int                     @default(0) @map("sort_order")
+  enabled          Boolean                 @default(true)
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  responses        QualificationResponse[]
+
+  @@unique([tenantId, gateCode, code])
+  @@index([tenantId, gateCode, sortOrder])
+  @@map("qualification_criteria")
+}
+
+model QualificationResponse {
+  id            String                 @id @default(uuid()) @db.Uuid
+  tenantId      String                 @map("tenant_id") @db.Uuid
+  opportunityId String                 @map("opportunity_id") @db.Uuid
+  criterionId   String                 @map("criterion_id") @db.Uuid
+  answer        QualificationAnswer    @default(UNKNOWN)
+  evidence      String?
+  updatedById   String                 @map("updated_by_id") @db.Uuid
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity            @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  criterion     QualificationCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  updatedBy     User                   @relation("QualificationResponseUpdater", fields: [updatedById], references: [id])
+
+  @@unique([opportunityId, criterionId])
+  @@index([tenantId, opportunityId])
+  @@map("qualification_responses")
+}
+
+model OpportunityReviewEvent {
+  id            String                     @id @default(uuid()) @db.Uuid
+  tenantId      String                     @map("tenant_id") @db.Uuid
+  opportunityId String                     @map("opportunity_id") @db.Uuid
+  actorId       String                     @map("actor_id") @db.Uuid
+  type          OpportunityReviewEventType
+  targetUserId  String?                    @map("target_user_id") @db.Uuid
+  body          String?
+  parentEventId String?                    @map("parent_event_id") @db.Uuid
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  resolvedAt    DateTime?                  @map("resolved_at")
+  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity                @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  actor         User                       @relation("OpportunityReviewActor", fields: [actorId], references: [id])
+  targetUser    User?                      @relation("OpportunityReviewTarget", fields: [targetUserId], references: [id])
+  parentEvent   OpportunityReviewEvent?    @relation("OpportunityReviewThread", fields: [parentEventId], references: [id], onDelete: SetNull)
+  replies       OpportunityReviewEvent[]   @relation("OpportunityReviewThread")
+
+  @@index([tenantId, opportunityId, createdAt])
+  @@index([tenantId, targetUserId, resolvedAt])
+  @@map("opportunity_review_events")
+}
+
+model TenantFeatureEntitlement {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  featureKey String   @map("feature_key")
+  enabled    Boolean  @default(false)
+  config     Json?
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureKey])
+  @@index([tenantId, enabled])
+  @@map("tenant_feature_entitlements")
 }
 
 model ForecastSnapshot {

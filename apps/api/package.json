@@ -9,7 +9,7 @@
     "lint": "eslint src test prisma --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.mts --exclude 'test/**/*.integration-spec.ts'",
-    "test:integration": "vitest run --config vitest.config.mts test/api.integration-spec.ts",
+    "test:integration": "vitest run --config vitest.config.mts test/api.integration-spec.ts test/password-recovery.integration-spec.ts test/phase1-commercial.integration-spec.ts",
     "test:tenant-isolation": "vitest run --config vitest.config.mts test/tenant-isolation.integration-spec.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -19,7 +19,8 @@
     "db:bootstrap:staging": "tsx prisma/seed.ts --staging",
     "db:rotate:staging-admin": "tsx prisma/rotate-staging-admin-password.ts",
     "db:verify:staging-security": "tsx src/scripts/verify-staging-security.ts --staging",
-    "import:excel": "tsx src/modules/imports/excel-importer.cli.ts"
+    "import:excel": "tsx src/modules/imports/excel-importer.cli.ts",
+    "platform:feature": "tsx src/scripts/platform-feature.ts"
   },
   "dependencies": {
     "@nestjs/common": "11.2.3",
@@ -36,6 +37,7 @@
     "dotenv": "17.3.1",
     "exceljs": "4.4.0",
     "helmet": "8.1.0",
+    "nodemailer": "^10.0.0",
     "pino": "9.14.0",
     "pino-http": "10.5.0",
     "prisma": "6.19.3",
@@ -51,6 +53,7 @@
     "@types/cookie-parser": "1.4.10",
     "@types/express": "5.0.6",
     "@types/node": "24.10.13",
+    "@types/nodemailer": "^8.0.1",
     "@types/supertest": "6.0.3",
     "eslint": "9.39.2",
     "supertest": "7.2.2",

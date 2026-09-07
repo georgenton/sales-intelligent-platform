@@ -22,7 +22,7 @@ export class MockAiProvider implements AiProvider {
         ? 'No hay riesgos prioritarios abiertos actualmente.'
         : 'No priority risks are currently open.';
     return locale === 'es'
-      ? `${context.period}: el cumplimiento facturado es ${attainment} %, con ${formatter.format(context.forecast)} en el pronóstico y una brecha de ${formatter.format(context.gap)} para la cuota. ${riskMessage}`
-      : `${context.period}: billed attainment is ${attainment}% with ${formatter.format(context.forecast)} in forecast and a ${formatter.format(context.gap)} gap to quota. ${riskMessage}`;
+      ? `${context.period}: el cumplimiento facturado es ${attainment} %, con ${formatter.format(context.forecast)} en el pronóstico y una brecha de ${formatter.format(context.gap ?? 0)} para la cuota. ${riskMessage}`
+      : `${context.period}: billed attainment is ${attainment}% with ${formatter.format(context.forecast)} in forecast and a ${formatter.format(context.gap ?? 0)} gap to quota. ${riskMessage}`;
   }
 }

@@ -60,7 +60,10 @@ export function normalizeMoney(value: unknown): number | null {
 
 export function normalizeStage(value: unknown): number | null {
   const stage = normalizeMoney(normalizeText(value).replace('%', ''));
-  return stage !== null && [0, 25, 50, 75, 90, 100].includes(stage) ? stage : null;
+  if (stage === null) return null;
+  const legacyToCanonical: Record<number, number> = { 0: 20, 25: 40, 50: 60, 75: 80 };
+  const canonical = legacyToCanonical[stage] ?? stage;
+  return [20, 40, 60, 80, 90, 100].includes(canonical) ? canonical : null;
 }
 
 export function normalizeDate(
