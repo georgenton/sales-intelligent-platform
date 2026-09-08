@@ -2,9 +2,12 @@
 
 ## Scope and baseline
 
-- Branch: `feat/phase-1-commercial-completion`
+- Approved branch: `feat/phase-1-commercial-completion`
 - Required base: `staging` at `0d60cc2e57086a1a9c62890452903a0d7e79b549`
-- Customer production and `main`: untouched
+- Approved PR HEAD: `d158a29ced40eaf70128a0c15527e083a0fae80a`
+- Phase 1 squash merge: `125ad6f6e05121b363d7982d4195bb32c88b25d6`
+- Contractually verified application SHA: `1d9002555f70df31a9b46e958879d9561f798574`
+- Customer production and `main`: untouched (`origin/main` remained at `77c58dd7f2fa7fe791f4a478ff1d3e7e7915d22a`)
 - Full Phase 2/3 functionality: intentionally not implemented
 - Reviewed final role-scope baseline: `e2167578be05810a5ffae3cca64f5a46a29a8828`
 - Private workbook: `PROGRAMA VENTAS.xlsx` was not found in the authorized project, download, document, desktop, iCloud Drive, or CloudStorage locations; no private data was copied, parsed, uploaded, logged, or committed
@@ -59,9 +62,9 @@ Local password recovery uses generic responses, rate limits, secure one-time has
 | Dependency audit       | PASS   | no high/critical findings; one low and three moderate remain             |
 | Secret scan            | PASS   | Gitleaks: 68-commit history plus final role-scope diff                   |
 | Docker/API readiness   | PASS   | corrected image build; live 200; ready 200 with database up              |
-| Browser/E2E            | PASS   | 9 contracts across clean split runs: 7 core flows plus 2 role flows      |
-| GitHub CI              | PASS   | Run `34155380450` green on application HEAD `c44ccdf`                    |
-| Vercel Preview         | PASS   | Deployment `dpl_8Q2emHm6WPgrMKLrMj5tp6wsJedT` for `c44ccdf`, READY       |
+| Browser/E2E            | PASS   | 10/10 post-merge contracts against the stable staging alias              |
+| GitHub CI              | PASS   | Run `34173074173` green on verified application SHA `1d90025`            |
+| Vercel Preview         | PASS   | Deployment `dpl_ASPexZ1tX9QbvsmqwJ7kRWtYkoT7` for `1d90025`, READY       |
 
 ## Commercial acceptance matrix
 
@@ -120,8 +123,14 @@ The Phase 1 migration applies `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECU
 
 Neither dependency blocks the implemented Phase 1 application contract. SMTP delivery itself and a workbook-derived quota source must not be reported as complete until configured/verified.
 
-## Pull request disposition
+## Post-merge disposition
 
-PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) remains the sole Phase 1 proposal to `staging`; it must not be merged automatically. Final role-scope application commit `c44ccdf9b269dbd052a00942f5992ed4aefa149e` passed GitHub CI [run 34155380450](https://github.com/georgenton/sales-intelligent-platform/actions/runs/34155380450), including quality, migration, 80 unit/component tests, 21 integration tests, 5 RLS/tenant isolation tests, build, dependency audit, and Gitleaks jobs. The dependency audit reports zero high/critical findings, with one low and three moderate remaining. GitHub reports the PR clean and mergeable.
+PR [#17](https://github.com/georgenton/sales-intelligent-platform/pull/17) was squash-merged into `staging` at `125ad6f6e05121b363d7982d4195bb32c88b25d6`. Contractual UAT exposed a P0 login risk in the pre-hydration path: browser submission could serialize credentials into a URL. The issue was resolved through isolated PRs #19–#23, culminating in application SHA `1d9002555f70df31a9b46e958879d9561f798574`. The final implementation attaches the protected submit handler to the reconciled form node, disables credentials and submission until the handler and React Hook Form are ready, and retains a secure native POST fallback. The affected UAT and database credentials were rotated outside the repository; no credential value is present in source, reports, or CI logs.
 
-Vercel Preview deployment `dpl_8Q2emHm6WPgrMKLrMj5tp6wsJedT` cloned commit `c44ccdf`, compiled successfully with Node 24, and reached READY at `https://sales-intelligence-staging-georgenton-55t8yt8a3.vercel.app`. Vercel Authentication may protect anonymous Preview access. Preview status is therefore build/deployment evidence rather than an unauthenticated application smoke test. Full integrated browser evidence is produced against an isolated local web/API/database stack because the unmerged branch intentionally does not migrate or deploy the persistent staging Railway API. No protection bypass is used, no paid Railway preview environment is created, and no customer production deployment is performed.
+GitHub CI [run 34173074173](https://github.com/georgenton/sales-intelligent-platform/actions/runs/34173074173) passed formatting, lint, type checking, 80 unit/component tests, 21 API integration tests, 5 tenant-isolation/RLS tests, build, dependency audit, and Gitleaks for the verified application SHA. The dependency audit reports zero high/critical findings, with one low and three moderate remaining.
+
+Railway deployed the Phase 1 API successfully as deployment `010ea649-a4eb-4ab4-a48e-561eed2b8d78`; the later web-only commits were correctly skipped by the API service watch paths. All four ordered Prisma migrations are applied exactly once with no failed or rolled-back migration. The staging runtime role remains non-superuser and non-`BYPASSRLS`, and RLS remains enabled and forced for all Phase 1 tenant-owned tables. Direct live/readiness health and the Vercel same-origin readiness proxy return HTTP 200 with the database up.
+
+Vercel deployment `dpl_ASPexZ1tX9QbvsmqwJ7kRWtYkoT7` cloned application commit `1d90025`, compiled successfully, and reached READY. The stable staging alias `https://sales-intelligence-staging-georgent.vercel.app` was assigned to that exact artifact for final UAT. Build logs contain no `API_ORIGIN` warning. Runtime inspection found no unexpected HTTP 5xx or fatal errors. The only Vercel build warning is pnpm's notice that optional dependency build scripts were ignored for `@parcel/watcher`, `@scarf/scarf`, `@swc/core`, and `unrs-resolver`.
+
+The final external browser suite passed 10/10 against the stable alias, including authentication, locale/theme persistence, Admin/Seller/Manager/Executive/Viewer contracts, commercial progression and gates, forecast review, import validation, responsive breakpoints, logout, and protected redirect. Supplemental role checks confirmed Manager and Tenant Admin session/CSRF behavior and expected access. Hosted SMTP delivery and customer-specific `Facturado Daily` mapping remain genuine external-configuration items; neither is reported as implemented external delivery or workbook-specific validation. See `docs/uat/PHASE-1-CONTRACTUAL-UAT-RESULT.md` for the full acceptance record.
