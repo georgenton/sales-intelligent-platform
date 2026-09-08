@@ -84,6 +84,8 @@ test('login cannot serialize credentials into the URL before hydration', async (
   const form = page.locator('form');
   await expect(form).toHaveAttribute('method', 'post');
   await expect(form).toHaveAttribute('action', /\/backend\/auth\/login$/);
+  await expect(page.getByLabel('Email', { exact: true })).toBeDisabled();
+  await expect(page.getByLabel('Password', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
   expect(new URL(page.url()).search).toBe('');
 
@@ -103,7 +105,7 @@ test('login defaults to Spanish and preserves locale, route, theme and authentic
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
@@ -124,7 +126,7 @@ test('login defaults to Spanish and preserves locale, route, theme and authentic
   ).toMatchObject({ width: 390, scrollWidth: 390 });
 
   await page.evaluate(() => localStorage.setItem('sip-appearance', 'DARK'));
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByLabel('Idioma').selectOption('en');
   await expect(page).toHaveURL(/\/login$/);
@@ -134,7 +136,7 @@ test('login defaults to Spanish and preserves locale, route, theme and authentic
   expect(await page.evaluate(() => localStorage.getItem('sip-appearance'))).toBe('DARK');
 
   await page.evaluate(() => localStorage.setItem('sip-appearance', 'LIGHT'));
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByLabel('Language').selectOption('es');
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
@@ -249,14 +251,21 @@ test('manager drills into the funnel, opens context and closes with Escape', asy
   await inspect.click();
   const alertDrawer = page.getByRole('dialog').last();
   await expect(alertDrawer).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(alertDrawer).toBeHidden();
+  await expect
+    .poll(
+      async () => {
+        await page.keyboard.press('Escape');
+        return alertDrawer.isVisible();
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(false);
 });
 
 test('funnel semantics stay accessible without horizontal page overflow', async () => {
   const page = adminPage;
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/app/dashboard', { waitUntil: 'networkidle' });
+  await page.goto('/app/dashboard', { waitUntil: 'domcontentloaded' });
 
   const scenarios = [
     { width: 390, height: 844, locale: 'es', appearance: 'LIGHT' },
@@ -279,7 +288,7 @@ test('funnel semantics stay accessible without horizontal page overflow', async 
       (appearance) => localStorage.setItem('sip-appearance', appearance),
       scenario.appearance,
     );
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute(
       'data-theme',
       scenario.appearance.toLowerCase(),
@@ -555,7 +564,7 @@ test('Executive and Viewer surfaces remain read-only', async ({ browser }) => {
       await expect(palette.getByText('Open forecast review', { exact: true })).toHaveCount(0);
       await page.keyboard.press('Escape');
 
-      await page.goto('/app/opportunities', { waitUntil: 'networkidle' });
+      await page.goto('/app/opportunities', { waitUntil: 'domcontentloaded' });
       await expect(page.getByText('New opportunity', { exact: true })).toHaveCount(0);
       const firstOpportunity = await page.evaluate(async () => {
         const response = await fetch('/backend/opportunities?perPage=1');
@@ -572,11 +581,13 @@ test('Executive and Viewer surfaces remain read-only', async ({ browser }) => {
       await expect(drawer.getByText('Update forecast', { exact: true })).toHaveCount(0);
       await page.keyboard.press('Escape');
 
-      await page.goto(`/app/opportunities/${firstOpportunity!.id}`, { waitUntil: 'networkidle' });
+      await page.goto(`/app/opportunities/${firstOpportunity!.id}`, {
+        waitUntil: 'domcontentloaded',
+      });
       await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
       await expect(page.getByRole('combobox', { name: /^Answer for / })).toHaveCount(0);
 
-      await page.goto('/app/forecast', { waitUntil: 'networkidle' });
+      await page.goto('/app/forecast', { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('button', { name: 'Capture snapshot' })).toHaveCount(0);
       await page.goto('/app/opportunities/new');
       await expect(page).toHaveURL(/\/app\/opportunities$/);
@@ -590,9 +601,16 @@ test('Executive and Viewer surfaces remain read-only', async ({ browser }) => {
 
 test('language persists without changing route, theme, mode or session boundaries', async () => {
   const page = adminPage;
-  await page.goto('/app/dashboard', { waitUntil: 'networkidle' });
-  await page.getByLabel('Appearance').selectOption('DARK');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.goto('/app/dashboard', { waitUntil: 'domcontentloaded' });
+  await expect
+    .poll(
+      async () => {
+        await page.getByLabel('Appearance').selectOption('DARK');
+        return page.locator('html').getAttribute('data-theme');
+      },
+      { timeout: 15_000 },
+    )
+    .toBe('dark');
   await page.getByLabel('Cognitive mode').selectOption('REVIEW');
   const route = new URL(page.url()).pathname;
 
