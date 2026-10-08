@@ -20,6 +20,7 @@ import { QualificationModule } from './modules/qualification/qualification.modul
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { CommercialModule } from './modules/commercial/commercial.module';
 import { ImportsModule } from './modules/imports/imports.module';
+import { VisitsModule } from './modules/visits/visits.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ImportsModule } from './modules/imports/imports.module';
     ReviewsModule,
     CommercialModule,
     ImportsModule,
+    VisitsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -67,6 +67,157 @@ export interface AlertData {
   opportunity: { id: string; title: string } | null;
 }
 
+export interface ManagerDashboardData {
+  generatedAt: string;
+  currency: string;
+  periods: Array<{ value: 'current' | 'next'; label: string; start: string; end: string }>;
+  filters: {
+    selected: {
+      period: 'current' | 'next';
+      brandId: string | null;
+      line: string | null;
+      sellerId: string | null;
+      weekStart: string;
+    };
+    brands: Array<{ id: string; name: string }>;
+    lines: string[];
+    sellers: Array<{ id: string; name: string }>;
+  };
+  period: { label: string; start: string; end: string };
+  week: { start: string; end: string; closed: boolean };
+  importState: {
+    status: 'NO_PUBLISHED_BATCH' | 'PROCESSING' | 'PUBLISHED' | 'PARTIAL' | 'FAILED';
+    partial: boolean;
+    sourceCutoff: string | null;
+    loadedAt: string | null;
+    summary: unknown;
+  };
+  summary: {
+    quota: number | null;
+    billed: number;
+    pipeline: number;
+    forecast: number;
+    backlog: number;
+    forecastAndBacklog: number;
+    closeProjection: number;
+    compliance: { status: 'PENDING_VALIDATION'; reason: string };
+    marginAmount: number;
+    marginPercent: number | null;
+    marginTarget: number;
+  };
+  coverage: {
+    status: 'NOT_EVALUABLE' | 'SUFFICIENT' | 'INSUFFICIENT';
+    baseAmount: number | null;
+    requiredPipeline: number | null;
+    availablePipeline: number;
+    difference: number | null;
+    ratio: number;
+  };
+  brandHierarchy: {
+    label: string;
+    aliasDecision: string;
+    brands: Array<{
+      brandId: string;
+      brand: string;
+      mappingState: string;
+      quota: number | null;
+      billed: number;
+      pipeline: number;
+      forecast: number;
+      backlog: number;
+      forecastAndBacklog: number;
+      lines: Array<{
+        line: string;
+        quota: number | null;
+        billed: number;
+        pipeline: number;
+        forecast: number;
+        backlog: number;
+        forecastAndBacklog: number;
+        opportunityIds: string[];
+      }>;
+    }>;
+  };
+  weeklyPipeline: {
+    status: 'NO_COMPARISON' | 'AVAILABLE';
+    currentCutoff: string | null;
+    previousCutoff: string | null;
+    previous: number | null;
+    current: number | null;
+    changeAmount: number | null;
+    changePercent: number | null;
+    droppedMoreThanTenPercent: boolean;
+    movements: Array<{
+      opportunityId: string;
+      kind:
+        | 'ENTERED_PIPELINE'
+        | 'LEFT_PIPELINE'
+        | 'ADVANCED_TO_FORECAST'
+        | 'LOST_OR_CANCELLED'
+        | 'AMOUNT_CHANGED';
+      delta: number;
+    }>;
+  };
+  stages: Array<{
+    stageCode: string;
+    count: number;
+    amount: number;
+    opportunityIds: string[];
+  }>;
+  visits: Array<{
+    id: string;
+    sellerId: string;
+    seller: string;
+    customerId: string;
+    customer: string;
+    visitedAt: string;
+    foundOpportunity: boolean;
+    opportunity: { id: string; title: string } | null;
+    linkStatus: 'PENDING_LINK' | 'COMPLETE';
+  }>;
+  sellerPerformance: Array<{
+    sellerId: string;
+    seller: string;
+    opportunities: number;
+    pipeline: number;
+    forecast: number;
+    backlog: number;
+    forecastAndBacklog: number;
+    visitedCustomers: number;
+    visitTarget: number;
+    visitStatus: 'CLOSED' | 'IN_PROGRESS';
+    grossMarginAmount: number;
+    grossMarginPercent: number | null;
+  }>;
+  stalled: Array<{
+    opportunityId: string;
+    title: string;
+    sellerId: string;
+    seller: string;
+    stageCode: string;
+    startedAt: string;
+    daysWithoutProgress: number;
+    thresholdDays: number;
+    thresholdSource: string;
+    amount: number;
+  }>;
+  salesCycle: { status: 'PENDING_DEFINITION'; reason: string; averageDays: null };
+  alerts: Array<{
+    id: string;
+    code: 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'A06' | 'A07';
+    group: 'DEALS' | 'SELLERS_BRANDS';
+    kind: 'SIGNAL' | 'CONTEXT' | 'MISSING_INFORMATION';
+    severity: 'INFO' | 'WARNING' | 'HIGH';
+    title: string;
+    rule: string;
+    cutoff: string | null;
+    affectedAmount: number | null;
+    opportunityId?: string;
+    entity?: { id: string; label: string };
+    observed?: unknown;
+  }>;
+}
+
 export interface OpportunityData {
   id: string;
   title: string;
