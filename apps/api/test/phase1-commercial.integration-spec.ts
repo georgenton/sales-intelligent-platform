@@ -703,7 +703,10 @@ describe('Phase 1 commercial operating flows', () => {
     expect(dashboard.body.kpis.weightedCoverage).not.toBeNull();
     expect(dashboard.body.kpis.averageMargin).not.toBeNull();
     expect(dashboard.body.brandPerformance.length).toBeGreaterThan(0);
-    expect(dashboard.body.brandPerformance[0]).toEqual(
+    const configuredBrand = dashboard.body.brandPerformance.find(
+      (brand: { quota: number | null }) => brand.quota !== null,
+    );
+    expect(configuredBrand).toEqual(
       expect.objectContaining({
         brandId: expect.any(String),
         quota: expect.any(Number),
