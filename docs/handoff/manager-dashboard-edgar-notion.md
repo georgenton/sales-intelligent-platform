@@ -1,6 +1,6 @@
 # Handoff para Notion — Bloque gerencial de Edgar
 
-NOTION: ENTREGA INICIAL YA SINCRONIZADA POR CHATGPT; ACTUALIZACIÓN G15 PENDIENTE DE SINCRONIZACIÓN
+NOTION: ENTREGA INICIAL YA SINCRONIZADA POR CHATGPT; ACTUALIZACIONES G15/G16 PENDIENTES DE SINCRONIZACIÓN
 
 Fecha de corte: 2026-10-08
 
@@ -50,6 +50,21 @@ Este archivo está preparado para incorporar el avance G15 a las páginas de con
 - Datos y entornos: sin cambios en main, staging, datos remotos, credenciales, DNS o producción. Preview sólo build, no demo integrada.
 - Fuentes: advisories oficiales enlazados en `docs/audit/manager-dashboard-edgar-report.md`.
 - Siguiente paso: esperar una versión oficial compatible que elimine/corrija `braces`, actualizar el lockfile y repetir audit/CI. El backport de dependencias runtime a staging debe revisarse como cambio separado, sin desplegar este PR funcional.
+
+## G16 — Exposición residual y backport estable
+
+- Estado de `braces`: **TOOLING ACOTADO DEMOSTRADO**; no se declara “no afectado”. La única cadena entra por ESLint/Next, está físicamente en el builder y queda excluida de la imagen final API y del standalone/NFT web. No hay ruta desde HTTP, uploads ni datos comerciales.
+- Upstream: `braces@3.0.3` continúa como última versión/tag; GHSA-vfj7-8cjw-p6xm afecta `<=3.0.3` y no publica versión parcheada. Issue oficial #70 sigue abierto.
+- Audit completo: exit 1, 0 critical / 1 high / 2 moderate / 1 low. Audit productivo: exit 1, 0 critical / 1 high / 2 moderate / 0 low. El high de `braces` aparece también en `--prod` por el manifiesto del paquete compartido de ESLint, no por evidencia de carga runtime.
+- CI: `pull_request`, no `pull_request_target`; token/permisos de solo lectura, sin secretos de repositorio en forks; quality timeout 25 minutos; egress sin restricción explícita. Un PR puede cambiar la configuración versionada que controla `rootDir`, por lo que queda riesgo de disponibilidad del tooling.
+- Excepción: **NO APLICADA**. Propuesta pendiente de aprobación para la cadena exacta, owner propuesto Jorge, revisión semanal y vencimiento 14 días después de una aprobación real, sin renovación automática. El gate crudo continúa FAIL y CI no fue suavizado.
+- Backport: Draft [PR #30](https://github.com/georgenton/sales-intelligent-platform/pull/30), `fix/staging-runtime-security → staging`, desde `de234540`; sólo manifiestos/lockfile compatibles de G15 e informe técnico. Cuatro migraciones estables; no dashboard, visitas ni migraciones de octubre; no despliegue.
+- Pruebas del backport: frozen install, format/lint/typecheck, 81 unitarias, 5 RLS, build, Docker API/health, web standalone, 10 escenarios E2E locales rate-aware y gitleaks pasan. Integración estable 20/21 por aserción preexistente sobre `brandPerformance[0]`; el fix test-only `23842f7` permanece fuera por el límite de alcance.
+- Estado: backport preparado como Draft, no merge-ready mientras fallen el audit high y la integración estable. Runbook posterior de aprobación, deployment staging y rollback documentado pero no ejecutado.
+- PR #29: actualización G16 sólo documental; conserva los 88 unit, 27 integración, 5 RLS y 10 E2E de G15 como evidencia reutilizada del SHA `da9fbf82ab5b648bc4370f2ca71bb986a2402ca1`; no se afirma reejecución.
+- Comercial: R01–R10/A01–A07 sin cambios; D01–D04, R05, R08/A05 y R10 abiertos; conciliación real NO VERIFICADA; H3 NO INICIADO.
+- Entornos: Railway estable sigue live/ready 200 en el artefacto anterior; Vercel estable no se movió. Main, staging, datos, credenciales, DNS y customer production sin cambios.
+- Notion: sin conector autorizado en este entorno; este handoff queda pendiente de sincronización y no sobrescribe la historia ya enviada.
 
 ## H3 — Aceptación posterior de Edgar
 

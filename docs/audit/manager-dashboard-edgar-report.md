@@ -172,3 +172,48 @@ La API activa de Railway staging respondió 200 en `/health/live` y 200/database
 El alias estable de Vercel observado estaba Ready sobre `912ee9497e7134098d5e65485cb9f1095656db0c` y Next 16.3.3. No se encontraron usos de `next/og`, `ImageResponse` ni imágenes remotas en la configuración actual, pero esto no convierte la versión vulnerable en aceptable. La Preview de PR #29 se trata exclusivamente como build; no se apunta al backend compartido ni se presenta como demo integrada.
 
 No se modificaron main, staging, Railway, Vercel estable, datos remotos, DNS, credenciales ni producción. El SHA final y la CI exacta se registran en la entrega del PR una vez publicados los commits G15.
+
+## G16 — Exposición residual y backport de seguridad — 2026-10-08
+
+### Decisión técnica sobre `braces`
+
+La revalidación única de [GHSA-vfj7-8cjw-p6xm / CVE-2026-93687](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), las [releases oficiales](https://github.com/micromatch/braces/releases), npm y [micromatch/braces#70](https://github.com/micromatch/braces/issues/70) confirma que `3.0.3` sigue siendo la versión/tag más reciente, el rango afectado es `<=3.0.3` y no existe versión oficial parcheada. No se utilizó fork, commit no publicado, override ni falsificación de versión.
+
+Clasificación: **TOOLING ACOTADO DEMOSTRADO**.
+
+La única cadena es `packages__eslint-config > eslint-config-next@16.3.8 > @next/eslint-plugin-next@16.3.8 > fast-glob@3.3.1 > micromatch@4.0.8 > braces@3.0.3`. `@next/eslint-plugin-next` usa `fast-glob.globSync` para un `settings.next.rootDir` configurable; la configuración versionada actual no define ese valor y usa `context.cwd`. Un PR no confiable sí puede modificar la configuración de lint, por lo que queda un riesgo de disponibilidad de tooling/CI, no una afirmación de “no afectado”. No se encontró camino desde uploads, parámetros HTTP ni campos comerciales hacia ese parser.
+
+Los módulos existen físicamente en el store pnpm del builder. No existen ni son resolubles en la imagen final reproducible de API; tampoco aparecen en el standalone web ni en sus 37 manifiestos NFT. La Preview Vercel de `da9fbf8` confirma instalación de todos los workspaces durante build y generación posterior de `/vercel/output`; la CLI expone funciones/logs, no un filesystem/SBOM remoto completo, por lo que la exclusión runtime web se apoya en el standalone y las trazas locales reproducibles, no en una sola búsqueda remota.
+
+### Audit separado
+
+| Diagnóstico                           | Exit | Critical | High | Moderate | Low |
+| ------------------------------------- | ---: | -------: | ---: | -------: | --: |
+| Completo `pnpm audit --json`          |    1 |        0 |    1 |        2 |   1 |
+| Productivo `pnpm audit --prod --json` |    1 |        0 |    1 |        2 |   0 |
+
+El audit productivo incluye `braces` porque el paquete compartido de ESLint declara sus herramientas como `dependencies`; no reemplaza el gate ni prueba carga runtime. El gate `pnpm security:audit` permanece sin cambios y en **FAIL**.
+
+### Trust boundary de CI
+
+CI usa `pull_request`, nunca `pull_request_target`; checkout e instalación ejecutan código versionado no confiable, con permisos por defecto de solo lectura, sin secretos del repositorio para forks, timeout de 25 minutos y cancelación concurrente por ref. El job de secretos limita `GITHUB_TOKEN` a `contents: read` y `pull-requests: read`. No hay restricción explícita de egress. No se ejecutó exploit ni prueba de DoS.
+
+### Propuesta temporal, no aplicada
+
+Se documenta una propuesta limitada al advisory, versión y cadena exactos anteriores, con responsable propuesto Jorge, estado **PENDIENTE DE APROBACIÓN**, revisión semanal y vencimiento propuesto 14 días después de una aprobación real. No existe aprobación, fecha activa ni renovación automática. Sus condiciones propuestas exigen cero high/critical runtime, ninguna cadena nueva, lint/tests/audit visibles, revisión ante cualquier cambio y eliminación inmediata al existir parche oficial compatible.
+
+**Excepción: NO APLICADA.** El audit crudo continúa en FAIL; no hay política con excepción aprobada ni se editó CI.
+
+### Backport estable
+
+Se creó desde `origin/staging` `de23454048f22bf2deac295630235c181b661c04` el worktree/branch independiente `fix/staging-runtime-security` y el Draft [PR #30](https://github.com/georgenton/sales-intelligent-platform/pull/30). Reutiliza únicamente los cambios de dependencias compatibles de `a31eaa8e37c5de887fdd6f58e1d07bcc5d7dad88`; no incluye migraciones de octubre, entidades, dashboard, visitas ni cambios funcionales. El schema estable conserva cuatro migraciones.
+
+Verificación del backport: frozen install, format, lint, typecheck después de Prisma generate, 81 unitarias, 5 RLS, build, Docker API live/ready, standalone web, 10 escenarios E2E locales con perfiles sintéticos y gitleaks pasan. Los E2E se dividieron respetando el límite real de cinco logins/minuto; el primer intento monolítico obtuvo el 429 esperado en el sexto login, sin desactivar throttling. La integración estable quedó 20/21: la aserción preexistente toma `brandPerformance[0]`, que puede ser una marca sin cuota creada antes en la misma suite. `23842f7` ya corrige ese test en la rama funcional seleccionando una marca configurada, pero se excluyó deliberadamente del backport por el límite G16 de no copiar tests del dashboard.
+
+Estado del backport: **PREPARADO COMO DRAFT, NO MERGE-READY** por el gate high y el test estable descrito. Incluye informe técnico, plan posterior de revisión/despliegue y rollback sin ejecutar. Railway estable permanece en deployment `010ea649-a4eb-4ab4-a48e-561eed2b8d78`, SHA de aplicación `125ad6f6e05121b363d7982d4195bb32c88b25d6`, con live/ready 200. El alias estable de Vercel no fue movido. No hubo merge ni despliegue.
+
+### Evidencia reutilizada y estado comercial
+
+Este cambio en PR #29 es documental: no se repitieron los 10 E2E ni la regresión G15 de su SHA probado; se conserva la evidencia G15 enlazada a `da9fbf82ab5b648bc4370f2ca71bb986a2402ca1` y al run `37864536610`. Las pruebas nuevas anteriores corresponden exclusivamente a la base estable del Draft PR #30.
+
+R01–R10/A01–A07 no cambian. D01–D04, R05, R08/A05 y R10 siguen abiertos; la conciliación real continúa **NO VERIFICADA** y H3 no está aceptado. Notion no se modificó porque no hay conector autorizado en este entorno; el handoff queda actualizado localmente.
