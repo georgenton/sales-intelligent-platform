@@ -15,6 +15,9 @@ export interface CommercialConfig {
     fiscalYearEndMonth: number;
     currency: string;
     defaultMarginThreshold: number;
+    stalledOpportunityDays: number;
+    weeklyVisitTarget: number;
+    pipelineCoverageRatio: number;
   };
   period: { label: string; start: string; end: string };
   brands: Array<{ id: string; name: string }>;
@@ -37,6 +40,11 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
   const [currency, setCurrency] = useState(initial.settings.currency);
   const [fiscalStart, setFiscalStart] = useState(String(initial.settings.fiscalYearStartMonth));
   const [margin, setMargin] = useState(String(initial.settings.defaultMarginThreshold));
+  const [stalledDays, setStalledDays] = useState(String(initial.settings.stalledOpportunityDays));
+  const [visitTarget, setVisitTarget] = useState(String(initial.settings.weeklyVisitTarget));
+  const [coverageRatio, setCoverageRatio] = useState(
+    String(initial.settings.pipelineCoverageRatio),
+  );
   const [totalQuota, setTotalQuota] = useState(moneyValue(total));
   const [brandQuotas, setBrandQuotas] = useState<Record<string, string>>(
     Object.fromEntries(
@@ -79,6 +87,9 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
         currency,
         fiscalYearStartMonth: Number(fiscalStart),
         defaultMarginThreshold: margin,
+        stalledOpportunityDays: Number(stalledDays),
+        weeklyVisitTarget: Number(visitTarget),
+        pipelineCoverageRatio: coverageRatio,
       });
       setMessage(t('saved'));
     } catch {
@@ -146,7 +157,7 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
         <CardHeader>
           <CardTitle>{t('defaults')}</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="text-sm font-medium">
             {t('currency')}
             <Input
@@ -179,8 +190,45 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
               onChange={(e) => setMargin(e.target.value)}
             />
           </label>
+          <label className="text-sm font-medium">
+            {t('stalledDays')}
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              type="number"
+              min={1}
+              max={365}
+              value={stalledDays}
+              onChange={(event) => setStalledDays(event.target.value)}
+            />
+          </label>
+          <label className="text-sm font-medium">
+            {t('weeklyVisitTarget')}
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              type="number"
+              min={1}
+              max={31}
+              value={visitTarget}
+              onChange={(event) => setVisitTarget(event.target.value)}
+            />
+          </label>
+          <label className="text-sm font-medium">
+            {t('pipelineCoverageRatio')}
+            <Input
+              className="mt-2"
+              inputMode="decimal"
+              type="number"
+              min={0.01}
+              max={20}
+              step="0.01"
+              value={coverageRatio}
+              onChange={(event) => setCoverageRatio(event.target.value)}
+            />
+          </label>
           <Button
-            className="sm:col-span-3 sm:justify-self-end"
+            className="sm:col-span-2 sm:justify-self-end lg:col-span-3"
             disabled={busy}
             onClick={() => void saveSettings()}
           >

@@ -51,6 +51,7 @@ export class CommercialService {
         settings: {
           ...settings,
           defaultMarginThreshold: settings.defaultMarginThreshold.toNumber(),
+          pipelineCoverageRatio: settings.pipelineCoverageRatio.toNumber(),
         },
         period,
         brands,
@@ -69,6 +70,12 @@ export class CommercialService {
           throw new BadRequestException('Margin threshold must be between 0 and 100');
         }
       }
+      if (input.pipelineCoverageRatio !== undefined) {
+        const ratio = Number(input.pipelineCoverageRatio);
+        if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 20) {
+          throw new BadRequestException('Pipeline coverage ratio must be above 0 and at most 20');
+        }
+      }
       const startMonth = input.fiscalYearStartMonth;
       const settings = await transaction.tenantSetting.update({
         where: { tenantId: auth.activeTenantId },
@@ -83,6 +90,15 @@ export class CommercialService {
           ...(input.defaultMarginThreshold !== undefined
             ? { defaultMarginThreshold: new Prisma.Decimal(input.defaultMarginThreshold) }
             : {}),
+          ...(input.stalledOpportunityDays !== undefined
+            ? { stalledOpportunityDays: input.stalledOpportunityDays }
+            : {}),
+          ...(input.weeklyVisitTarget !== undefined
+            ? { weeklyVisitTarget: input.weeklyVisitTarget }
+            : {}),
+          ...(input.pipelineCoverageRatio !== undefined
+            ? { pipelineCoverageRatio: new Prisma.Decimal(input.pipelineCoverageRatio) }
+            : {}),
         },
       });
       await transaction.auditEvent.create({
@@ -96,7 +112,11 @@ export class CommercialService {
           metadata: { fields: Object.keys(input) },
         },
       });
-      return { ...settings, defaultMarginThreshold: settings.defaultMarginThreshold.toNumber() };
+      return {
+        ...settings,
+        defaultMarginThreshold: settings.defaultMarginThreshold.toNumber(),
+        pipelineCoverageRatio: settings.pipelineCoverageRatio.toNumber(),
+      };
     });
   }
 

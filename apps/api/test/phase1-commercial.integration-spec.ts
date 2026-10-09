@@ -41,6 +41,11 @@ describe('Phase 1 commercial operating flows', () => {
   const rbacUserIds: string[] = [];
   const snapshotIds: string[] = [];
   const quotaIds: string[] = [];
+  const importBatchIds: string[] = [];
+  const managerImportOpportunityReferences: string[] = [];
+  const managerImportBillingReferences: string[] = [];
+  const managerVisitIds: string[] = [];
+  const managerPeriodOpportunityIds: string[] = [];
   const roleScopeBillingReferences = [
     'ROLE-SCOPE-BILLING-A',
     'ROLE-SCOPE-BILLING-B',
@@ -163,17 +168,37 @@ describe('Phase 1 commercial operating flows', () => {
         where: {
           tenantId,
           externalReference: {
-            in: ['BILLING-INV-PHASE1', 'BILLING-INV-BRAND-PHASE1', ...roleScopeBillingReferences],
+            in: [
+              'BILLING-INV-PHASE1',
+              'BILLING-INV-BRAND-PHASE1',
+              ...roleScopeBillingReferences,
+              ...managerImportBillingReferences,
+            ],
           },
         },
       });
+      if (managerVisitIds.length) {
+        await prisma.customerVisit.deleteMany({ where: { id: { in: managerVisitIds } } });
+      }
       if (quotaIds.length) await prisma.quota.deleteMany({ where: { id: { in: quotaIds } } });
       await prisma.opportunity.deleteMany({
-        where: { id: { in: [opportunityId, rbacOpportunityId].filter(Boolean) } },
+        where: {
+          id: {
+            in: [opportunityId, rbacOpportunityId, ...managerPeriodOpportunityIds].filter(Boolean),
+          },
+        },
       });
       await prisma.opportunity.deleteMany({
-        where: { tenantId, externalReference: 'OPPTY-XLSX-PHASE1' },
+        where: {
+          tenantId,
+          externalReference: {
+            in: ['OPPTY-XLSX-PHASE1', ...managerImportOpportunityReferences],
+          },
+        },
       });
+      if (importBatchIds.length) {
+        await prisma.commercialImportBatch.deleteMany({ where: { id: { in: importBatchIds } } });
+      }
       await prisma.tenantFeatureEntitlement.updateMany({
         where: { tenantId, featureKey: 'AI_CONTEXTUAL_REAL' },
         data: { enabled: false },
@@ -678,7 +703,10 @@ describe('Phase 1 commercial operating flows', () => {
     expect(dashboard.body.kpis.weightedCoverage).not.toBeNull();
     expect(dashboard.body.kpis.averageMargin).not.toBeNull();
     expect(dashboard.body.brandPerformance.length).toBeGreaterThan(0);
-    expect(dashboard.body.brandPerformance[0]).toEqual(
+    const configuredBrand = dashboard.body.brandPerformance.find(
+      (brand: { quota: number | null }) => brand.quota !== null,
+    );
+    expect(configuredBrand).toEqual(
       expect.objectContaining({
         brandId: expect.any(String),
         quota: expect.any(Number),
@@ -874,8 +902,8 @@ describe('Phase 1 commercial operating flows', () => {
   it('validates CSV and imports Facturado Daily idempotently from XLSX', async () => {
     const beforeDryRun = await prisma.opportunity.count({ where: { tenantId } });
     const csv = Buffer.from(
-      'Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close\n' +
-        'CSV Phase 1,sofia@techdistribution.demo,Nutanix,Synthetic Customer 01,1000,20%,2026-10-15\n',
+      'ID,Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close\n' +
+        'CSV-PHASE1,CSV Phase 1,sofia@techdistribution.demo,Nutanix,Synthetic Customer 01,1000,20%,2026-10-15\n',
     );
     const csvAnalysis = await admin
       .post('/imports/analyze')
@@ -904,6 +932,7 @@ describe('Phase 1 commercial operating flows', () => {
       'Stage',
       'Expected Close',
       'External ID',
+      'Manager Email',
     ]);
     opportunities.addRow([
       'XLSX Phase 1 opportunity',
@@ -915,8 +944,10 @@ describe('Phase 1 commercial operating flows', () => {
       '90%',
       new Date('2026-10-20'),
       'XLSX-PHASE1',
+      'manager@techdistribution.demo',
     ]);
     const billing = workbook.addWorksheet('Facturado Daily');
+    billing.getCell('B1').value = new Date('2026-10-15');
     billing.addRow(['Vendor', 'Revenue USD', 'GP USD', 'Invoice', 'Opportunity External ID']);
     billing.addRow(['Nutanix', 1234, 123.4, 'INV-PHASE1', 'XLSX-PHASE1']);
     billing.addRow(['Nutanix', 500, 50, 'INV-BRAND-PHASE1', '']);
@@ -936,6 +967,8 @@ describe('Phase 1 commercial operating flows', () => {
       .set('x-csrf-token', adminCsrf)
       .field('mapping', JSON.stringify(xlsxMapping))
       .field('asOfDate', '2026-02-31')
+      .field('billingMode', 'TRANSACTION')
+      .field('sourceCutoff', '2026-10-15')
       .attach('file', buffer, {
         filename: 'facturado.xlsx',
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -948,6 +981,8 @@ describe('Phase 1 commercial operating flows', () => {
       .set('x-csrf-token', adminCsrf)
       .field('mapping', JSON.stringify(unconfirmed))
       .field('asOfDate', '2026-10-15')
+      .field('billingMode', 'TRANSACTION')
+      .field('sourceCutoff', '2026-10-15')
       .attach('file', buffer, {
         filename: 'facturado.xlsx',
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -960,18 +995,22 @@ describe('Phase 1 commercial operating flows', () => {
       .set('x-csrf-token', adminCsrf)
       .field('mapping', JSON.stringify(xlsxMapping))
       .field('asOfDate', '2026-10-15')
+      .field('billingMode', 'TRANSACTION')
+      .field('sourceCutoff', '2026-10-15')
+      .field('sourceCompleteness', 'COMPLETE')
       .attach('file', buffer, {
         filename: 'facturado.xlsx',
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
       .expect(201);
-    expect(first.body.summary.billingImported).toBe(2);
-    expect(first.body.summary.opportunityImported).toBe(1);
+    expect(first.body.summary.billingProcessed).toBe(2);
+    expect(first.body.summary.opportunityProcessed).toBe(1);
+    importBatchIds.push(first.body.batch.id);
     const importedOpportunity = await prisma.opportunity.findFirstOrThrow({
       where: { tenantId, externalReference: 'OPPTY-XLSX-PHASE1' },
       include: { stage: true },
     });
-    expect(importedOpportunity.stage.code).toBe('100');
+    expect(importedOpportunity.stage.code).toBe('90');
     expect(
       await prisma.billingRecord.findFirstOrThrow({
         where: { tenantId, externalReference: 'BILLING-INV-BRAND-PHASE1' },
@@ -984,14 +1023,436 @@ describe('Phase 1 commercial operating flows', () => {
       .set('x-csrf-token', adminCsrf)
       .field('mapping', JSON.stringify(xlsxMapping))
       .field('asOfDate', '2026-10-15')
+      .field('billingMode', 'TRANSACTION')
+      .field('sourceCutoff', '2026-10-15')
+      .field('sourceCompleteness', 'COMPLETE')
       .attach('file', buffer, {
         filename: 'facturado.xlsx',
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
       .expect(201);
-    expect(second.body.summary.billingImported).toBe(0);
-    expect(second.body.summary.opportunityImported).toBe(0);
-    expect(second.body.summary.duplicates).toBeGreaterThan(0);
+    expect(second.body.batch.reused).toBe(true);
+    expect(second.body.batch.id).toBe(first.body.batch.id);
+  });
+
+  it('updates stable opportunity identities, preserves history, and reports later absence', async () => {
+    const suffix = Date.now();
+    const reference = `OPPTY-EDGAR-TRACE-${suffix}`;
+    const replacementReference = `OPPTY-EDGAR-REPLACEMENT-${suffix}`;
+    managerImportOpportunityReferences.push(reference, replacementReference);
+
+    const firstBuffer = await opportunityWorkbookBuffer({
+      reference,
+      title: 'Edgar traceable opportunity',
+      amount: 1000,
+      stage: '20%',
+    });
+    const firstAnalysis = await admin
+      .post('/imports/analyze')
+      .set('x-csrf-token', adminCsrf)
+      .attach('file', firstBuffer, xlsxAttachment('edgar-trace-1.xlsx'))
+      .expect(201);
+    const mapping = confirmedMappings(firstAnalysis.body);
+    const first = await executeWorkbook(admin, adminCsrf, firstBuffer, mapping, {
+      filename: 'edgar-trace-1.xlsx',
+      sourceCutoff: '2026-10-02',
+    });
+    importBatchIds.push(first.body.batch.id);
+    expect(first.body.summary).toEqual(expect.objectContaining({ added: 1, changed: 0 }));
+    const original = await prisma.opportunity.findFirstOrThrow({
+      where: { tenantId, externalReference: reference },
+      include: { stage: true },
+    });
+    expect(original.stage.code).toBe('20');
+
+    const changedBuffer = await opportunityWorkbookBuffer({
+      reference,
+      title: 'Edgar traceable opportunity',
+      amount: 1200,
+      stage: '40%',
+    });
+    const changedAnalysis = await admin
+      .post('/imports/analyze')
+      .set('x-csrf-token', adminCsrf)
+      .attach('file', changedBuffer, xlsxAttachment('edgar-trace-2.xlsx'))
+      .expect(201);
+    const changed = await executeWorkbook(
+      admin,
+      adminCsrf,
+      changedBuffer,
+      confirmedMappings(changedAnalysis.body),
+      { filename: 'edgar-trace-2.xlsx', sourceCutoff: '2026-10-09' },
+    );
+    importBatchIds.push(changed.body.batch.id);
+    expect(changed.body.summary.changed).toBe(1);
+    const updated = await prisma.opportunity.findFirstOrThrow({
+      where: { tenantId, externalReference: reference },
+      include: { stage: true, stageHistory: { orderBy: { changedAt: 'asc' } } },
+    });
+    expect(updated.id).toBe(original.id);
+    expect(updated.estimatedAmount.toNumber()).toBe(1200);
+    expect(updated.stage.code).toBe('40');
+    expect(
+      updated.stageHistory.some(
+        (history) =>
+          history.fromStageId === original.stageId &&
+          history.toStageId === updated.stageId &&
+          history.reason?.startsWith('Commercial import'),
+      ),
+    ).toBe(true);
+
+    const replay = await executeWorkbook(
+      admin,
+      adminCsrf,
+      changedBuffer,
+      confirmedMappings(changedAnalysis.body),
+      { filename: 'edgar-trace-2.xlsx', sourceCutoff: '2026-10-09' },
+    );
+    expect(replay.body.batch).toEqual(
+      expect.objectContaining({ id: changed.body.batch.id, reused: true }),
+    );
+    expect(
+      await prisma.opportunity.count({ where: { tenantId, externalReference: reference } }),
+    ).toBe(1);
+
+    const replacementBuffer = await opportunityWorkbookBuffer({
+      reference: replacementReference,
+      title: 'Edgar replacement source row',
+      amount: 800,
+      stage: '20%',
+    });
+    const replacementAnalysis = await admin
+      .post('/imports/analyze')
+      .set('x-csrf-token', adminCsrf)
+      .attach('file', replacementBuffer, xlsxAttachment('edgar-trace-3.xlsx'))
+      .expect(201);
+    const replacement = await executeWorkbook(
+      admin,
+      adminCsrf,
+      replacementBuffer,
+      confirmedMappings(replacementAnalysis.body),
+      { filename: 'edgar-trace-3.xlsx', sourceCutoff: '2026-10-16' },
+    );
+    importBatchIds.push(replacement.body.batch.id);
+    expect(replacement.body.summary.missingFromLatest).toBeGreaterThanOrEqual(1);
+    expect(
+      await prisma.opportunity.count({ where: { tenantId, externalReference: reference } }),
+    ).toBe(1);
+  });
+
+  it('updates cumulative billing from 300 to 350 instead of summing it to 650', async () => {
+    const firstBuffer = await cumulativeBillingWorkbookBuffer(300);
+    const firstAnalysis = await admin
+      .post('/imports/analyze')
+      .set('x-csrf-token', adminCsrf)
+      .attach('file', firstBuffer, xlsxAttachment('edgar-cumulative-300.xlsx'))
+      .expect(201);
+    const mapping = confirmedMappings(firstAnalysis.body);
+    const first = await executeWorkbook(admin, adminCsrf, firstBuffer, mapping, {
+      filename: 'edgar-cumulative-300.xlsx',
+      sourceCutoff: '2026-10-05',
+      billingMode: 'CUMULATIVE',
+    });
+    importBatchIds.push(first.body.batch.id);
+    const firstRecord = await prisma.billingRecord.findFirstOrThrow({
+      where: { tenantId, importBatchId: first.body.batch.id, importMode: 'CUMULATIVE' },
+    });
+    managerImportBillingReferences.push(firstRecord.externalReference!);
+    expect(firstRecord.amount.toNumber()).toBe(300);
+
+    const secondBuffer = await cumulativeBillingWorkbookBuffer(350);
+    const secondAnalysis = await admin
+      .post('/imports/analyze')
+      .set('x-csrf-token', adminCsrf)
+      .attach('file', secondBuffer, xlsxAttachment('edgar-cumulative-350.xlsx'))
+      .expect(201);
+    const second = await executeWorkbook(
+      admin,
+      adminCsrf,
+      secondBuffer,
+      confirmedMappings(secondAnalysis.body),
+      {
+        filename: 'edgar-cumulative-350.xlsx',
+        sourceCutoff: '2026-10-12',
+        billingMode: 'CUMULATIVE',
+      },
+    );
+    importBatchIds.push(second.body.batch.id);
+    const records = await prisma.billingRecord.findMany({
+      where: { tenantId, externalReference: firstRecord.externalReference },
+    });
+    expect(records).toHaveLength(1);
+    expect(records[0]!.amount.toNumber()).toBe(350);
+  });
+
+  it('publishes an explicitly partial source as visible and not reconciled', async () => {
+    const reference = `OPPTY-EDGAR-PARTIAL-${Date.now()}`;
+    managerImportOpportunityReferences.push(reference);
+    const buffer = await opportunityWorkbookBuffer({
+      reference,
+      title: 'Edgar partial source row',
+      amount: 700,
+      stage: '20%',
+    });
+    const analysis = await admin
+      .post('/imports/analyze')
+      .set('x-csrf-token', adminCsrf)
+      .attach('file', buffer, xlsxAttachment('edgar-partial.xlsx'))
+      .expect(201);
+    const result = await executeWorkbook(
+      admin,
+      adminCsrf,
+      buffer,
+      confirmedMappings(analysis.body),
+      {
+        filename: 'edgar-partial.xlsx',
+        sourceCutoff: '2026-10-19',
+        sourceCompleteness: 'PARTIAL',
+      },
+    );
+    importBatchIds.push(result.body.batch.id);
+    expect(result.body).toEqual(
+      expect.objectContaining({
+        summary: expect.objectContaining({ status: 'PARTIAL' }),
+        batch: expect.objectContaining({ status: 'PARTIAL', reused: false }),
+      }),
+    );
+    const dashboard = await admin.get('/analytics/manager-dashboard').expect(200);
+    expect(dashboard.body.importState).toEqual(
+      expect.objectContaining({ status: 'PARTIAL', partial: true, sourceCutoff: '2026-10-19' }),
+    );
+  });
+
+  it('serves one filter-consistent manager dashboard without cross-team leakage', async () => {
+    const managerDashboard = await managerA.get('/analytics/manager-dashboard').expect(200);
+    const managerBSet = new Set(
+      managerDashboard.body.stages.flatMap(
+        (stage: { opportunityIds: string[] }) => stage.opportunityIds,
+      ),
+    );
+    expect(managerBSet.has(rbacOpportunityId)).toBe(false);
+    expect(managerDashboard.body).toEqual(
+      expect.objectContaining({
+        currency: 'USD',
+        summary: expect.objectContaining({
+          billed: expect.any(Number),
+          pipeline: expect.any(Number),
+          forecast: expect.any(Number),
+          backlog: expect.any(Number),
+        }),
+        coverage: expect.objectContaining({ ratio: 4 }),
+        brandHierarchy: expect.objectContaining({ label: 'Data Center' }),
+      }),
+    );
+
+    const brand = managerDashboard.body.filters.brands[0];
+    expect(brand).toBeTruthy();
+    const filtered = await managerA
+      .get(`/analytics/manager-dashboard?brandId=${brand.id}`)
+      .expect(200);
+    expect(filtered.body.brandHierarchy.brands).toHaveLength(1);
+    expect(filtered.body.brandHierarchy.brands[0].brandId).toBe(brand.id);
+    for (const line of filtered.body.brandHierarchy.brands[0].lines) {
+      expect(line).toEqual(
+        expect.objectContaining({
+          quota: null,
+          billed: expect.any(Number),
+          pipeline: expect.any(Number),
+          forecast: expect.any(Number),
+          backlog: expect.any(Number),
+          forecastAndBacklog: expect.any(Number),
+        }),
+      );
+    }
+    const filteredIds = new Set<string>(
+      filtered.body.stages
+        .filter((stage: { stageCode: string }) => stage.stageCode !== '100')
+        .flatMap((stage: { opportunityIds: string[] }) => stage.opportunityIds),
+    );
+    const linked = filteredIds.size
+      ? await prisma.opportunity.count({
+          where: {
+            id: { in: [...filteredIds] },
+            lineItems: { some: { brandId: brand.id } },
+          },
+        })
+      : 0;
+    expect(linked).toBe(filteredIds.size);
+
+    const managerBView = await managerB.get('/analytics/manager-dashboard').expect(200);
+    const managerBIds = managerBView.body.stages.flatMap(
+      (stage: { opportunityIds: string[] }) => stage.opportunityIds,
+    );
+    expect(managerBIds).toEqual([]);
+    await executive.get('/analytics/manager-dashboard').expect(200);
+    await viewer.get('/analytics/manager-dashboard').expect(200);
+  });
+
+  it('moves November backlog to December context without duplication or fictitious loss', async () => {
+    const [stage90, sellerUser, customer, brand] = await Promise.all([
+      prisma.stage.findFirstOrThrow({ where: { tenantId, code: '90' } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'sofia@techdistribution.demo' } }),
+      prisma.customer.findFirstOrThrow({ where: { tenantId } }),
+      prisma.brand.findFirstOrThrow({ where: { tenantId, name: 'Nutanix' } }),
+    ]);
+    const opportunity = await prisma.opportunity.create({
+      data: {
+        tenantId,
+        sellerId: sellerUser.id,
+        managerId: managerAUserId,
+        customerId: customer.id,
+        title: 'Edgar November to December backlog',
+        status: 'WON',
+        stageId: stage90.id,
+        forecastCategory: 'COMMIT',
+        currency: 'USD',
+        estimatedAmount: 1000,
+        probability: stage90.probability,
+        expectedCloseDate: new Date('2026-10-15'),
+        expectedBillingDate: new Date('2026-11-15'),
+        source: 'INTEGRATION_FIXTURE',
+        lineItems: {
+          create: {
+            tenantId,
+            brandId: brand.id,
+            description: 'Synthetic Data Center backlog',
+            productLine: 'Infrastructure',
+            amount: 1000,
+          },
+        },
+      },
+    });
+    managerPeriodOpportunityIds.push(opportunity.id);
+    const november = await managerA.get('/analytics/manager-dashboard').expect(200);
+    await prisma.opportunity.update({
+      where: { id: opportunity.id },
+      data: { expectedBillingDate: new Date('2026-12-15') },
+    });
+    const december = await managerA.get('/analytics/manager-dashboard').expect(200);
+    expect(november.body.summary.backlog - december.body.summary.backlog).toBe(1000);
+    expect(
+      december.body.alerts.some(
+        (alert: { code: string; opportunityId?: string; kind: string }) =>
+          alert.code === 'A06' &&
+          alert.opportunityId === opportunity.id &&
+          alert.kind === 'CONTEXT',
+      ),
+    ).toBe(true);
+    expect(await prisma.opportunity.count({ where: { id: opportunity.id } })).toBe(1);
+  });
+
+  it('records distinct-customer visits idempotently and enforces read-only mutation rules', async () => {
+    const reference = (await managerA.get('/opportunities/reference-data').expect(200)).body;
+    const sofia = reference.users.find((user: { name: string }) => user.name === 'Sofía Torres');
+    const teamOpportunities = (await managerA.get('/opportunities?perPage=100').expect(200)).body
+      .items;
+    const linkTarget = teamOpportunities.find(
+      (opportunity: { seller: { id: string } }) => opportunity.seller.id === sofia.id,
+    );
+    expect(linkTarget).toBeTruthy();
+    const customer = reference.customers.find(
+      (item: { id: string }) => item.id === linkTarget.customer.id,
+    );
+    expect(customer).toBeTruthy();
+    const visitedAt = new Date().toISOString().slice(0, 10);
+    const noVisit = {
+      sellerId: sofia.id,
+      customerId: customer.id,
+      visitedAt,
+      foundOpportunity: false,
+      idempotencyKey: `phase1-edgar-no-${Date.now()}`,
+    };
+    const created = await managerA
+      .post('/visits')
+      .set('x-csrf-token', managerACsrf)
+      .send(noVisit)
+      .expect(201);
+    managerVisitIds.push(created.body.id);
+    expect(created.body).toEqual(expect.objectContaining({ foundOpportunity: false }));
+    const replay = await managerA
+      .post('/visits')
+      .set('x-csrf-token', managerACsrf)
+      .send(noVisit)
+      .expect(201);
+    expect(replay.body.id).toBe(created.body.id);
+    await managerB.post('/visits').set('x-csrf-token', managerBCsrf).send(noVisit).expect(403);
+
+    const pending = await managerA
+      .post('/visits')
+      .set('x-csrf-token', managerACsrf)
+      .send({
+        ...noVisit,
+        foundOpportunity: true,
+        idempotencyKey: `phase1-edgar-yes-${Date.now()}`,
+      })
+      .expect(201);
+    managerVisitIds.push(pending.body.id);
+    expect(pending.body.linkStatus).toBe('PENDING_LINK');
+    const dashboard = await managerA
+      .get(`/analytics/manager-dashboard?weekStart=${visitedAt}`)
+      .expect(200);
+    expect(dashboard.body.alerts).toContainEqual(
+      expect.objectContaining({
+        code: 'A04',
+        entity: expect.objectContaining({ id: pending.body.id }),
+      }),
+    );
+    const sellerPerformance = dashboard.body.sellerPerformance.find(
+      (row: { sellerId: string }) => row.sellerId === sofia.id,
+    );
+    expect(sellerPerformance.visitedCustomers).toBeGreaterThanOrEqual(1);
+
+    await managerB
+      .patch(`/visits/${pending.body.id}/opportunity`)
+      .set('x-csrf-token', managerBCsrf)
+      .send({ opportunityId: linkTarget.id })
+      .expect(403);
+    const linked = await managerA
+      .patch(`/visits/${pending.body.id}/opportunity`)
+      .set('x-csrf-token', managerACsrf)
+      .send({ opportunityId: linkTarget.id })
+      .expect(200);
+    expect(linked.body).toEqual(
+      expect.objectContaining({
+        id: pending.body.id,
+        linkStatus: 'COMPLETE',
+        opportunity: expect.objectContaining({ id: linkTarget.id }),
+      }),
+    );
+    await managerA
+      .patch(`/visits/${pending.body.id}/opportunity`)
+      .set('x-csrf-token', managerACsrf)
+      .send({ opportunityId: linkTarget.id })
+      .expect(200);
+    const afterLink = await managerA
+      .get(`/analytics/manager-dashboard?weekStart=${visitedAt}`)
+      .expect(200);
+    expect(
+      afterLink.body.alerts.some(
+        (alert: { code: string; entity: { id: string } }) =>
+          alert.code === 'A04' && alert.entity.id === pending.body.id,
+      ),
+    ).toBe(false);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          tenantId,
+          action: 'CUSTOMER_VISIT_OPPORTUNITY_LINKED',
+          entityId: pending.body.id,
+        },
+      }),
+    ).toBe(1);
+
+    for (const principal of [
+      { agent: executive, csrf: executiveCsrf },
+      { agent: viewer, csrf: viewerCsrf },
+    ]) {
+      await principal.agent
+        .post('/visits')
+        .set('x-csrf-token', principal.csrf)
+        .send({ ...noVisit, idempotencyKey: `read-only-${Date.now()}-${Math.random()}` })
+        .expect(403);
+    }
   });
 
   it('exposes only enabled future capabilities to authenticated clients', async () => {
@@ -1027,6 +1488,92 @@ function confirmedMappings(analysis: {
         confirmed: true,
       })),
   );
+}
+
+function xlsxAttachment(filename: string) {
+  return {
+    filename,
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+}
+
+async function opportunityWorkbookBuffer(input: {
+  reference: string;
+  title: string;
+  amount: number;
+  stage: string;
+}) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Oppty');
+  sheet.addRow([
+    'Opportunity',
+    'Seller Email',
+    'Manager Email',
+    'Brand',
+    'Customer',
+    'Amount',
+    'GM %',
+    'Stage',
+    'Expected Close',
+    'Expected Billing',
+    'External ID',
+    'BU',
+    'Product Line',
+  ]);
+  sheet.addRow([
+    input.title,
+    'sofia@techdistribution.demo',
+    'manager@techdistribution.demo',
+    'Nutanix',
+    'Synthetic Customer 01',
+    input.amount,
+    12,
+    input.stage,
+    new Date('2026-10-20'),
+    new Date('2026-11-15'),
+    input.reference,
+    'Data Center',
+    'Infrastructure',
+  ]);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+async function cumulativeBillingWorkbookBuffer(amount: number) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Facturado Daily');
+  sheet.getCell('B1').value = new Date('2026-10-05');
+  sheet.addRow(['Vendor', 'Revenue USD', 'GP USD']);
+  sheet.addRow(['Nutanix', amount, amount * 0.1]);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+async function executeWorkbook(
+  agent: ReturnType<typeof request.agent>,
+  csrf: string,
+  buffer: Buffer,
+  mapping: Array<{
+    sheet: string;
+    sourceColumn: string;
+    destinationField: string | null;
+    confirmed: boolean;
+  }>,
+  options: {
+    filename: string;
+    sourceCutoff: string;
+    billingMode?: 'TRANSACTION' | 'CUMULATIVE';
+    sourceCompleteness?: 'COMPLETE' | 'PARTIAL';
+  },
+) {
+  return agent
+    .post('/imports/execute')
+    .set('x-csrf-token', csrf)
+    .field('mapping', JSON.stringify(mapping))
+    .field('asOfDate', options.sourceCutoff)
+    .field('billingMode', options.billingMode ?? 'TRANSACTION')
+    .field('sourceCutoff', options.sourceCutoff)
+    .field('sourceCompleteness', options.sourceCompleteness ?? 'COMPLETE')
+    .attach('file', buffer, xlsxAttachment(options.filename))
+    .expect(201);
 }
 
 async function createTestApp() {

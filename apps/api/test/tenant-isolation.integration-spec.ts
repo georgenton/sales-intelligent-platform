@@ -61,47 +61,81 @@ async function createTenantFixture(label: 'A' | 'B') {
       labelEs: 'Presupuesto confirmado',
     },
   });
-  const [qualificationResponse, billingRecord, reviewEvent, featureEntitlement] = await Promise.all(
-    [
-      prisma.qualificationResponse.create({
-        data: {
-          tenantId: tenant.id,
-          opportunityId: opportunity.id,
-          criterionId: criterion.id,
-          answer: 'YES',
-          evidence: 'Isolation fixture',
-          updatedById: user.id,
-        },
-      }),
-      prisma.billingRecord.create({
-        data: {
-          tenantId: tenant.id,
-          brandId: brand.id,
-          amount: 100,
-          currency: 'USD',
-          billedAt: new Date('2026-10-01'),
-          source: 'ISOLATION_TEST',
-          externalReference: `BILLING-${label}-${runId}`,
-        },
-      }),
-      prisma.opportunityReviewEvent.create({
-        data: {
-          tenantId: tenant.id,
-          opportunityId: opportunity.id,
-          actorId: user.id,
-          type: 'GUIDED_ACTION',
-          body: 'Isolation fixture',
-        },
-      }),
-      prisma.tenantFeatureEntitlement.create({
-        data: {
-          tenantId: tenant.id,
-          featureKey: `AI_CONTEXTUAL_REAL_${label}`,
-          enabled: true,
-        },
-      }),
-    ],
-  );
+  const [
+    qualificationResponse,
+    billingRecord,
+    reviewEvent,
+    featureEntitlement,
+    visit,
+    importBatch,
+  ] = await Promise.all([
+    prisma.qualificationResponse.create({
+      data: {
+        tenantId: tenant.id,
+        opportunityId: opportunity.id,
+        criterionId: criterion.id,
+        answer: 'YES',
+        evidence: 'Isolation fixture',
+        updatedById: user.id,
+      },
+    }),
+    prisma.billingRecord.create({
+      data: {
+        tenantId: tenant.id,
+        brandId: brand.id,
+        amount: 100,
+        currency: 'USD',
+        billedAt: new Date('2026-10-01'),
+        source: 'ISOLATION_TEST',
+        externalReference: `BILLING-${label}-${runId}`,
+      },
+    }),
+    prisma.opportunityReviewEvent.create({
+      data: {
+        tenantId: tenant.id,
+        opportunityId: opportunity.id,
+        actorId: user.id,
+        type: 'GUIDED_ACTION',
+        body: 'Isolation fixture',
+      },
+    }),
+    prisma.tenantFeatureEntitlement.create({
+      data: {
+        tenantId: tenant.id,
+        featureKey: `AI_CONTEXTUAL_REAL_${label}`,
+        enabled: true,
+      },
+    }),
+    prisma.customerVisit.create({
+      data: {
+        tenantId: tenant.id,
+        sellerId: user.id,
+        customerId: customer.id,
+        opportunityId: opportunity.id,
+        recordedById: user.id,
+        visitedAt: new Date('2026-10-01'),
+        foundOpportunity: true,
+        idempotencyKey: `VISIT-${label}-${runId}`,
+      },
+    }),
+    prisma.commercialImportBatch.create({
+      data: {
+        tenantId: tenant.id,
+        createdById: user.id,
+        fileHash: `HASH-${label}-${runId}`,
+        status: 'PUBLISHED',
+        summary: { added: 1 },
+      },
+    }),
+  ]);
+  const sourcePresence = await prisma.opportunitySourcePresence.create({
+    data: {
+      tenantId: tenant.id,
+      batchId: importBatch.id,
+      opportunityId: opportunity.id,
+      sourceRow: 2,
+    },
+  });
   return {
     tenant,
     user,
@@ -114,6 +148,9 @@ async function createTenantFixture(label: 'A' | 'B') {
       billingRecord: billingRecord.id,
       reviewEvent: reviewEvent.id,
       featureEntitlement: featureEntitlement.id,
+      visit: visit.id,
+      importBatch: importBatch.id,
+      sourcePresence: sourcePresence.id,
     },
   };
 }
@@ -198,6 +235,22 @@ describe('PostgreSQL tenant isolation', () => {
         foreignEntitlement: await transaction.tenantFeatureEntitlement.findUnique({
           where: { id: protectedB.featureEntitlement },
         }),
+        ownVisit: await transaction.customerVisit.findUnique({ where: { id: protectedA.visit } }),
+        foreignVisit: await transaction.customerVisit.findUnique({
+          where: { id: protectedB.visit },
+        }),
+        ownImportBatch: await transaction.commercialImportBatch.findUnique({
+          where: { id: protectedA.importBatch },
+        }),
+        foreignImportBatch: await transaction.commercialImportBatch.findUnique({
+          where: { id: protectedB.importBatch },
+        }),
+        ownSourcePresence: await transaction.opportunitySourcePresence.findUnique({
+          where: { id: protectedA.sourcePresence },
+        }),
+        foreignSourcePresence: await transaction.opportunitySourcePresence.findUnique({
+          where: { id: protectedB.sourcePresence },
+        }),
       };
     });
     expect(result.ownCriterion).not.toBeNull();
@@ -205,11 +258,17 @@ describe('PostgreSQL tenant isolation', () => {
     expect(result.ownBilling).not.toBeNull();
     expect(result.ownReview).not.toBeNull();
     expect(result.ownEntitlement).not.toBeNull();
+    expect(result.ownVisit).not.toBeNull();
+    expect(result.ownImportBatch).not.toBeNull();
+    expect(result.ownSourcePresence).not.toBeNull();
     expect(result.foreignCriterion).toBeNull();
     expect(result.foreignResponse).toBeNull();
     expect(result.foreignBilling).toBeNull();
     expect(result.foreignReview).toBeNull();
     expect(result.foreignEntitlement).toBeNull();
+    expect(result.foreignVisit).toBeNull();
+    expect(result.foreignImportBatch).toBeNull();
+    expect(result.foreignSourcePresence).toBeNull();
   });
 
   it('blocks cross-tenant inserts at the database policy', async () => {

@@ -24,15 +24,16 @@ async function confirmedContext(
         })),
     ),
     asOfDate,
+    billingMode: 'TRANSACTION',
   };
 }
 
 describe('commercial CSV/XLSX parsing', () => {
   it('parses a canonical opportunity CSV and maps legacy stages', async () => {
     const csv = Buffer.from(
-      'Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close,GM %\n' +
-        'Deal A,seller@example.com,Nutanix,Customer A,1000,75%,2026-10-15,12.5%\n' +
-        'Deal B,seller@example.com,Nutanix,Customer B,2000,40%,2026-10-20,10%\n',
+      'ID,Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close,GM %\n' +
+        'A,Deal A,seller@example.com,Nutanix,Customer A,1000,75%,2026-10-15,12.5%\n' +
+        'B,Deal B,seller@example.com,Nutanix,Customer B,2000,40%,2026-10-20,10%\n',
     );
     const plan = await parseCommercialWorkbook(
       'opportunities.csv',
@@ -63,6 +64,7 @@ describe('commercial CSV/XLSX parsing', () => {
       'Amount',
       'Stage',
       'Expected Close',
+      'ID',
     ]);
     opportunities.addRow([
       'Deal A',
@@ -72,9 +74,11 @@ describe('commercial CSV/XLSX parsing', () => {
       1000,
       '20%',
       new Date('2026-10-15T00:00:00Z'),
+      'A',
     ]);
     const billing = workbook.addWorksheet('Facturado Daily');
-    billing.addRow(['Vendor', 'Revenue USD', 'GP USD', 'Orders', 'Date']);
+    billing.getCell('B1').value = new Date('2026-10-20T00:00:00Z');
+    billing.addRow(['Vendor', 'Revenue USD', 'GP USD', 'Orders']);
     billing.addRow(['Nutanix', 500, 50, 'INV-1', new Date('2026-10-20T00:00:00Z')]);
     workbook.addWorksheet('Resumen');
     workbook.addWorksheet('Canales Proceso');
@@ -84,14 +88,13 @@ describe('commercial CSV/XLSX parsing', () => {
       .find((sheet) => sheet.name === 'Facturado Daily')
       ?.suggestedMappings.find((mapping) => mapping.sourceColumn === 'Orders');
     expect(orders).toMatchObject({ destinationField: null, confidence: 'NONE' });
-    const plan = await parseCommercialWorkbook(
-      'commercial.xlsx',
-      buffer,
-      await confirmedContext('commercial.xlsx', buffer),
-    );
+    const context = await confirmedContext('commercial.xlsx', buffer);
+    context.billingMode = 'CUMULATIVE';
+    const plan = await parseCommercialWorkbook('commercial.xlsx', buffer, context);
     expect(plan.opportunities).toHaveLength(1);
     expect(plan.billing).toHaveLength(1);
     expect(plan.billing[0]?.invoiceNumber).toBe('');
+    expect(analysis.sheets.find((sheet) => sheet.name === 'Facturado Daily')?.headerRow).toBe(2);
     expect(
       plan.sheets.filter((sheet) => sheet.disposition === 'RECOGNIZED_NOT_IMPORTED'),
     ).toHaveLength(2);
@@ -115,8 +118,8 @@ describe('commercial CSV/XLSX parsing', () => {
 
   it('blocks an opportunity import from declaring billed stage without a billing fact', async () => {
     const csv = Buffer.from(
-      'Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close\n' +
-        'Unsupported billed deal,seller@example.com,Nutanix,Customer A,1000,100%,2026-10-15\n',
+      'ID,Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close\n' +
+        'BILLED,Unsupported billed deal,seller@example.com,Nutanix,Customer A,1000,100%,2026-10-15\n',
     );
     const plan = await parseCommercialWorkbook(
       'opportunities.csv',
@@ -151,9 +154,30 @@ describe('commercial CSV/XLSX parsing', () => {
 
     const asOfDate = new Date('2026-08-27T00:00:00.000Z');
     const confirmed = await confirmedContext('billing.xlsx', buffer, asOfDate);
+    confirmed.billingMode = 'CUMULATIVE';
     const plan = await parseCommercialWorkbook('billing.xlsx', buffer, confirmed);
     expect(plan.summary.status).toBe('READY');
     expect(plan.billing[0]?.billedAt).toEqual(asOfDate);
+  });
+
+  it('keeps an opportunity without a stable source identity pending instead of guessing', async () => {
+    const csv = Buffer.from(
+      'Opportunity,Seller Email,Brand,Customer,Amount,Stage,Expected Close\n' +
+        'Deal A,seller@example.com,Nutanix,Customer A,1000,20%,2026-10-15\n',
+    );
+    const plan = await parseCommercialWorkbook(
+      'opportunities.csv',
+      csv,
+      await confirmedContext('opportunities.csv', csv),
+    );
+    expect(plan.opportunities).toHaveLength(0);
+    expect(plan.summary.pending).toBe(1);
+    expect(plan.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'OPPORTUNITY_IDENTITY_REVIEW_REQUIRED',
+        severity: 'PENDING',
+      }),
+    );
   });
 
   it('blocks one source column from being confirmed for multiple destinations', async () => {

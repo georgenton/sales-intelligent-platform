@@ -87,6 +87,9 @@ async function seedDemo(
       timezone: 'America/Guayaquil',
       currency: 'USD',
       defaultMarginThreshold: 10,
+      stalledOpportunityDays: 30,
+      weeklyVisitTarget: 3,
+      pipelineCoverageRatio: 4,
     },
     create: {
       tenantId: tenant.id,
@@ -95,6 +98,9 @@ async function seedDemo(
       timezone: 'America/Guayaquil',
       currency: 'USD',
       defaultMarginThreshold: 10,
+      stalledOpportunityDays: 30,
+      weeklyVisitTarget: 3,
+      pipelineCoverageRatio: 4,
     },
   });
   await prisma.tenantAuthProvider.upsert({
@@ -421,6 +427,13 @@ async function seedDemo(
         opportunityId: opportunity.id,
         brandId: brands[index % brands.length]!.id,
         description: 'Synthetic product and services bundle',
+        businessUnit: 'Data Center',
+        productLine:
+          brands[index % brands.length]!.name === 'HP'
+            ? index % 2 === 0
+              ? 'Networking'
+              : 'Servidores'
+            : 'Infraestructura',
         amount,
         cost: amount - (amount * marginPercent) / 100,
       },
@@ -492,6 +505,64 @@ async function seedDemo(
           opportunityId: opportunity.id,
           ...alert,
         })),
+      });
+    }
+  }
+
+  await prisma.customerVisit.deleteMany({ where: { tenantId: tenant.id } });
+  for (let index = 0; index < sellers.length * 2; index += 1) {
+    const seller = sellers[index % sellers.length]!;
+    const customer = customers[index]!;
+    await prisma.customerVisit.create({
+      data: {
+        tenantId: tenant.id,
+        sellerId: seller.id,
+        customerId: customer.id,
+        recordedById: seller.id,
+        visitedAt: addDays(now, -(index % 5)),
+        foundOpportunity: index % 2 === 0,
+        idempotencyKey: `DEMO-VISIT-${index + 1}`,
+      },
+    });
+  }
+
+  await prisma.forecastSnapshot.deleteMany({ where: { tenantId: tenant.id } });
+  const snapshotOpportunities = await prisma.opportunity.findMany({
+    where: {
+      tenantId: tenant.id,
+      deletedAt: null,
+      expectedCloseDate: { gte: period.start, lte: period.end },
+    },
+  });
+  for (const scope of [
+    { scopeType: 'TENANT' as const, scopeUserId: null },
+    { scopeType: 'TEAM' as const, scopeUserId: manager.id },
+  ]) {
+    for (const [snapshotIndex, createdAt] of [addDays(now, -7), now].entries()) {
+      await prisma.forecastSnapshot.create({
+        data: {
+          tenantId: tenant.id,
+          createdById: manager.id,
+          periodStart: period.start,
+          periodEnd: period.end,
+          createdAt,
+          ...scope,
+          items: {
+            create: snapshotOpportunities.map((opportunity) => ({
+              tenantId: tenant.id,
+              opportunityId: opportunity.id,
+              stageId: opportunity.stageId,
+              status: opportunity.status,
+              forecastCategory: opportunity.forecastCategory,
+              estimatedAmount:
+                snapshotIndex === 0
+                  ? opportunity.estimatedAmount.mul(new Prisma.Decimal('1.12'))
+                  : opportunity.estimatedAmount,
+              expectedCloseDate: opportunity.expectedCloseDate,
+              expectedBillingDate: opportunity.expectedBillingDate,
+            })),
+          },
+        },
       });
     }
   }
