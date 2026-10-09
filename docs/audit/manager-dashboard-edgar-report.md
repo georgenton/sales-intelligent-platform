@@ -51,7 +51,7 @@ Los estados pendientes significan que la mecánica segura existe, pero falta la 
 - RBAC y agregados se prueban con Manager A/Manager B, Seller, Tenant Admin, Executive y Viewer.
 - Las tablas nuevas se prueban bajo el rol `app_runtime` con RLS cruzado entre dos tenants.
 
-## Matriz de ejecución local
+## Matriz de ejecución local (baseline G14)
 
 | Control                          | Resultado                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------- |
@@ -102,3 +102,73 @@ El mismo recorrido valida 360/375 sin overflow, teclado sobre filtros/desgloses,
 | D04      | Sólo etiquetas HP/HPE/Nutanix/Lenovo; alias marcado pendiente.                         | Personas, HP/HPE/HIT y Upside con fuente.                  |
 
 NOTION: PENDIENTE DE SINCRONIZACIÓN.
+
+## Remediación G15 — 2026-10-08
+
+### Alcance y entorno
+
+La remediación se ejecutó sobre `feat/manager-dashboard-edgar`, partiendo del HEAD revisado `23842f75cec14d37a245c9a97b9935e6ee6ec1de` y de `origin/staging` `de23454048f22bf2deac295630235c181b661c04`. Se conservaron Node `24.19.0`, pnpm `10.33.2`, React 19, Next 16 y Nest 11. No se cambió la semántica de `pnpm audit --audit-level high`, no se añadieron ignores/overrides y se mantuvo el override preexistente de `deepmerge-ts`.
+
+El lockfile y los manifiestos de dependencias del HEAD revisado eran idénticos a staging: los riesgos eran heredados, pero no se consideraron aceptados. El audit inicial real devolvió código 1, 990 dependencias y 40 entradas/rutas: 2 critical, 19 high, 16 moderate y 3 low. El resultado posterior también devuelve código 1: 988 dependencias y 4 advisories únicos, 0 critical, 1 high, 2 moderate y 1 low. Por tanto, el gate completo permanece **FAIL** y G15 queda **NO LISTO** hasta resolver `braces` con una versión oficial compatible.
+
+### Dependencias high/critical
+
+| Paquete / uso                             | Antes → después                          | Advisory(s) del inventario                                    | Cadena y motivo                                                                          | Evidencia / estado                                                                                                                       |
+| ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Next.js / runtime+build web               | 16.3.3 → 16.3.8                          | GHSA-vcvr-r3jv-pc5j, GHSA-cjq9-62q9-8jv4                      | dependencia directa `@sip/web`; 16.3.8 es el primer parche común para ambos rangos       | Corregido; build y standalone smoke PASS                                                                                                 |
+| `eslint-config-next` / dev                | 16.3.3 → 16.3.8                          | alineación con Next; la cadena de `braces` no desaparece      | dependencia directa del paquete compartido de lint                                       | Alineado; lint PASS; bloqueo `braces` separado                                                                                           |
+| Nest core/platform/testing / runtime+test | 11.2.3 → 11.2.7                          | habilita transitivos corregidos de Express/Multer             | dependencias directas de API                                                             | Corregido; unitarias, integración, RLS, Docker y health PASS                                                                             |
+| `proxy-addr` / runtime API                | 2.0.7 → 2.0.8                            | GHSA-jqcg-44mw-7w3h                                           | `@nestjs/platform-express → express → proxy-addr`                                        | Corregido; `pnpm why` y runtime Docker confirman la cadena                                                                               |
+| `multer` / runtime API                    | 2.2.0 → 2.4.0                            | GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf, GHSA-535w-7cp7-47q4 | `@nestjs/platform-express → multer`; endpoint multipart activo                           | Corregido hasta el parche que cubre también el moderate relacionado; contratos válido/malformado/límite conservados                      |
+| `sharp` / runtime/build web               | 0.35.3 → 0.35.5                          | GHSA-rgj7-g3m4-5g8c, GHSA-wq5f-xc86-pv6w                      | `next → sharp`                                                                           | Corregido; resolución efectiva 0.35.5                                                                                                    |
+| `nodemailer` / runtime API                | 10.0.0 → 10.0.16                         | GHSA-v53p-9fqp-m79j, GHSA-prgh-xp8r-p3m5                      | dependencia directa; recuperación usa proveedor inyectable                               | Corregido; proveedor de prueba PASS, sin envío real                                                                                      |
+| `js-yaml` / dev                           | 4.3.1 → 4.3.2                            | GHSA-2883-xcg3-v3hh                                           | `@nestjs/cli → fork-ts-checker-webpack-plugin → cosmiconfig → js-yaml`                   | High corregido; queda `js-yaml@5.3.0` moderate fijado por `@nestjs/swagger@11.4.7`                                                       |
+| `fast-uri` / dev                          | 3.1.6 → 3.1.8                            | GHSA-qw65-cvwx-89v3, GHSA-58mr-gqgx-xq4g                      | `@nestjs/cli → @angular-devkit/core → ajv → fast-uri`                                    | Corregido                                                                                                                                |
+| `brace-expansion` / build+dev             | 1.1.18/2.1.4/5.0.9 → 1.1.21/2.1.7/5.0.12 | GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p                      | cadenas de minimatch en Nest CLI, ESLint y ExcelJS                                       | Corregido sin override                                                                                                                   |
+| `source-map-js` / dev                     | 1.2.1 → 1.2.2                            | GHSA-68fv-2mgg-jv7q                                           | `vitest → vite → postcss → source-map-js`                                                | Corregido                                                                                                                                |
+| `braces` / dev lint                       | 3.0.3 → 3.0.3                            | GHSA-vfj7-8cjw-p6xm / CVE-2026-93687                          | `eslint-config-next@16.3.8 → @next/eslint-plugin-next → fast-glob → micromatch → braces` | **BLOQUEO REAL**: advisory declara `Patched versions: <0.0.0`; no release/PR oficial utilizable y el padre compatible conserva la cadena |
+
+Fuentes primarias revalidadas: [Next RCE](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j), [Next SSRF](https://github.com/advisories/GHSA-cjq9-62q9-8jv4), [proxy-addr](https://github.com/advisories/GHSA-jqcg-44mw-7w3h), [sharp](https://github.com/advisories/GHSA-wq5f-xc86-pv6w), [multer](https://github.com/advisories/GHSA-qfvm-cv95-jqjf), [nodemailer](https://github.com/advisories/GHSA-v53p-9fqp-m79j), [js-yaml 4.x](https://github.com/advisories/GHSA-2883-xcg3-v3hh), [source-map-js](https://github.com/advisories/GHSA-68fv-2mgg-jv7q), [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) y [seguimiento upstream de braces](https://github.com/micromatch/braces/issues/70).
+
+### Audit antes/después
+
+| Medida                     | Antes |             Después |
+| -------------------------- | ----: | ------------------: |
+| Critical                   |     2 |                   0 |
+| High                       |    19 |                   1 |
+| Moderate                   |    16 |                   2 |
+| Low                        |     3 |                   1 |
+| Entradas/rutas reportadas  |    40 | 4 advisories únicos |
+| Dependencias auditadas     |   990 |                 988 |
+| Gate `pnpm security:audit` |  FAIL |                FAIL |
+
+Los restantes no high son `uuid@8.3.2` moderate vía `exceljs@4.4.0` (el parche requiere una major del transitivo), `js-yaml@5.3.0` moderate vía `@nestjs/swagger@11.4.7` y `esbuild@0.27.7` low en la toolchain de Nest (servidor de desarrollo, sólo Windows). `qs` quedó en 6.16.0. No se forzó una major ni un override para ocultarlos.
+
+### Regresión G15
+
+| Control                                    | Resultado                                                                                                             |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`           | PASS con Node 24.19.0 / pnpm 10.33.2; restricciones de scripts conservadas                                            |
+| `pnpm format:check` / `lint` / `typecheck` | PASS                                                                                                                  |
+| `pnpm test`                                | PASS; API 56, web 31, shared 1 (88 total)                                                                             |
+| `pnpm test:integration`                    | PASS; 27/27, incluido SMTP de prueba, Auth/CSRF/RBAC, importación y contrato comercial                                |
+| `pnpm test:tenant-isolation`               | PASS; 5/5 bajo RLS                                                                                                    |
+| Prisma                                     | PASS; schema válido y seis migraciones aplicadas en PostgreSQL Docker desechable                                      |
+| `pnpm build`                               | PASS; API y Next 16.3.8                                                                                               |
+| Docker/runtime API                         | PASS; imagen Node 24.19.0, Nest platform 11.2.7, Nodemailer 10.0.16; `/health/live` y `/health/ready` 200/database up |
+| Runtime web                                | PASS; standalone Next 16.3.8 sirvió `/login`, contenido ES y assets estáticos                                         |
+| E2E local explícito                        | PASS; 10 ejecutados, 10 aprobados, 0 fallidos, 0 omitidos, 0 retries                                                  |
+| Gitleaks                                   | PASS; árbol versionado exportado y `origin/staging..HEAD`, sin hallazgos                                              |
+| `pnpm security:audit`                      | **FAIL esperado y conservado**; únicamente 1 high (`braces`)                                                          |
+
+Los E2E usan una base aislada, password aleatorio efímero y los perfiles Tenant Admin, Manager, Seller, Executive y Viewer. Los dos casos antes omitidos se ejecutaron; los recorridos de Manager ahora usan `manager@techdistribution.demo`, no `adminPage`. Se validaron resumen/filtros, alertas/detalle, Seller Focus/Guided, superficies Executive/Viewer read-only, EN/ES, Light/Dark, 360/375/390/1024/1440, Escape/foco/drawer, login/logout, redirect protegido y ausencia de 5xx. El harness respeta el límite real de cinco logins/minuto; no desactiva throttling ni ignora 429.
+
+R01–R10 y A01–A07 no recibieron cambios de negocio. Los tests existentes mantienen ID estable, actualización/no-op, historial, ausencia sin borrado, acumulado 300→350, facturación parcial, trimestre, alertas sin mutaciones automáticas, permisos y aislamiento. D01–D04, R05, R08/A05 y R10 conservan sus estados anteriores; la conciliación real sigue **NO VERIFICADA**.
+
+### Exposición read-only y despliegue
+
+La API activa de Railway staging respondió 200 en `/health/live` y 200/database up en `/health/ready`. El deployment activo observado fue `010ea649-a4eb-4ab4-a48e-561eed2b8d78` sobre commit `125ad6f6e05121b363d7982d4195bb32c88b25d6`; staging `de234540` fue omitido por watched paths. Esa API todavía resolvía Nest 11.2.3, Multer 2.2.0, proxy-addr 2.0.7 y Nodemailer 10.0.0. El upload multipart y correo son rutas runtime activas: se recomienda un backport mínimo separado a staging. La configuración usa `trust proxy = 1`; no se ejecutó exploit ni carga remota.
+
+El alias estable de Vercel observado estaba Ready sobre `912ee9497e7134098d5e65485cb9f1095656db0c` y Next 16.3.3. No se encontraron usos de `next/og`, `ImageResponse` ni imágenes remotas en la configuración actual, pero esto no convierte la versión vulnerable en aceptable. La Preview de PR #29 se trata exclusivamente como build; no se apunta al backend compartido ni se presenta como demo integrada.
+
+No se modificaron main, staging, Railway, Vercel estable, datos remotos, DNS, credenciales ni producción. El SHA final y la CI exacta se registran en la entrega del PR una vez publicados los commits G15.
