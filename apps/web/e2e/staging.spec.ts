@@ -5,6 +5,8 @@ import path from 'node:path';
 const baseUrl = process.env.STAGING_BASE_URL;
 const adminEmail = process.env.STAGING_ADMIN_EMAIL ?? 'admin@techdistribution.demo';
 const adminPassword = process.env.STAGING_ADMIN_PASSWORD;
+const managerEmail = process.env.STAGING_MANAGER_EMAIL;
+const managerPassword = process.env.STAGING_MANAGER_PASSWORD;
 const sellerEmail = process.env.STAGING_SELLER_EMAIL;
 const sellerPassword = process.env.STAGING_SELLER_PASSWORD;
 const executiveEmail = process.env.STAGING_EXECUTIVE_EMAIL;
@@ -15,8 +17,11 @@ const vercelAutomationBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 let adminContext: BrowserContext;
 let adminPage: Page;
+let managerContext: BrowserContext | undefined;
+let managerPage: Page | undefined;
 let sellerContext: BrowserContext | undefined;
 let sellerPage: Page | undefined;
+const localLoginAttemptTimes: number[] = [];
 
 function browserContextOptions() {
   return {
@@ -27,15 +32,35 @@ function browserContextOptions() {
   };
 }
 
+function isExplicitLocalRun(): boolean {
+  if (!baseUrl || process.env.E2E_ALLOW_LOCAL !== 'true') return false;
+  const target = new URL(baseUrl);
+  return target.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(target.hostname);
+}
+
+async function waitForLocalLoginCapacity(page: Page): Promise<void> {
+  if (!isExplicitLocalRun()) return;
+  const windowMs = 60_000;
+  const now = Date.now();
+  while (localLoginAttemptTimes[0] && localLoginAttemptTimes[0] <= now - windowMs) {
+    localLoginAttemptTimes.shift();
+  }
+  if (localLoginAttemptTimes.length >= 5) {
+    const waitMs = localLoginAttemptTimes[0]! + windowMs + 500 - now;
+    if (waitMs > 0) await page.waitForTimeout(waitMs);
+    const resumedAt = Date.now();
+    while (localLoginAttemptTimes[0] && localLoginAttemptTimes[0] <= resumedAt - windowMs) {
+      localLoginAttemptTimes.shift();
+    }
+  }
+}
+
 test.beforeAll(async ({ browser }) => {
   if (!baseUrl || !adminPassword) {
     throw new Error('STAGING_BASE_URL and STAGING_ADMIN_PASSWORD are required');
   }
   const target = new URL(baseUrl);
-  const localRun =
-    process.env.E2E_ALLOW_LOCAL === 'true' &&
-    target.protocol === 'http:' &&
-    ['127.0.0.1', 'localhost'].includes(target.hostname);
+  const localRun = isExplicitLocalRun();
   if (target.protocol !== 'https:' && !localRun) {
     throw new Error('The staging E2E suite only accepts an HTTPS target');
   }
@@ -47,10 +72,18 @@ test.beforeAll(async ({ browser }) => {
   adminPage = await adminContext.newPage();
   await signIn(adminPage, adminEmail, adminPassword);
   await expect(adminPage).toHaveURL(/\/app\/dashboard$/);
+
+  if (managerEmail && managerPassword) {
+    managerContext = await browser.newContext(browserContextOptions());
+    managerPage = await managerContext.newPage();
+    await signIn(managerPage, managerEmail, managerPassword);
+    await expect(managerPage).toHaveURL(/\/app\/dashboard$/);
+  }
 });
 
 test.afterAll(async () => {
   await sellerContext?.close();
+  await managerContext?.close();
   await adminContext?.close();
 });
 
@@ -71,7 +104,17 @@ async function signIn(page: Page, email: string, password: string, locale: 'en' 
     exact: true,
   });
   await expect(submit).toBeEnabled();
+  await waitForLocalLoginCapacity(page);
+  const loginResponsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === 'POST' && new URL(response.url()).pathname === '/backend/auth/login'
+    );
+  });
   await submit.click();
+  const loginResponse = await loginResponsePromise;
+  expect(loginResponse.status()).toBe(200);
+  if (isExplicitLocalRun()) localLoginAttemptTimes.push(Date.now());
 }
 
 test('login cannot serialize credentials into the URL before hydration', async ({ browser }) => {
@@ -145,9 +188,7 @@ test('login defaults to Spanish and preserves locale, route, theme and authentic
   await page.getByLabel('Idioma').selectOption('en');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
-  await page.getByLabel('Email', { exact: true }).fill(adminEmail);
-  await page.getByLabel('Password', { exact: true }).fill(adminPassword!);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await signIn(page, adminEmail, adminPassword!);
   await expect(page).toHaveURL(/\/app\/dashboard$/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
@@ -235,7 +276,8 @@ test('admin can manage a synthetic opportunity', async () => {
 });
 
 test('manager drills into stage evidence, opens context and closes with Escape', async () => {
-  const page = adminPage;
+  test.skip(!managerPage, 'Manager staging credentials are optional');
+  const page = managerPage!;
   await page.goto('/app/dashboard');
 
   const negotiation = page.locator('details').filter({ hasText: '80 · Negotiation' }).first();
@@ -284,7 +326,7 @@ test('management dashboard stays accessible without horizontal page overflow', a
   );
   if (captureEvidence) await mkdir(evidenceDirectory, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/app/dashboard', { waitUntil: 'domcontentloaded' });
+  await page.goto('/app/dashboard', { waitUntil: 'networkidle' });
 
   const scenarios = [
     { width: 390, height: 844, locale: 'es', appearance: 'LIGHT' },
@@ -371,7 +413,8 @@ test('management dashboard stays accessible without horizontal page overflow', a
 });
 
 test('manager review advances only after an explicit decision', async () => {
-  const page = adminPage;
+  test.skip(!managerPage, 'Manager staging credentials are optional');
+  const page = managerPage!;
   await page.goto('/app/dashboard?view=review');
   await page.getByRole('button', { name: 'Forecast review' }).click();
   await expect(
@@ -575,7 +618,7 @@ test('Executive and Viewer surfaces remain read-only', async ({ browser }) => {
       await expect(palette.getByText('Open forecast review', { exact: true })).toHaveCount(0);
       await page.keyboard.press('Escape');
 
-      await page.goto('/app/opportunities', { waitUntil: 'domcontentloaded' });
+      await page.goto('/app/opportunities', { waitUntil: 'networkidle' });
       await expect(page.getByText('New opportunity', { exact: true })).toHaveCount(0);
       const firstOpportunity = await page.evaluate(async () => {
         const response = await fetch('/backend/opportunities?perPage=1');
@@ -656,9 +699,7 @@ test('language persists without changing route, theme, mode or session boundarie
   await page.goto('/app/dashboard');
   await expect(page).toHaveURL(/\/login$/);
 
-  await page.getByLabel('Correo electrónico', { exact: true }).fill(adminEmail);
-  await page.getByLabel('Contraseña', { exact: true }).fill(adminPassword!);
-  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+  await signIn(page, adminEmail, adminPassword!, 'es');
   await expect(page).toHaveURL(/\/app\/dashboard$/);
   await expect(
     page.getByRole('heading', { name: 'Resumen gerencial — Data Center' }),
