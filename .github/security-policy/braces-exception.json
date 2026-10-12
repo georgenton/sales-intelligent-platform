@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "SIP-SEC-EXC-2026-001",
+  "status": "APPROVED",
+  "revoked": false,
+  "approvedBy": "Jorge Quizamanchuro",
+  "authorizationText": "Apruebo por un máximo de 14 días la excepción temporal de braces@3.0.3, exclusivamente para el advisory y la cadena de herramientas documentados en G16, con revisión semanal, sin renovación automática y sin autorizar todavía merges ni despliegues",
+  "startsAt": "2026-10-12T16:59:59Z",
+  "reviewDueAt": "2026-10-19T16:59:59Z",
+  "expiresAt": "2026-10-26T16:59:59Z",
+  "displayTimezone": "America/Guayaquil",
+  "startsAtLocal": "2026-10-12T11:59:59-05:00",
+  "reviewDueAtLocal": "2026-10-19T11:59:59-05:00",
+  "expiresAtLocal": "2026-10-26T11:59:59-05:00",
+  "renewal": "NONE",
+  "approvalSource": "https://app.notion.com/p/3f7cbb1031a081e8a00ac1030c70a12f",
+  "reviewHistory": [
+    {
+      "reviewedAt": "2026-10-12T16:59:59Z",
+      "reviewer": "Jorge Quizamanchuro",
+      "nextReviewDueAt": "2026-10-19T16:59:59Z",
+      "evidence": "https://app.notion.com/p/3f7cbb1031a081e8a00ac1030c70a12f"
+    }
+  ],
+  "branches": ["fix/staging-runtime-security", "feat/manager-dashboard-edgar"],
+  "scope": {
+    "ghsa": "GHSA-vfj7-8cjw-p6xm",
+    "cve": "CVE-2026-93687",
+    "package": "braces",
+    "version": "3.0.3",
+    "severity": "high",
+    "auditPaths": [
+      "packages__eslint-config>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces"
+    ],
+    "graphPaths": [
+      "@sip/eslint-config@0.1.0>eslint-config-next@16.3.8>@next/eslint-plugin-next@16.3.8>fast-glob@3.3.1>micromatch@4.0.8>braces@3.0.3"
+    ],
+    "usage": "lint-build-tooling-only",
+    "sourceReferences": [
+      "packages/eslint-config/next.mjs:eslint-config-next/core-web-vitals",
+      "packages/eslint-config/next.mjs:eslint-config-next/typescript",
+      "packages/eslint-config/package.json:eslint-config-next"
+    ],
+    "vercelLimitation": "The complete filesystem of every hosted Vercel function was not independently inspected; local standalone and NFT evidence must not be represented as zero risk."
+  },
+  "controls": [
+    "build",
+    "frozen-install",
+    "full-json-audit",
+    "gitleaks",
+    "integration-tests",
+    "lint",
+    "no-continue-on-error",
+    "no-pull-request-target",
+    "policy-tests",
+    "quality-timeout",
+    "raw-high-audit",
+    "read-only-secrets-job",
+    "tenant-isolation-tests",
+    "unit-tests"
+  ]
+}
