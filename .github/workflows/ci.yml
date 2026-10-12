@@ -61,7 +61,10 @@ jobs:
           DATABASE_URL: postgresql://sip_runtime_ci:ci_runtime_role_password_2026_only@localhost:5432/sales_intelligence?schema=public
       - run: pnpm test:tenant-isolation
       - run: pnpm build
-      - run: pnpm audit --audit-level high
+      - name: Test security policy evaluator
+        run: node --test .github/security-policy/evaluate.test.mjs
+      - name: Evaluate raw audit and approved security policy
+        run: node .github/security-policy/run.mjs
 
   secrets:
     runs-on: ubuntu-latest
