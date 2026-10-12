@@ -673,15 +673,38 @@ describe('Phase 1 commercial operating flows', () => {
 
   it('calculates quota, billed, brand performance, GM, gap, and quarter coverage on the server', async () => {
     const dashboard = await admin.get('/analytics/dashboard').expect(200);
+    const config = await admin.get('/commercial/config').expect(200);
+    const expectedBrandId = (
+      await prisma.brand.findUniqueOrThrow({
+        where: { tenantId_name: { tenantId, name: 'HP' } },
+      })
+    ).id;
+    const configuredBrandQuota = config.body.quotas.find(
+      (quota: { assigneeId: string | null; brandId: string | null }) =>
+        !quota.assigneeId && quota.brandId === expectedBrandId,
+    );
+    const configuredBrand = dashboard.body.brandPerformance.find(
+      (brand: { brandId: string }) => brand.brandId === expectedBrandId,
+    );
+    const unconfiguredBrand = dashboard.body.brandPerformance.find(
+      (brand: { brandId: string }) => brand.brandId === roleScopeBrandBId,
+    );
     expect(dashboard.body.kpis.quotaConfigured).toBe(true);
     expect(dashboard.body.kpis.pipelineCoverage).not.toBeNull();
     expect(dashboard.body.kpis.weightedCoverage).not.toBeNull();
     expect(dashboard.body.kpis.averageMargin).not.toBeNull();
     expect(dashboard.body.brandPerformance.length).toBeGreaterThan(0);
-    expect(dashboard.body.brandPerformance[0]).toEqual(
+    expect(configuredBrandQuota).toEqual(
       expect.objectContaining({
-        brandId: expect.any(String),
-        quota: expect.any(Number),
+        assigneeId: null,
+        brandId: expectedBrandId,
+        amount: expect.any(Number),
+      }),
+    );
+    expect(configuredBrand).toEqual(
+      expect.objectContaining({
+        brandId: expectedBrandId,
+        quota: configuredBrandQuota?.amount,
         billed: expect.any(Number),
         pipeline: expect.any(Number),
         forecast: expect.any(Number),
@@ -692,7 +715,27 @@ describe('Phase 1 commercial operating flows', () => {
         projectedAttainment: expect.any(Number),
       }),
     );
-    const config = await admin.get('/commercial/config').expect(200);
+    expect(
+      config.body.quotas.some(
+        (quota: { assigneeId: string | null; brandId: string | null }) =>
+          !quota.assigneeId && quota.brandId === roleScopeBrandBId,
+      ),
+    ).toBe(false);
+    expect(unconfiguredBrand).toEqual(
+      expect.objectContaining({
+        brandId: roleScopeBrandBId,
+        quota: null,
+        billed: expect.any(Number),
+        pipeline: expect.any(Number),
+        forecast: expect.any(Number),
+        commit: expect.any(Number),
+        remainingQuota: null,
+        projectedRevenue: expect.any(Number),
+        projectedGap: null,
+        billingAttainment: null,
+        projectedAttainment: null,
+      }),
+    );
     expect(config.body.quotas.some((quota: { brandId: string | null }) => quota.brandId)).toBe(
       true,
     );
