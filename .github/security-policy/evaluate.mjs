@@ -154,7 +154,7 @@ export function parseFullAuditExecution(execution) {
   return { ok: true, report };
 }
 
-function validateExceptionRecord(record) {
+function validateExceptionRecord(record, now) {
   if (!record) return ['approved exception record is absent'];
   const mismatches = [];
   const allowedFields = sorted([...Object.keys(EXPECTED_CONTRACT), 'reviewHistory']);
@@ -185,15 +185,22 @@ function validateExceptionRecord(record) {
   let previousDueMs = Date.parse(initialReview.nextReviewDueAt);
   let previousReviewMs = Date.parse(initialReview.reviewedAt);
   const expiresMs = Date.parse(EXPECTED_CONTRACT.expiresAt);
+  const nowMs = Date.parse(now);
+  if (Number.isNaN(nowMs)) return ['exception date is invalid'];
   for (const review of reviews.slice(1)) {
     const reviewedMs = Date.parse(review.reviewedAt);
     const nextDueMs = Date.parse(review.nextReviewDueAt);
     const weeklyMaximumMs = reviewedMs + 7 * 24 * 60 * 60 * 1000;
+    if ([reviewedMs, nextDueMs].some(Number.isNaN)) {
+      return ['weekly exception review history is invalid'];
+    }
+    if (reviewedMs > nowMs) {
+      return ['weekly exception review is dated in the future'];
+    }
     if (
       review.reviewer !== EXPECTED_CONTRACT.approvedBy ||
       typeof review.evidence !== 'string' ||
       !review.evidence.startsWith('https://app.notion.com/p/') ||
-      [reviewedMs, nextDueMs].some(Number.isNaN) ||
       reviewedMs < previousReviewMs ||
       reviewedMs > previousDueMs ||
       nextDueMs <= reviewedMs ||
@@ -274,7 +281,7 @@ export function evaluateSecurityPolicy({ fullAudit, rawAuditStatus, record, evid
   }
 
   const reasons = [
-    ...validateExceptionRecord(record),
+    ...validateExceptionRecord(record, now),
     ...(record ? validateTime(record, now) : []),
   ];
   if (!isDeepStrictEqual(evidence, EXPECTED_REPOSITORY_EVIDENCE)) {
