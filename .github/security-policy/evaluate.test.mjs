@@ -62,6 +62,18 @@ function decide({
   return evaluateSecurityPolicy({ fullAudit, rawAuditStatus, record, evidence, now });
 }
 
+function recordWithWeeklyReview(overrides = {}) {
+  const record = structuredClone(approvedRecord);
+  record.reviewHistory.push({
+    reviewedAt: '2026-10-19T16:59:59Z',
+    reviewer: 'Jorge Quizamanchuro',
+    nextReviewDueAt: '2026-10-26T16:59:59Z',
+    evidence: 'https://app.notion.com/p/3f7cbb1031a081e8a00ac1030c70a12f',
+    ...overrides,
+  });
+  return record;
+}
+
 test('exact current finding receives the fixed time-limited exception', () => {
   const result = decide();
   assert.equal(result.policy, 'PASS_WITH_TIME_LIMITED_EXCEPTION');
@@ -134,18 +146,45 @@ test('missing, revoked, or invalid exception record fails when needed', async (t
 });
 
 test('one instant before expiry can pass and exact expiry fails', () => {
-  const record = structuredClone(approvedRecord);
-  record.reviewHistory.push({
-    reviewedAt: '2026-10-19T16:59:59Z',
-    reviewer: 'Jorge Quizamanchuro',
-    nextReviewDueAt: '2026-10-26T16:59:59Z',
-    evidence: 'https://app.notion.com/p/3f7cbb1031a081e8a00ac1030c70a12f',
-  });
+  const record = recordWithWeeklyReview();
   assert.equal(
     decide({ now: '2026-10-26T16:59:58.999Z', record }).policy,
     'PASS_WITH_TIME_LIMITED_EXCEPTION',
   );
   assert.equal(decide({ now: '2026-10-26T16:59:59Z', record }).policy, 'FAIL');
+});
+
+test('a weekly review dated after the evaluation time fails', () => {
+  const result = decide({
+    now: '2026-10-12T17:40:00Z',
+    record: recordWithWeeklyReview(),
+  });
+  assert.equal(result.policy, 'FAIL');
+  assert.ok(result.reasons.includes('weekly exception review is dated in the future'));
+});
+
+test('a completed weekly review with valid order and deadlines passes', () => {
+  const record = recordWithWeeklyReview({
+    reviewedAt: '2026-10-18T16:59:59Z',
+    nextReviewDueAt: '2026-10-25T16:59:59Z',
+  });
+  assert.equal(
+    decide({ now: '2026-10-18T17:00:00Z', record }).policy,
+    'PASS_WITH_TIME_LIMITED_EXCEPTION',
+  );
+});
+
+test('a weekly review dated exactly at the evaluation time is valid', () => {
+  const record = recordWithWeeklyReview();
+  assert.equal(
+    decide({ now: '2026-10-19T16:59:59Z', record }).policy,
+    'PASS_WITH_TIME_LIMITED_EXCEPTION',
+  );
+});
+
+test('an invalid weekly review date fails', () => {
+  const record = recordWithWeeklyReview({ reviewedAt: 'not-a-date' });
+  assert.equal(decide({ now: '2026-10-19T17:00:00Z', record }).policy, 'FAIL');
 });
 
 test('the exception cannot apply before its fixed start', () => {
