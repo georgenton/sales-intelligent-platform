@@ -135,6 +135,8 @@ Approved conditions and controls:
 
 The evaluator fails closed for missing/revoked/invalid records, overdue weekly review, `now >= 2026-10-26T16:59:59Z`, incomplete or malformed JSON, registry/network/timeout errors, contradictory evidence, another path or advisory, severity escalation, runtime use, lost controls, or any additional High/Critical finding. There is no date-bypass flag; simulated time exists only in unit tests.
 
+A previously green GitHub check does not turn red automatically when the review deadline or expiry is reached. Any future merge or deployment therefore requires a fresh policy evaluation on that exact HEAD while the exception is still valid, plus separate operational authorization.
+
 If the accepted High disappears and no other High/Critical remains, the policy returns `PASS` without using the exception and instructs maintainers to close the record rather than renew it. Moderate and Low findings remain visible under the pre-existing high-severity gate.
 
 **Exception applied: YES, only in `SECURITY_POLICY`.** `pnpm security:audit` and `pnpm audit --audit-level high` remain unchanged and continue to report **FAIL**. Current real evaluation is `AUDIT_RAW: FAIL` and `SECURITY_POLICY: PASS_WITH_TIME_LIMITED_EXCEPTION`.
