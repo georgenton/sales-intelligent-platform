@@ -2,6 +2,7 @@
 
 Date: 2026-10-08  
 Test-only closure: 2026-10-12
+G17 policy implementation: 2026-10-12
 
 Target: `fix/staging-runtime-security` → `staging`  
 Base: `de23454048f22bf2deac295630235c181b661c04` (`origin/staging`)  
@@ -12,9 +13,9 @@ Deployment state: **not deployed**
 
 The compatible runtime dependency patches from G15 apply cleanly to the stable branch without functional code, migrations, October entities, the Edgar dashboard, or visit functionality. The stable schema remains at four migrations.
 
-The test-only closure on 2026-10-12 removed the stable integration blocker without changing runtime code, schema, dependencies, lockfile, or the backend response order. The draft now has one explicit blocker:
+The test-only closure on 2026-10-12 removed the stable integration blocker without changing runtime code, schema, dependencies, lockfile, or the backend response order.
 
-1. raw `pnpm audit --audit-level high` remains **FAIL** because of `braces@3.0.3`; no exception has been applied.
+The raw `pnpm audit --audit-level high` result remains **FAIL** because of `braces@3.0.3`. G17 does not hide or alter that result: it adds a separate fail-closed policy decision that may return `PASS_WITH_TIME_LIMITED_EXCEPTION` only for the exact approved tooling finding and only while the fixed approval and weekly review window remain current. This is neither a vulnerability fix nor permission to merge or deploy.
 
 The original G16 run exposed a pre-existing order-dependent assertion in `phase1-commercial.integration-spec.ts` (20/21 tests passed). The approved test-only correction is documented below; no functional dashboard work from commit `23842f7` was cherry-picked.
 
@@ -48,6 +49,7 @@ Both `pnpm audit --audit-level high` and the unchanged `pnpm security:audit` com
 - Patched versions reported by the advisory: none (`<0.0.0`).
 - The official repository has [no GitHub releases](https://github.com/micromatch/braces/releases); the latest official tag and npm publication are `3.0.3`.
 - Upstream tracking [micromatch/braces#70](https://github.com/micromatch/braces/issues/70) is open and does not provide a released compatible patch.
+- G17 recheck on 2026-10-12 through GitHub's official advisory API: severity remains `high`, affected range remains `<=3.0.3`, `first_patched_version` remains `null`, `withdrawn_at` remains `null`, and the advisory's last recorded update is `2026-10-02T22:36:34Z`.
 
 No fork, unpublished commit, fake version, override, or chained experimental upgrade was used.
 
@@ -102,27 +104,42 @@ The vulnerability is a stack-exhaustion denial of service when a deeply nested b
 - Repository default workflow permissions are read-only. The quality job receives no repository secret through its environment. The secrets job explicitly has `contents: read` and `pull-requests: read`; its `GITHUB_TOKEN` is read-only and repository secrets are not exposed to an external fork pull request.
 - The quality job has a 25-minute timeout and concurrency cancellation by ref. Network egress is not explicitly restricted.
 - Lint and the raw high-severity audit remain active. There is no ignore, `continue-on-error`, `--ignore-unfixable`, production-only replacement, or severity downgrade.
+- GitHub reports default workflow permissions as read-only and disallows workflow approval of pull requests. It reports no repository rulesets, and the branch-protection API returns `404 Branch not protected` for both `staging` and `main`. Therefore the green policy check is evidence, not a platform-enforced merge authorization; operational authorization remains separate.
 
 The remaining risk is bounded to CI/developer-tool availability if untrusted versioned configuration is changed to feed a malicious pattern to the lint rule. A malicious pull request can already execute repository-controlled install/test scripts in the same read-only, secretless job, so review and the job timeout are the relevant containment controls. This analysis does not claim “not affected.”
 
-## Temporary acceptance proposal — not approved
+## Temporary exception — approved with fixed expiry
 
-Status: **PENDIENTE DE APROBACIÓN**  
-Proposed owner: Jorge  
-Proposed review: weekly  
-Proposed expiry: 14 days after an actual approval; no active expiry exists and renewal is not automatic.
+- Status: **APPROVED, ACTIVE, TIME-LIMITED**
+- Identifier: `SIP-SEC-EXC-2026-001`
+- Approver and owner: Jorge Quizamanchuro
+- Start: `2026-10-12T16:59:59Z` / `2026-10-12 11:59:59` America/Guayaquil
+- First weekly review due: `2026-10-19T16:59:59Z` / `2026-10-19 11:59:59` America/Guayaquil
+- Maximum expiry: `2026-10-26T16:59:59Z` / `2026-10-26 11:59:59` America/Guayaquil
+- Renewal: none; copying, retrying CI, or pushing another branch does not change these timestamps.
 
-Proposed scope is only GHSA-vfj7-8cjw-p6xm / CVE-2026-93687 for `braces@3.0.3` through the exact importer chain documented above. Residual risk is a CI/developer-tool denial of service from a malicious versioned glob configuration.
+Recorded authorization:
 
-Proposed conditions:
+> Apruebo por un máximo de 14 días la excepción temporal de braces@3.0.3, exclusivamente para el advisory y la cadena de herramientas documentados en G16, con revisión semanal, sin renovación automática y sin autorizar todavía merges ni despliegues.
+
+The approval covers only GHSA-vfj7-8cjw-p6xm / CVE-2026-93687, `braces@3.0.3`, severity `HIGH`, and the one exact `@sip/eslint-config → eslint-config-next@16.3.8 → @next/eslint-plugin-next@16.3.8 → fast-glob@3.3.1 → micromatch@4.0.8 → braces@3.0.3` tooling chain. It does not cover a different advisory, version, importer, path, severity, runtime use, input source, or any other High/Critical finding.
+
+Approved conditions and controls:
 
 - no high or critical runtime finding;
 - no new `braces` chain or use outside the evaluated ESLint path;
-- lint, tests, and raw audit remain active and the warning remains visible;
+- frozen installation, exact installed graph, source-reference scope, lint, unit/integration/tenant tests, build, Gitleaks, timeouts, read-only workflow permissions, full JSON audit, and raw audit remain active;
+- `AUDIT_RAW` and `SECURITY_POLICY` are reported separately and the complete Low/Moderate/High findings remain visible;
 - any change in version, chain, call site, input control, or any new high/critical advisory triggers immediate review; and
 - remove the acceptance as soon as a compatible official patch exists.
 
-**Exception applied: NO.** `pnpm security:audit` and `pnpm audit --audit-level high` are unchanged and still fail. An approved policy outcome, if any, must remain distinct from the raw audit result.
+The evaluator fails closed for missing/revoked/invalid records, overdue weekly review, `now >= 2026-10-26T16:59:59Z`, incomplete or malformed JSON, registry/network/timeout errors, contradictory evidence, another path or advisory, severity escalation, runtime use, lost controls, or any additional High/Critical finding. There is no date-bypass flag; simulated time exists only in unit tests.
+
+If the accepted High disappears and no other High/Critical remains, the policy returns `PASS` without using the exception and instructs maintainers to close the record rather than renew it. Moderate and Low findings remain visible under the pre-existing high-severity gate.
+
+**Exception applied: YES, only in `SECURITY_POLICY`.** `pnpm security:audit` and `pnpm audit --audit-level high` remain unchanged and continue to report **FAIL**. Current real evaluation is `AUDIT_RAW: FAIL` and `SECURITY_POLICY: PASS_WITH_TIME_LIMITED_EXCEPTION`.
+
+Residual risk remains a CI/developer-tool denial of service from a malicious versioned glob configuration. The complete filesystem of every hosted Vercel function was not independently inspected; local standalone and NFT evidence must not be presented as zero risk.
 
 ## Backported dependency changes
 
@@ -137,23 +154,25 @@ No new override was introduced; the pre-existing `deepmerge-ts` override is unch
 
 The first typecheck attempt after a clean install was invalid because Prisma generation had not yet run. Repeating the exact CI order (`db:generate` before typecheck) passed.
 
-| Check                                    | Result                                                                                                                                                                                               |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fresh `pnpm install --frozen-lockfile`   | PASS; 827 packages, lockfile unchanged                                                                                                                                                               |
-| Prisma generate/deploy/status            | PASS; stable schema has 4 migrations                                                                                                                                                                 |
-| `pnpm format:check`                      | PASS                                                                                                                                                                                                 |
-| `pnpm lint`                              | PASS                                                                                                                                                                                                 |
-| `pnpm typecheck` after Prisma generation | PASS                                                                                                                                                                                                 |
-| `pnpm test`                              | PASS; 81 tests (49 API, 31 web, 1 shared)                                                                                                                                                            |
-| `pnpm test:integration` — G16 run        | **FAIL; 20/21 passed** — pre-existing stable assertion selected `brandPerformance[0]`, which was an unconfigured higher-pipeline brand created earlier in the same suite                             |
-| `pnpm test:integration` — test closure   | PASS twice; 21/21 on the first corrected run and 21/21 after rebuilding a disposable database from four migrations; 0 failed and 0 skipped in each run                                               |
-| `pnpm test:tenant-isolation`             | PASS; 5/5                                                                                                                                                                                            |
-| `pnpm build`                             | PASS                                                                                                                                                                                                 |
-| API Docker build and smoke               | PASS; `/health/live` 200 and `/health/ready` 200/database up                                                                                                                                         |
-| Web standalone smoke                     | PASS; login HTML, static asset, and backend health proxy 200                                                                                                                                         |
-| Local synthetic E2E                      | PASS for all 10 scenarios when scheduled within the real 5-logins/minute limit: 9 passed in the suite run, then the rate-limited final scenario passed alone after the window, with retries disabled |
-| Gitleaks                                 | PASS; 85 commits scanned, no leaks                                                                                                                                                                   |
-| Raw full security gate                   | **FAIL; one high (`braces`)**                                                                                                                                                                        |
+| Check                                    | Result                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fresh `pnpm install --frozen-lockfile`   | PASS; 827 packages, lockfile unchanged                                                                                                                                                                                                                                                                     |
+| Prisma generate/deploy/status            | PASS; stable schema has 4 migrations                                                                                                                                                                                                                                                                       |
+| `pnpm format:check`                      | PASS                                                                                                                                                                                                                                                                                                       |
+| `pnpm lint`                              | PASS                                                                                                                                                                                                                                                                                                       |
+| `pnpm typecheck` after Prisma generation | PASS                                                                                                                                                                                                                                                                                                       |
+| `pnpm test`                              | PASS; 81 tests (49 API, 31 web, 1 shared)                                                                                                                                                                                                                                                                  |
+| `pnpm test:integration` — G16 run        | **FAIL; 20/21 passed** — pre-existing stable assertion selected `brandPerformance[0]`, which was an unconfigured higher-pipeline brand created earlier in the same suite                                                                                                                                   |
+| `pnpm test:integration` — test closure   | PASS twice; 21/21 on the first corrected run and 21/21 after rebuilding a disposable database from four migrations; 0 failed and 0 skipped in each run                                                                                                                                                     |
+| `pnpm test:tenant-isolation`             | PASS; 5/5                                                                                                                                                                                                                                                                                                  |
+| `pnpm build`                             | PASS                                                                                                                                                                                                                                                                                                       |
+| API Docker build and smoke               | PASS; `/health/live` 200 and `/health/ready` 200/database up                                                                                                                                                                                                                                               |
+| Web standalone smoke                     | PASS; login HTML, static asset, and backend health proxy 200                                                                                                                                                                                                                                               |
+| Local synthetic E2E                      | PASS for all 10 scenarios when scheduled within the real 5-logins/minute limit: 9 passed in the suite run, then the rate-limited final scenario passed alone after the window, with retries disabled                                                                                                       |
+| Gitleaks                                 | PASS; 85 commits scanned, no leaks                                                                                                                                                                                                                                                                         |
+| Raw full security gate                   | **FAIL; one high (`braces`)**                                                                                                                                                                                                                                                                              |
+| G17 evaluator fixtures                   | PASS; 27 tests covering exact scope, altered GHSA/version/path/use/severity, extra path, extra High/Critical, missing/revoked/invalid record, weekly review and expiry boundaries, audit errors, filtered reports, raw-report contradictions, finding removal, lost controls, and cross-branch fixed dates |
+| G17 real complete audit                  | `AUDIT_RAW: FAIL`; `SECURITY_POLICY: PASS_WITH_TIME_LIMITED_EXCEPTION`; 0 critical, 1 high, 2 moderate, 1 low                                                                                                                                                                                              |
 
 The first monolithic E2E attempt at the canonical local origin hit the expected HTTP 429 on the sixth login in a minute; the throttle was not disabled or bypassed. There were no HTTP 5xx responses in the completed flows. All data and credentials used by these tests were local and disposable.
 
@@ -168,12 +187,12 @@ The first monolithic E2E attempt at the canonical local origin hit the expected 
 ## Review, later deployment, and rollback runbook — not executed
 
 1. Preserve the explicit-brand integration assertion and its no-quota contract check during review.
-2. Obtain security review and an explicit decision on the temporary proposal, or replace `braces` with an official compatible patch.
-3. Require review of the dependency changes, test-only correction, raw audit output, artifact evidence, and stable-suite result.
+2. Re-evaluate the exact HEAD before any future merge or deployment, complete the weekly review by its fixed deadline, and remove the exception when an official compatible patch exists.
+3. Require review of the dependency changes, test-only correction, fixed exception record, evaluator/workflow, raw audit output, artifact evidence, and stable-suite result.
 4. Merge only after the applicable repository policy is satisfied; then allow the existing staging CI/deployment automation to build the exact merge SHA.
 5. Recheck Railway and Vercel artifact SHAs, API live/ready, web smoke, Auth/CSRF/RLS/RBAC/tenant isolation, and absence of 5xx. Do not promote to `main` or customer production.
 6. If regression occurs, revert the backport merge and redeploy the last known stable staging artifacts identified above; verify database state before rollback. This backport has no migration, so schema rollback is not expected.
 
 ## Sanitized memory handoff
 
-The integration blocker in PR #30 is closed by a test-only assertion that targets the exact configured fixture brand and preserves the explicit no-quota contract. The raw high-severity audit remains blocked on `braces@3.0.3`; no risk acceptance or H3 validation exists. This handoff is pending synchronization because no authorized Notion connector was available in this execution context. Existing G16 history must be retained when it is synchronized.
+The integration blocker in PR #30 is closed by a test-only assertion that targets the exact configured fixture brand and preserves the explicit no-quota contract. Jorge approved only `SIP-SEC-EXC-2026-001` with the fixed timestamps and scope recorded above. The raw audit still fails; only the separate policy may pass with the exception. No merge, deployment, H3 validation, D01–D04 resolution, real reconciliation, or Coolify migration is authorized or implied. This handoff is pending synchronization because no authorized Notion connector was available in this execution context. Existing G16 history must be retained when it is synchronized.
