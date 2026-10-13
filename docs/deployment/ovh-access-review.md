@@ -53,8 +53,8 @@ Usar Tenant Admin para revisar importación sintética, idioma y tema; no ejecut
 - URL temporal: `https://preprod.sales.syntavera.dev`
 - Archivo local: `~/.config/sales-intelligence-platform/ovh/production-access.env`
 - Perímetro Basic Auth: usuario `jorge-sip-review`
-- App Manager: `manager@techdistribution.demo`
-- App Viewer: `viewer@techdistribution.demo`
+- App Manager: `manager@private-review.syntavera.test`
+- App Viewer: `viewer@private-review.syntavera.test`
 
 Primero copiar la clave de perímetro y completar el diálogo del navegador:
 
