@@ -15,4 +15,20 @@ export class UpdateCommercialSettingsDto {
   @IsOptional()
   @IsNumberString()
   defaultMarginThreshold?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  stalledOpportunityDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  weeklyVisitTarget?: number;
+
+  @IsOptional()
+  @IsNumberString()
+  pipelineCoverageRatio?: string;
 }

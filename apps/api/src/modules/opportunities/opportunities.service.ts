@@ -255,6 +255,12 @@ export class OpportunitiesService {
           },
         });
         if (!manager) throw new ForbiddenException('Invalid tenant-owned manager reference');
+        await transaction.tenantMembership.update({
+          where: {
+            tenantId_userId: { tenantId: auth.activeTenantId, userId: sellerId },
+          },
+          data: { managerId },
+        });
       }
       if (input.partnerId) {
         const partner = await transaction.partner.findFirst({

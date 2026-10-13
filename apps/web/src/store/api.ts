@@ -1,5 +1,11 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import type { AlertData, OpportunityData, QualificationData, ReviewEvent } from '@/lib/types';
+import type {
+  AlertData,
+  ManagerDashboardData,
+  OpportunityData,
+  QualificationData,
+  ReviewEvent,
+} from '@/lib/types';
 import { csrfToken } from '@/lib/utils';
 
 interface OpportunityList {
@@ -33,7 +39,7 @@ export const productApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Opportunity', 'Alerts', 'Forecast', 'Qualification', 'Reviews'],
+  tagTypes: ['Opportunity', 'Alerts', 'Forecast', 'Qualification', 'Reviews', 'ManagerDashboard'],
   endpoints: (builder) => ({
     opportunities: builder.query<OpportunityList, { search?: string; status?: string } | void>({
       query: (filters) => {
@@ -58,9 +64,51 @@ export const productApi = createApi({
     referenceData: builder.query<ReferenceData, void>({
       query: () => '/opportunities/reference-data',
     }),
+    managerDashboard: builder.query<
+      ManagerDashboardData,
+      {
+        period: 'current' | 'next';
+        brandId?: string;
+        line?: string;
+        sellerId?: string;
+        weekStart?: string;
+      }
+    >({
+      query: (filters) => {
+        const params = new URLSearchParams({ period: filters.period });
+        if (filters.brandId) params.set('brandId', filters.brandId);
+        if (filters.line) params.set('line', filters.line);
+        if (filters.sellerId) params.set('sellerId', filters.sellerId);
+        if (filters.weekStart) params.set('weekStart', filters.weekStart);
+        return `/analytics/manager-dashboard?${params.toString()}`;
+      },
+      providesTags: ['ManagerDashboard'],
+    }),
+    createCustomerVisit: builder.mutation<
+      unknown,
+      {
+        sellerId: string;
+        customerId: string;
+        visitedAt: string;
+        foundOpportunity: boolean;
+        opportunityId?: string;
+        idempotencyKey: string;
+      }
+    >({
+      query: (body) => ({ url: '/visits', method: 'POST', body }),
+      invalidatesTags: ['ManagerDashboard'],
+    }),
+    linkCustomerVisit: builder.mutation<unknown, { visitId: string; opportunityId: string }>({
+      query: ({ visitId, opportunityId }) => ({
+        url: `/visits/${visitId}/opportunity`,
+        method: 'PATCH',
+        body: { opportunityId },
+      }),
+      invalidatesTags: ['ManagerDashboard'],
+    }),
     createOpportunity: builder.mutation<OpportunityData, object>({
       query: (body) => ({ url: '/opportunities', method: 'POST', body }),
-      invalidatesTags: ['Opportunity', 'Alerts'],
+      invalidatesTags: ['Opportunity', 'Alerts', 'ManagerDashboard'],
     }),
     updateOpportunity: builder.mutation<OpportunityData, { id: string; changes: object }>({
       query: ({ id, changes }) => ({
@@ -72,6 +120,7 @@ export const productApi = createApi({
         { type: 'Opportunity', id },
         'Opportunity',
         'Alerts',
+        'ManagerDashboard',
       ],
     }),
     qualification: builder.query<QualificationData, string>({
@@ -99,6 +148,7 @@ export const productApi = createApi({
         { type: 'Opportunity', id: opportunityId },
         'Opportunity',
         'Alerts',
+        'ManagerDashboard',
       ],
     }),
     reviews: builder.query<ReviewEvent[], { opportunityId?: string; pendingOnly?: boolean } | void>(
@@ -150,6 +200,9 @@ export const {
   useOpportunityQuery,
   useReferenceDataQuery,
   useCreateOpportunityMutation,
+  useCreateCustomerVisitMutation,
+  useLinkCustomerVisitMutation,
+  useManagerDashboardQuery,
   useCreateReviewMutation,
   useQualificationQuery,
   useReviewsQuery,

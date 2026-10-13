@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ForecastService } from '../forecast/forecast.service';
 import { ImportsService } from './imports.service';
 
 function argument(name: string): string | undefined {
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
   const prisma = new PrismaService();
   await prisma.$connect();
   try {
-    const imports = new ImportsService(prisma);
+    const imports = new ImportsService(prisma, new ForecastService(prisma));
     const mapping = mappingArgument
       ? await readFile(path.resolve(process.env.INIT_CWD ?? process.cwd(), mappingArgument), 'utf8')
       : undefined;

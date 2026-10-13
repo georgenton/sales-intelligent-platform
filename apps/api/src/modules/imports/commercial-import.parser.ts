@@ -13,7 +13,7 @@ export interface ImportIssue {
   sheet: string;
   row: number;
   code: string;
-  severity: 'WARNING' | 'BLOCKED';
+  severity: 'WARNING' | 'PENDING' | 'BLOCKED';
 }
 
 export interface OpportunityImportRow {
@@ -34,6 +34,9 @@ export interface OpportunityImportRow {
   expectedBillingDate: Date | null;
   poNumber: string;
   externalReference: string;
+  managerEmail: string | null;
+  businessUnit: string | null;
+  productLine: string | null;
 }
 
 export interface BillingImportRow {
@@ -47,6 +50,7 @@ export interface BillingImportRow {
   billedAt: Date;
   opportunityExternalReference: string | null;
   externalReference: string;
+  importMode: 'TRANSACTION' | 'CUMULATIVE';
 }
 
 export type ImportMappingConfidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
@@ -61,6 +65,7 @@ export interface ConfirmedImportMapping {
 export interface CommercialImportContext {
   mappings: ConfirmedImportMapping[];
   asOfDate: Date | null;
+  billingMode: 'TRANSACTION' | 'CUMULATIVE' | null;
 }
 
 export interface CommercialImportAnalysis {
@@ -70,6 +75,8 @@ export interface CommercialImportAnalysis {
     kind: 'OPPORTUNITY' | 'BILLING' | 'OTHER';
     disposition: 'IMPORT' | 'RECOGNIZED_NOT_IMPORTED' | 'UNSUPPORTED';
     rowCount: number;
+    headerRow: number;
+    contextDate: string | null;
     sourceHeaders: string[];
     destinations: Array<{ field: string; required: boolean }>;
     suggestedMappings: Array<{
@@ -98,6 +105,7 @@ export interface CommercialImportPlan {
     warnings: number;
     blocked: number;
     duplicates: number;
+    pending: number;
   };
 }
 
@@ -115,6 +123,9 @@ const opportunityAliases = {
   billing: ['expected billing', 'billing date', 'fecha facturación', 'billing month'],
   po: ['po', 'purchase order', 'orden de compra', 'oc'],
   reference: ['id', 'external id', 'opportunity id', 'oppty id'],
+  managerEmail: ['manager email', 'email manager', 'gerente email'],
+  businessUnit: ['bu', 'business unit', 'unidad de negocio'],
+  productLine: ['product line', 'línea', 'linea', 'sw/hw/service'],
 } as const;
 
 const billingAliases = {
@@ -150,21 +161,36 @@ function cellValue(value: ExcelJS.CellValue): unknown {
   return value;
 }
 
-function sourceHeadersFor(sheet: ExcelJS.Worksheet): string[] {
+function sourceHeadersFor(sheet: ExcelJS.Worksheet, headerRow: number): string[] {
   const headers: string[] = [];
-  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
+  sheet.getRow(headerRow).eachCell({ includeEmpty: true }, (cell) => {
     headers.push(normalizeText(cellValue(cell.value)));
   });
   while (headers.length && !headers.at(-1)) headers.pop();
   return headers;
 }
 
-function headersFor(sheet: ExcelJS.Worksheet): Map<string, number> {
+function headersFor(sheet: ExcelJS.Worksheet, headerRow: number): Map<string, number> {
   const headers = new Map<string, number>();
-  sheet.getRow(1).eachCell((cell, column) => {
+  sheet.getRow(headerRow).eachCell((cell, column) => {
     headers.set(normalizeText(cellValue(cell.value)).toLowerCase(), column);
   });
   return headers;
+}
+
+function detectedHeaderRow(
+  sheet: ExcelJS.Worksheet,
+  aliases: Record<string, readonly string[]>,
+): number {
+  const known = new Set(Object.values(aliases).flat());
+  let best = { row: 1, matches: -1 };
+  for (let row = 1; row <= Math.min(5, Math.max(1, sheet.actualRowCount)); row += 1) {
+    const matches = sourceHeadersFor(sheet, row).filter((header) =>
+      known.has(normalizeText(header).toLowerCase()),
+    ).length;
+    if (matches > best.matches) best = { row, matches };
+  }
+  return best.row;
 }
 
 function sheetContract(sheet: ExcelJS.Worksheet, fileType: 'CSV' | 'XLSX') {
@@ -225,9 +251,10 @@ function mappingColumns<T extends Record<string, readonly string[]>>(
   context: CommercialImportContext,
   requireBillingDate: boolean,
   plan: CommercialImportPlan,
+  headerRow: number,
 ): Record<keyof T, number | undefined> | null {
-  const headers = headersFor(sheet);
-  const sourceHeaders = sourceHeadersFor(sheet);
+  const headers = headersFor(sheet, headerRow);
+  const sourceHeaders = sourceHeadersFor(sheet, headerRow);
   const normalizedHeaders = sourceHeaders.map((header) => normalizeText(header).toLowerCase());
   const mappingIssues: string[] = [];
   if (normalizedHeaders.some((header) => !header))
@@ -289,6 +316,7 @@ function parseOpportunitySheet(
   plan: CommercialImportPlan,
   context: CommercialImportContext,
 ): void {
+  const headerRow = detectedHeaderRow(sheet, opportunityAliases);
   const columns = mappingColumns(
     sheet,
     opportunityAliases,
@@ -296,11 +324,12 @@ function parseOpportunitySheet(
     context,
     false,
     plan,
+    headerRow,
   );
   if (!columns) return;
   const seen = new Set<string>();
   sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
+    if (rowNumber <= headerRow) return;
     plan.summary.rowsRead += 1;
     const value = (key: keyof typeof opportunityAliases): unknown =>
       columns[key] ? cellValue(row.getCell(columns[key]!).value) : undefined;
@@ -348,10 +377,16 @@ function parseOpportunitySheet(
       return;
     }
     const suppliedReference = normalizeText(value('reference'));
-    const externalReference = `OPPTY-${
-      suppliedReference ||
-      fingerprint([title, sellerEmail, customer, amount, expectedCloseDate.toISOString()])
-    }`;
+    if (!suppliedReference) {
+      plan.issues.push({
+        sheet: sheet.name,
+        row: rowNumber,
+        code: 'OPPORTUNITY_IDENTITY_REVIEW_REQUIRED',
+        severity: 'PENDING',
+      });
+      return;
+    }
+    const externalReference = `OPPTY-${suppliedReference.replace(/^OPPTY-/i, '')}`;
     if (seen.has(externalReference)) {
       plan.summary.duplicates += 1;
       plan.issues.push({
@@ -391,6 +426,9 @@ function parseOpportunitySheet(
       expectedBillingDate: normalizeDate(value('billing')),
       poNumber: normalizeText(value('po')),
       externalReference,
+      managerEmail: normalizeText(value('managerEmail')).toLowerCase() || null,
+      businessUnit: normalizeText(value('businessUnit')) || null,
+      productLine: normalizeText(value('productLine')) || null,
     });
   });
 }
@@ -400,17 +438,39 @@ function parseBillingSheet(
   plan: CommercialImportPlan,
   context: CommercialImportContext,
 ): void {
-  const columns = mappingColumns(sheet, billingAliases, requiredBillingFields, context, true, plan);
+  const headerRow = detectedHeaderRow(sheet, billingAliases);
+  if (!context.billingMode) {
+    plan.issues.push({
+      sheet: sheet.name,
+      row: 0,
+      code: 'BILLING_MODE_REQUIRED',
+      severity: 'BLOCKED',
+    });
+    return;
+  }
+  const billingMode = context.billingMode;
+  const contextualDate = normalizeDate(cellValue(sheet.getCell('B1').value));
+  const columns = mappingColumns(
+    sheet,
+    billingAliases,
+    requiredBillingFields,
+    { ...context, asOfDate: context.asOfDate ?? contextualDate },
+    true,
+    plan,
+    headerRow,
+  );
   if (!columns) return;
   const seen = new Set<string>();
   sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
+    if (rowNumber <= headerRow) return;
     plan.summary.rowsRead += 1;
     const value = (key: keyof typeof billingAliases): unknown =>
       columns[key] ? cellValue(row.getCell(columns[key]!).value) : undefined;
     const brand = normalizeText(value('brand'));
     const amount = normalizeMoney(value('amount'));
-    const billedAt = columns.date ? normalizeDate(value('date')) : context.asOfDate;
+    const billedAt = columns.date
+      ? normalizeDate(value('date'))
+      : (context.asOfDate ?? contextualDate);
     if (!brand || amount === null || amount <= 0 || !billedAt) {
       plan.issues.push({
         sheet: sheet.name,
@@ -439,10 +499,25 @@ function parseBillingSheet(
       return;
     }
     const invoiceNumber = normalizeText(value('invoice'));
-    const reference = `BILLING-${
-      invoiceNumber ||
-      fingerprint([brand, amount, financials.grossProfit ?? '', billedAt.toISOString()])
-    }`;
+    const opportunityReference = normalizeText(value('opportunityReference'));
+    if (billingMode === 'TRANSACTION' && !invoiceNumber && !opportunityReference) {
+      plan.issues.push({
+        sheet: sheet.name,
+        row: rowNumber,
+        code: 'BILLING_IDENTITY_REVIEW_REQUIRED',
+        severity: 'PENDING',
+      });
+      return;
+    }
+    const stableReference =
+      billingMode === 'CUMULATIVE'
+        ? fingerprint([
+            sheet.name,
+            brand,
+            opportunityReference || invoiceNumber || 'AGGREGATE_TOTAL',
+          ])
+        : invoiceNumber || `OPPTY-${opportunityReference.replace(/^OPPTY-/i, '')}`;
+    const reference = `BILLING-${stableReference}`;
     if (seen.has(reference)) {
       plan.summary.duplicates += 1;
       plan.issues.push({
@@ -463,10 +538,11 @@ function parseBillingSheet(
       grossProfit: financials.grossProfit,
       currency: normalizeText(value('currency')).toUpperCase() || 'USD',
       billedAt,
-      opportunityExternalReference: normalizeText(value('opportunityReference'))
-        ? `OPPTY-${normalizeText(value('opportunityReference')).replace(/^OPPTY-/i, '')}`
+      opportunityExternalReference: opportunityReference
+        ? `OPPTY-${opportunityReference.replace(/^OPPTY-/i, '')}`
         : null,
       externalReference: reference,
+      importMode: billingMode,
     });
   });
 }
@@ -492,12 +568,13 @@ export async function analyzeCommercialWorkbook(
   const analysis: CommercialImportAnalysis = { fileType, sheets: [], issues: [] };
   for (const sheet of workbook.worksheets) {
     const contract = sheetContract(sheet, fileType);
-    const sourceHeaders = sourceHeadersFor(sheet);
+    const headerRow = contract.aliases ? detectedHeaderRow(sheet, contract.aliases) : 1;
+    const sourceHeaders = sourceHeadersFor(sheet, headerRow);
     const normalizedHeaders = sourceHeaders.map((header) => normalizeText(header).toLowerCase());
     if (normalizedHeaders.some((header) => !header)) {
       analysis.issues.push({
         sheet: sheet.name,
-        row: 1,
+        row: headerRow,
         code: 'MAPPING_EMPTY_SOURCE_HEADER',
         severity: 'BLOCKED',
       });
@@ -505,7 +582,7 @@ export async function analyzeCommercialWorkbook(
     if (new Set(normalizedHeaders).size !== normalizedHeaders.length) {
       analysis.issues.push({
         sheet: sheet.name,
-        row: 1,
+        row: headerRow,
         code: 'MAPPING_DUPLICATE_SOURCE_HEADER',
         severity: 'BLOCKED',
       });
@@ -522,7 +599,14 @@ export async function analyzeCommercialWorkbook(
       name: sheet.name,
       kind: contract.kind,
       disposition: contract.disposition,
-      rowCount: Math.max(0, sheet.actualRowCount - 1),
+      rowCount: Math.max(0, sheet.actualRowCount - headerRow),
+      headerRow,
+      contextDate:
+        contract.kind === 'BILLING'
+          ? (normalizeDate(cellValue(sheet.getCell('B1').value))
+              ?.toISOString()
+              .slice(0, 10) ?? null)
+          : null,
       sourceHeaders,
       destinations: contract.aliases
         ? Object.keys(contract.aliases).map((field) => ({
@@ -559,6 +643,7 @@ export async function parseCommercialWorkbook(
       warnings: 0,
       blocked: 0,
       duplicates: 0,
+      pending: 0,
     },
   };
   for (const sheet of workbook.worksheets) {
@@ -583,11 +668,12 @@ export async function parseCommercialWorkbook(
   }
   plan.summary.ready = plan.opportunities.length + plan.billing.length;
   plan.summary.warnings = plan.issues.filter((issue) => issue.severity === 'WARNING').length;
+  plan.summary.pending = plan.issues.filter((issue) => issue.severity === 'PENDING').length;
   plan.summary.blocked = plan.issues.filter((issue) => issue.severity === 'BLOCKED').length;
   plan.summary.status =
     plan.summary.ready === 0 && plan.summary.blocked > 0
       ? 'BLOCKED'
-      : plan.summary.warnings > 0 || plan.summary.blocked > 0
+      : plan.summary.warnings > 0 || plan.summary.pending > 0 || plan.summary.blocked > 0
         ? 'WARNING'
         : 'READY';
   return plan;

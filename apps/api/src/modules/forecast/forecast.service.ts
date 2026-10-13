@@ -54,8 +54,18 @@ export class ForecastService {
         where: {
           tenantId: auth.activeTenantId,
           deletedAt: null,
-          expectedCloseDate: { gte: period.start, lte: period.end },
+          expectedBillingDate: { gte: period.start, lte: period.end },
           ...opportunityReadScope(auth),
+        },
+        include: {
+          lineItems: {
+            select: {
+              brandId: true,
+              businessUnit: true,
+              productLine: true,
+              amount: true,
+            },
+          },
         },
       });
       const snapshot = await transaction.forecastSnapshot.create({
@@ -75,6 +85,15 @@ export class ForecastService {
               estimatedAmount: opportunity.estimatedAmount,
               expectedCloseDate: opportunity.expectedCloseDate,
               expectedBillingDate: opportunity.expectedBillingDate,
+              sellerId: opportunity.sellerId,
+              commercialDimensions: {
+                lineItems: opportunity.lineItems.map((item) => ({
+                  brandId: item.brandId,
+                  businessUnit: item.businessUnit,
+                  productLine: item.productLine,
+                  amount: item.amount.toNumber(),
+                })),
+              },
             })),
           },
         },

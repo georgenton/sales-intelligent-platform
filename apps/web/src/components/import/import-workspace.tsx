@@ -12,7 +12,7 @@ interface ImportIssue {
   sheet: string;
   row: number;
   code: string;
-  severity: 'WARNING' | 'BLOCKED';
+  severity: 'WARNING' | 'PENDING' | 'BLOCKED';
 }
 
 interface ImportAnalysis {
@@ -22,6 +22,8 @@ interface ImportAnalysis {
     kind: 'OPPORTUNITY' | 'BILLING' | 'OTHER';
     disposition: 'IMPORT' | 'RECOGNIZED_NOT_IMPORTED' | 'UNSUPPORTED';
     rowCount: number;
+    headerRow: number;
+    contextDate: string | null;
     sourceHeaders: string[];
     destinations: Array<{ field: string; required: boolean }>;
     suggestedMappings: Array<{
@@ -42,15 +44,23 @@ interface ImportReport {
   }>;
   issues?: ImportIssue[];
   summary: {
-    status: 'READY' | 'WARNING' | 'BLOCKED';
+    status: 'READY' | 'WARNING' | 'BLOCKED' | 'PUBLISHED' | 'PARTIAL';
     rowsRead: number;
     ready: number;
     warnings: number;
     blocked: number;
     duplicates: number;
+    pending: number;
     imported?: number;
     opportunityImported?: number;
     billingImported?: number;
+    added?: number;
+    changed?: number;
+    unchanged?: number;
+    rejected?: number;
+    missingFromLatest?: number;
+    opportunityProcessed?: number;
+    billingProcessed?: number;
   };
 }
 
@@ -64,13 +74,22 @@ const mappingKey = (sheet: string, sourceColumn: string) => `${sheet}\u0000${sou
 async function upload<T>(
   path: 'analyze' | 'validate' | 'execute',
   file: File,
-  options?: { mapping: string; asOfDate: string },
+  options?: {
+    mapping: string;
+    asOfDate: string;
+    sourceCutoff: string;
+    billingMode: string;
+    sourceCompleteness: string;
+  },
 ): Promise<T> {
   const body = new FormData();
   body.append('file', file);
   if (options) {
     body.append('mapping', options.mapping);
     if (options.asOfDate) body.append('asOfDate', options.asOfDate);
+    if (options.sourceCutoff) body.append('sourceCutoff', options.sourceCutoff);
+    if (options.billingMode) body.append('billingMode', options.billingMode);
+    body.append('sourceCompleteness', options.sourceCompleteness);
   }
   const response = await fetch(`/backend/imports/${path}`, {
     method: 'POST',
@@ -87,6 +106,9 @@ export function ImportWorkspace() {
   const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
   const [mappings, setMappings] = useState<Record<string, MappingSelection>>({});
   const [asOfDate, setAsOfDate] = useState('');
+  const [sourceCutoff, setSourceCutoff] = useState('');
+  const [billingMode, setBillingMode] = useState('');
+  const [sourceCompleteness, setSourceCompleteness] = useState('COMPLETE');
   const [report, setReport] = useState<ImportReport | null>(null);
   const [result, setResult] = useState<ImportReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -136,13 +158,18 @@ export function ImportWorkspace() {
       if (
         sheet.kind === 'BILLING' &&
         !selected.some(({ selection }) => selection?.destinationField === 'date') &&
-        !asOfDate
+        !asOfDate &&
+        !sheet.contextDate
       ) {
         issues.push(t('mappingIssues.billingDate'));
       }
+      if (sheet.kind === 'BILLING' && !billingMode) {
+        issues.push(t('mappingIssues.billingMode'));
+      }
     }
+    if (!sourceCutoff) issues.push(t('mappingIssues.sourceCutoff'));
     return [...new Set(issues)];
-  }, [analysis, asOfDate, importableSheets, mappings, t]);
+  }, [analysis, asOfDate, billingMode, importableSheets, mappings, sourceCutoff, t]);
 
   const mappingContract = useMemo(
     () =>
@@ -163,6 +190,9 @@ export function ImportWorkspace() {
     setAnalysis(null);
     setMappings({});
     setAsOfDate('');
+    setSourceCutoff('');
+    setBillingMode('');
+    setSourceCompleteness('COMPLETE');
     setReport(null);
     setResult(null);
     setError('');
@@ -198,6 +228,9 @@ export function ImportWorkspace() {
         await upload<ImportReport>('validate', file, {
           mapping: JSON.stringify(mappingContract),
           asOfDate,
+          sourceCutoff,
+          billingMode,
+          sourceCompleteness,
         }),
       );
     } catch {
@@ -216,6 +249,9 @@ export function ImportWorkspace() {
         await upload<ImportReport>('execute', file, {
           mapping: JSON.stringify(mappingContract),
           asOfDate,
+          sourceCutoff,
+          billingMode,
+          sourceCompleteness,
         }),
       );
     } catch {
@@ -381,26 +417,77 @@ export function ImportWorkspace() {
                     </table>
                   </div>
                   {sheet.kind === 'BILLING' ? (
-                    <label className="mt-3 block max-w-sm text-xs font-semibold">
-                      {t('asOfDate')}
-                      <Input
-                        className="mt-1"
-                        type="date"
-                        value={asOfDate}
-                        onChange={(event) => {
-                          setReport(null);
-                          setResult(null);
-                          setAsOfDate(event.target.value);
-                        }}
-                      />
-                      <span className="mt-1 block font-normal text-muted-foreground">
-                        {t('asOfDateHelp')}
-                      </span>
-                    </label>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="block text-xs font-semibold">
+                        {t('asOfDate')}
+                        <Input
+                          className="mt-1"
+                          type="date"
+                          value={asOfDate}
+                          onChange={(event) => {
+                            setReport(null);
+                            setResult(null);
+                            setAsOfDate(event.target.value);
+                          }}
+                        />
+                        <span className="mt-1 block font-normal text-muted-foreground">
+                          {sheet.contextDate
+                            ? t('contextDateDetected', { date: sheet.contextDate })
+                            : t('asOfDateHelp')}
+                        </span>
+                      </label>
+                      <label className="block text-xs font-semibold">
+                        {t('billingMode')}
+                        <select
+                          className="mt-1 h-10 w-full rounded-lg border bg-background px-3"
+                          value={billingMode}
+                          onChange={(event) => {
+                            setReport(null);
+                            setResult(null);
+                            setBillingMode(event.target.value);
+                          }}
+                        >
+                          <option value="">{t('selectBillingMode')}</option>
+                          <option value="TRANSACTION">{t('billingModeTransaction')}</option>
+                          <option value="CUMULATIVE">{t('billingModeCumulative')}</option>
+                        </select>
+                      </label>
+                    </div>
                   ) : null}
                 </section>
               );
             })}
+
+            <div className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold">
+                {t('sourceCutoff')}
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={sourceCutoff}
+                  onChange={(event) => {
+                    setReport(null);
+                    setResult(null);
+                    setSourceCutoff(event.target.value);
+                  }}
+                />
+              </label>
+              <label className="text-xs font-semibold">
+                {t('sourceCompleteness')}
+                <select
+                  className="mt-1 h-10 w-full rounded-lg border bg-background px-3"
+                  value={sourceCompleteness}
+                  onChange={(event) => {
+                    setReport(null);
+                    setResult(null);
+                    setSourceCompleteness(event.target.value);
+                  }}
+                >
+                  <option value="COMPLETE">{t('sourceComplete')}</option>
+                  <option value="PARTIAL">{t('sourcePartial')}</option>
+                </select>
+              </label>
+            </div>
 
             {mappingIssues.length ? (
               <div
@@ -442,14 +529,14 @@ export function ImportWorkspace() {
             </div>
             <span
               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                active.summary.status === 'READY'
+                ['READY', 'PUBLISHED'].includes(active.summary.status)
                   ? 'bg-surface-success-soft text-success'
                   : active.summary.status === 'WARNING'
                     ? 'bg-surface-warning-soft text-warning'
                     : 'bg-surface-danger-soft text-danger'
               }`}
             >
-              {active.summary.status === 'READY' ? (
+              {['READY', 'PUBLISHED'].includes(active.summary.status) ? (
                 <CheckCircle2 className="size-4" />
               ) : (
                 <AlertTriangle className="size-4" />
@@ -459,15 +546,19 @@ export function ImportWorkspace() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {(['ready', 'warnings', 'blocked', 'duplicates'] as const).map((key) => (
+              {(['ready', 'warnings', 'blocked', 'pending'] as const).map((key) => (
                 <div key={key} className="rounded-xl border p-3">
                   <p className="text-xs text-muted-foreground">{t(key)}</p>
                   <p className="tnum mt-1 text-xl font-semibold">{active.summary[key]}</p>
                 </div>
               ))}
               <div className="rounded-xl border p-3">
-                <p className="text-xs text-muted-foreground">{t('imported')}</p>
-                <p className="tnum mt-1 text-xl font-semibold">{active.summary.imported ?? 0}</p>
+                <p className="text-xs text-muted-foreground">
+                  {result ? t('changed') : t('duplicates')}
+                </p>
+                <p className="tnum mt-1 text-xl font-semibold">
+                  {result ? (active.summary.changed ?? 0) : active.summary.duplicates}
+                </p>
               </div>
             </div>
             <div>
@@ -515,8 +606,8 @@ export function ImportWorkspace() {
                 className="rounded-xl bg-surface-success-soft p-3 text-sm text-success"
               >
                 {t('complete', {
-                  opportunities: result.summary.opportunityImported ?? 0,
-                  billing: result.summary.billingImported ?? 0,
+                  opportunities: result.summary.opportunityProcessed ?? 0,
+                  billing: result.summary.billingProcessed ?? 0,
                 })}
               </p>
             )}
