@@ -174,7 +174,8 @@ Staging:
 - E2E remoto sin reintentos: 9/9 para login/i18n/tema/mobile/admin/Manager A/Seller/import gate/Copilot y 1/1 para Executive+Viewer read-only.
 - Auth/CSRF: sesión `Secure`, `HttpOnly`, `SameSite=Lax`; mutación sin cabecera CSRF devolvió 403; logout y redirect protegido aprobados.
 - RLS/RBAC: runtime `sip_runtime_staging` es login miembro de `app_runtime`, sin superusuario ni `BYPASSRLS`; 25 tablas `FORCE RLS`. Un tenant desechable dentro de transacción mostró 15 filas propias, 0 filas cruzadas y 1 fila propia del segundo tenant; la escritura cruzada falló con SQLSTATE 42501 y la transacción se revirtió.
-- Import semanal sintético: lote `PUBLISHED`, 1/1 oportunidad procesada desde CSV, fuente `WORKBOOK_IMPORT`, persistencia por endpoint y snapshot generado. La oportunidad produjo alerta HIGH `QUALIFICATION_INCOMPLETE`; el botón de inspección abrió su drawer con respuestas 200 del detalle y la calificación, y el dashboard permaneció operativo. Un lote anterior deliberadamente incompleto quedó `PARTIAL`, preservando el contrato de backlog parcial/null sin convertirlo en cero.
+- Import semanal sintético: lote `PUBLISHED`, 1/1 oportunidad procesada desde CSV, fuente `WORKBOOK_IMPORT`, persistencia por endpoint y snapshot generado. La oportunidad produjo alerta HIGH `QUALIFICATION_INCOMPLETE`; el botón de inspección abrió su drawer con respuestas 200 del detalle y la calificación, y el dashboard permaneció operativo. Un lote sintético anterior sin manager válido quedó `PARTIAL`/rechazado, sin disfrazar el fallo ni convertir nulos en cero.
+- Contratos comerciales remotos tenant-wide: cuota 2,2 M, margen 7,017%, backlog 468 k, cobertura 4:1 `INSUFFICIENT`, visitas 1 Sí/2 No, 3 marcas, 3 sellers y 22 alertas. La base contiene seis oportunidades etapa 90 con backlog residual positivo entre 54 k y 309 k; confirma facturación parcial sin convertir el saldo a cero.
 
 ### Backup y restauración
 
