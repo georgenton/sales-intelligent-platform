@@ -3,7 +3,7 @@ import { z } from 'zod';
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    APP_ENV: z.enum(['local', 'staging', 'production']).default('local'),
+    APP_ENV: z.enum(['local', 'demo', 'staging', 'production']).default('local'),
     PORT: z.coerce.number().int().positive().max(65535).default(4000),
     DATABASE_URL: z.string().url().startsWith('postgresql://'),
     MIGRATION_DATABASE_URL: z.string().url().startsWith('postgresql://').optional(),

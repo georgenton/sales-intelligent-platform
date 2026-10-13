@@ -1,0 +1,19 @@
+# Copy this file outside the repository once per environment and keep mode 600.
+# Never reuse databases, roles, passwords, volumes, or Compose project names.
+SIP_ENVIRONMENT=demo
+SIP_BUILD_SHA=replace_with_exact_40_character_git_sha
+# Use `never` only after the exact images have been loaded and their IDs verified on the host.
+SIP_IMAGE_PULL_POLICY=build
+
+POSTGRES_DB=sip_demo
+POSTGRES_USER=sip_owner_demo
+POSTGRES_PASSWORD=replace_with_random_owner_password
+MIGRATION_DATABASE_URL=postgresql://sip_owner_demo:URL_ENCODED_PASSWORD@db:5432/sip_demo?schema=public
+
+RUNTIME_DATABASE_USER=sip_runtime_demo
+RUNTIME_DATABASE_PASSWORD=replace_with_random_runtime_password
+DATABASE_URL=postgresql://sip_runtime_demo:URL_ENCODED_PASSWORD@db:5432/sip_demo?schema=public
+
+APP_URL=https://demo.sales.example.invalid
+SESSION_TTL_HOURS=8
+LOG_LEVEL=info

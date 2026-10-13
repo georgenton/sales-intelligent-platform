@@ -32,6 +32,19 @@
   bypass immediately after browser automation.
 - Promote the exact green `staging` deployment to the stable staging alias; do not deploy production.
 
+## OVH/Coolify candidate
+
+- Use three independent Compose projects for Demo, Staging and Production; never share a database,
+  role, password, volume or network.
+- Route Traefik only to `web:3000`; keep `api:4000` and `db:5432` private and without host ports.
+- Run the `release` profile migration job once before application activation; do not race migrations
+  from application replicas.
+- Confirm the OCI revision label equals the reviewed Git SHA and record the resulting image digest.
+- Restore a product-specific backup into a disposable database and verify RLS/runtime access before
+  authorizing a cutover.
+- Follow [`docs/deployment/ovh-coolify.md`](../deployment/ovh-coolify.md); DNS reversal alone is not a
+  safe database rollback after the new origin accepts writes.
+
 ## Smoke test
 
 1. `/health/live` and `/health/ready` return success.

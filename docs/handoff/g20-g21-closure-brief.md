@@ -28,3 +28,10 @@ Este handoff conserva el alcance operativo del encargo sin copiar transcript, im
 - Mantener `AUDIT_RAW` separado de `SECURITY_POLICY` y fallar cerrado ante hallazgos fuera de la excepción.
 - Revisar diff y Gitleaks antes de cada commit publicable.
 - Actualizar producto, auditoría, handoff y las páginas de memoria mediante lectura previa; no marcar trabajo futuro como realizado.
+
+## Resultado local registrado
+
+- G20 final: `eadc24080b1b90e0b1759fbefc63c098eaedf9cb`, listo para revisión local con D01–D04 y conciliación real pendientes.
+- G21: paquete web/API/PostgreSQL 18.4 ensayado en ARM64 con 4→8 migraciones, checksums, runtime/RLS, HTTPS, backup y restore real de fixtures. El SHA final de infraestructura se añade al commit local de esta rama.
+- Inventario OVH/Coolify fue sólo READ; no existe recurso SIP y no se modificó ningún servicio remoto.
+- Publicación posterior necesita autorización de recursos/dominos/secretos, CI del SHA exacto, backup/restauración remota, aceptación, ventana con un escritor, conciliación y corte.

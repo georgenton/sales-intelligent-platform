@@ -87,7 +87,7 @@ Este archivo mantiene el historial G15–G18 y agrega G19 sin convertir pruebas 
 ## G20 — Cierre funcional local
 
 - Estado: **LISTO PARA REVISIÓN LOCAL, CON D01–D04 Y CONCILIACIÓN REAL PENDIENTES**.
-- Fecha: 2026-10-13. Rama `feat/manager-dashboard-edgar`; base estable `2714700911293de14429f6851963168a929c0bf7`. El SHA local final se registra después del commit y no se publicó.
+- Fecha: 2026-10-13. Rama `feat/manager-dashboard-edgar`; base estable `2714700911293de14429f6851963168a929c0bf7`; commit local final `eadc24080b1b90e0b1759fbefc63c098eaedf9cb`. No se publicó.
 - Periodo: Pipeline 20/40, Forecast 60/80 y Backlog 90 se atribuyen por facturación prevista; cierre comercial sigue separado. Sin fecha se muestra información faltante.
 - Regla 4:1: cuota menos Forecast + Backlog elegible, multiplicado por 4; ejemplos persistidos 500k→2M y (500k−250k)→1M. Facturado queda separado por D01.
 - Backlog parcial: 100k−40k=60k consistente en resumen, marca/línea, vendedor, etapa, A06 y detalles; no se mueve a 100 hasta facturación completa.
@@ -98,6 +98,19 @@ Este archivo mantiene el historial G15–G18 y agrega G19 sin convertir pruebas 
 - Seguridad: raw audit FAIL (0 critical, 1 high, 2 moderate, 1 low); G17 PASS_WITH_TIME_LIMITED_EXCEPTION sin cambios, revisión `2026-10-19T16:59:59Z`, expiración `2026-10-26T16:59:59Z`.
 - Remoto: no push, merge, deploy, DNS, importación, datos ni credenciales. PR #29 remoto permanece en su HEAD anterior hasta autorización posterior.
 - H3: no iniciado. Las pruebas sintéticas no equivalen a aceptación de Edgar ni conciliación del workbook vigente.
+
+## G21 — Readiness OVH/Coolify local
+
+- Estado: **ENSAYADO LOCALMENTE; PUBLICACIÓN Y RECURSOS REMOTOS NO AUTORIZADOS**.
+- Base de producto exacta: G20 `eadc24080b1b90e0b1759fbefc63c098eaedf9cb`; branch/worktree separado `chore/coolify-ovh-readiness`.
+- Paquete: Dockerfiles Node 24.19.0 por digest para API/standalone web; Compose PostgreSQL 18.4 por digest; sólo web en red de entrada, API/base en red privada sin host ports; owner sólo en job `release`, runtime restringido en API.
+- Ambientes propuestos: Demo, Staging y Producción con configuración, base, roles, passwords, volumen y redes independientes. Ningún recurso/dominio fue creado.
+- Inventario READ: OVH AMD64 6 CPU/11 GiB, 5,4 GiB RAM y 48 GiB disco disponibles durante la lectura; 24 contenedores; sin swap/live-restore. Coolify/Traefik sanos y sin recursos SIP. No se tocó SyntaVera/EIA.
+- PG18: ARM64 nativo local; 4→8 migraciones, checksums, centinela, runtime no privilegiado, 25 tablas con RLS forzado, dump/restore en otra base, 40 oportunidades y acceso tenant-scoped PASS. API/web también hicieron cross-build AMD64 por emulación; no se presenta como benchmark OVH.
+- HTTPS empaquetado: health, login, dashboard, cookies Secure/HttpOnly/SameSite, CSRF, logout 204 y redirect protegido PASS; sin 5xx.
+- Runbook único: `docs/deployment/ovh-coolify.md`, incluye gates, promoción, copia consistente con un escritor, conciliación y recuperación. Un cambio DNS no se presenta como rollback de datos tras nuevas escrituras.
+- Seguridad: G17 permanece sin cambios. Raw audit y policy se reportan separados; no se renovó/amplió `SIP-SEC-EXC-2026-001`.
+- Remoto: sin push, merge, registry, Coolify deploy, Railway/Vercel, DNS, backup ajeno, dato real o credencial UAT.
 
 ## H3 — Aceptación posterior de Edgar
 

@@ -1,4 +1,4 @@
-FROM node:24.19.0-alpine AS base
+FROM node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -19,10 +19,12 @@ RUN pnpm --filter @sip/api deploy --prod --legacy /app
 RUN cp -R apps/api/dist /app/dist && cp -R apps/api/prisma /app/prisma && cp -R apps/api/scripts /app/scripts
 RUN cd /app && node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma
 
-FROM node:24.19.0-alpine AS runner
+FROM node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS runner
+ARG BUILD_SHA=local
 ENV NODE_ENV=production
 WORKDIR /app
-RUN addgroup -S nodejs && adduser -S nestjs -G nodejs
+LABEL org.opencontainers.image.revision=$BUILD_SHA
+RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S nestjs -G nodejs
 COPY --from=builder --chown=nestjs:nodejs /app ./
 USER nestjs
 EXPOSE 4000
