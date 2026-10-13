@@ -1,6 +1,6 @@
 # OVH/Coolify — publicación de Sales Intelligence Platform
 
-Estado de este documento: paquete G21 ensayado localmente el 2026-10-13. No se crearon recursos, dominios, backups ni deployments remotos.
+Estado de este documento: paquete G21 ensayado localmente y ejecución G23 autorizada el 2026-10-13. La sección "Registro G23" se completa sólo con evidencia observada del despliegue remoto.
 
 Producto ensayado: `eadc24080b1b90e0b1759fbefc63c098eaedf9cb` (`feat/manager-dashboard-edgar`). El commit de infraestructura G21 se registra al cerrar esta rama.
 
@@ -21,7 +21,7 @@ Observación sin cambios del 2026-10-13:
 
 | Recurso          | Estado observado                                                                                      |
 | ---------------- | ----------------------------------------------------------------------------------------------------- |
-| Host             | OVH Ubuntu 24.04, AMD64, 6 CPU, 11 GiB RAM; 6,0 GiB usados y 5,4 GiB disponibles                      |
+| Host             | OVH Ubuntu 24.04, AMD64, 6 CPU, 11 GiB RAM; 6,2 GiB usados y 5,2 GiB disponibles                      |
 | Disco/inodos     | `/` 96 GiB, 49 GiB usados, 48 GiB disponibles; 16% de inodos usados                                   |
 | Docker           | 29.8.1, overlayfs, 30,72 GiB de imágenes, 11,17 GiB de volúmenes, 2,74 GiB de build cache             |
 | Resiliencia host | sin swap; Docker live-restore desactivado                                                             |
@@ -29,7 +29,7 @@ Observación sin cambios del 2026-10-13:
 | Carga            | 24 contenedores activos durante la lectura; no se ejecutó stress, prune ni inspección de datos ajenos |
 | SIP              | no existe proyecto, aplicación, base, volumen ni dominio de SIP en Coolify                            |
 
-La capacidad observada permite preparar un candidato, no aprueba producción ni garantiza margen bajo build. Los límites propuestos suman 3,25 CPU y 3,75 GiB máximos; las reservas suman 960 MiB. Antes de crear recursos, Jorge debe aprobar estos límites y el consumo transitorio de build/backup. No ejecutar `prune` para obtener espacio.
+La capacidad observada permite Demo y Staging con observación secuencial; no garantiza margen bajo build ni aprueba Producción viva. Los límites por stack suman 3,25 CPU y 3,75 GiB máximos; las reservas suman 960 MiB. G23 autorizó recursos SIP nuevos y aislados, por lo que se despliega uno por vez, con build fuera del VPS y sin ejecutar `prune`.
 
 ## Ambientes aislados
 
@@ -37,8 +37,8 @@ Usar el mismo `compose.coolify.yml` con un archivo secreto distinto por ambiente
 
 | Ambiente          | `SIP_ENVIRONMENT` | Base propuesta   | Rol runtime propuesto    | Dominio propuesto, no creado  | Datos                          |
 | ----------------- | ----------------- | ---------------- | ------------------------ | ----------------------------- | ------------------------------ |
-| Demo              | `demo`            | `sip_demo`       | `sip_runtime_demo`       | `demo-sales.syntavera.dev`    | sólo seed sintético            |
-| Staging           | `staging`         | `sip_staging`    | `sip_runtime_staging`    | `staging-sales.syntavera.dev` | validación controlada          |
+| Demo              | `demo`            | `sip_demo`       | `sip_runtime_demo`       | `demo.sales.syntavera.dev`    | sólo seed sintético            |
+| Staging           | `staging`         | `sip_staging`    | `sip_runtime_staging`    | `staging.sales.syntavera.dev` | validación controlada          |
 | Producción futura | `production`      | `sip_production` | `sip_runtime_production` | `sales.syntavera.dev`         | sólo tras autorización y corte |
 
 El nombre de proyecto, volumen `postgres_data` y redes quedan namespaced por ambiente. El ejemplo versionado `deploy/coolify/environment.example` contiene sólo nombres/placeholders; la copia real vive fuera del repositorio con modo 600.
@@ -64,7 +64,7 @@ Variables permanentes:
    docker compose --env-file /ruta/segura/demo.env -f compose.coolify.yml config -q
    ```
 
-6. Construir desde la raíz con instalación frozen. En Coolify/OVH el build AMD64 es nativo. En la Mac ARM64 el drill runtime fue nativo ARM64 y el cross-build API/web `--platform linux/amd64` también pasó mediante emulación. Ese cross-build demuestra compatibilidad de construcción, no rendimiento del VPS.
+6. Construir desde la raíz con instalación frozen. Para G23, construir API/web AMD64 fuera del VPS, conservar el ID de imagen y la etiqueta OCI del SHA, transferirlas al host y verificar ambos valores allí. Configurar `SIP_IMAGE_PULL_POLICY=never` sólo después de esa verificación, de modo que Coolify no reconstruya ni sustituya el artefacto. En la Mac ARM64 el cross-build usa emulación: demuestra compatibilidad de construcción, no rendimiento del VPS.
 7. Ejecutar una sola instancia del job de release antes de iniciar/recrear réplicas:
 
    ```bash
@@ -111,13 +111,24 @@ Drill mínimo:
 
 Evidencia G21: PostgreSQL 18.4 ARM64 nativo aplicó primero 4 migraciones, preservó el centinela al avanzar a 8, validó checksums y restauró 8/8 migraciones, el centinela, 40 oportunidades sintéticas y acceso runtime tenant-scoped. El stack web/API/db pasó HTTPS local, cookies seguras, CSRF, dashboard, logout y redirect; no hubo HTTP 5xx inesperados. El cross-build AMD64 local aprobó para API y web; OVH no recibió esas imágenes.
 
-## Acciones remotas aún no autorizadas
+## Acceso UAT local sin exposición
 
-- crear proyecto y ambientes SIP en Coolify;
-- aprobar límites/consumo y dominios propuestos;
-- cargar secretos separados;
-- definir backup/retención y ejecutar restore remoto;
-- construir/publicar o desplegar el SHA aprobado;
-- importar/copiar datos autorizados;
-- cortar escritor, conciliar y cambiar DNS;
-- retirar Railway/Vercel sólo después de aceptación.
+Las seis credenciales del staging Railway/Vercel son distintas de las cuentas sintéticas locales y de OVH. El archivo autorizado permanece en `$HOME/.config/sales-intelligence-platform/uat-credentials.txt` con directorio 0700 y fichero 0600. Para copiar sólo la contraseña de una cuenta numerada del 1 al 6:
+
+```bash
+SIP_UAT_ACCOUNT_INDEX=1 ./scripts/copy-uat-password.sh
+```
+
+El helper no imprime la contraseña, usa `pbcopy` y limpia el portapapeles después de 60 segundos si su contenido no fue reemplazado. El TTL puede reducirse con `SIP_CLIPBOARD_TTL_SECONDS`; nunca se debe pegar el secreto en terminal, GitHub, Notion o este runbook.
+
+## Límites que siguen requiriendo una decisión posterior
+
+- go-live, datos reales o cuentas de Edgar en Producción;
+- merge a `staging` o `main` y cambio del origen Railway/Vercel estable;
+- compra o ampliación de plan/capacidad;
+- corte del escritor, conciliación comercial y cambio de DNS productivo;
+- retirada de Railway/Vercel sólo después de aceptación.
+
+## Registro G23
+
+Esta sección se actualiza al terminar Demo, Staging, restore remoto y preparación protegida de Producción. No registrar secretos, cookies, cadenas de conexión ni hashes de contraseñas.

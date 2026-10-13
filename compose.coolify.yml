@@ -39,6 +39,7 @@ services:
   migrate:
     profiles: ['release']
     image: sales-intelligence-api:${SIP_BUILD_SHA}
+    pull_policy: ${SIP_IMAGE_PULL_POLICY:-build}
     build: *api-build
     command: ['node', 'scripts/predeploy.cjs']
     restart: 'no'
@@ -63,6 +64,7 @@ services:
 
   api:
     image: sales-intelligence-api:${SIP_BUILD_SHA}
+    pull_policy: ${SIP_IMAGE_PULL_POLICY:-build}
     build: *api-build
     restart: unless-stopped
     init: true
@@ -112,6 +114,7 @@ services:
 
   web:
     image: sales-intelligence-web:${SIP_BUILD_SHA}
+    pull_policy: ${SIP_IMAGE_PULL_POLICY:-build}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
