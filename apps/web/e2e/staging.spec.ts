@@ -14,6 +14,10 @@ const executivePassword = process.env.STAGING_EXECUTIVE_PASSWORD;
 const viewerEmail = process.env.STAGING_VIEWER_EMAIL;
 const viewerPassword = process.env.STAGING_VIEWER_PASSWORD;
 const vercelAutomationBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+const evidenceDirectory = path.resolve(
+  process.cwd(),
+  '../../docs/audit/evidence/manager-dashboard-edgar',
+);
 
 let adminContext: BrowserContext;
 let adminPage: Page;
@@ -22,6 +26,12 @@ let managerPage: Page | undefined;
 let sellerContext: BrowserContext | undefined;
 let sellerPage: Page | undefined;
 const localLoginAttemptTimes: number[] = [];
+
+function isSyntheticEvidenceCaptureEnabled(): boolean {
+  return (
+    process.env.E2E_ALLOW_LOCAL === 'true' && process.env.E2E_CAPTURE_SYNTHETIC_EVIDENCE === 'true'
+  );
+}
 
 function browserContextOptions() {
   return {
@@ -278,6 +288,10 @@ test('admin can manage a synthetic opportunity', async () => {
 test('manager drills into stage evidence, opens context and closes with Escape', async () => {
   test.skip(!managerPage, 'Manager staging credentials are optional');
   const page = managerPage!;
+  const captureEvidence = isSyntheticEvidenceCaptureEnabled();
+  if (captureEvidence) await mkdir(evidenceDirectory, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.evaluate(() => localStorage.setItem('sip-appearance', 'LIGHT'));
   await page.goto('/app/dashboard');
 
   const negotiation = page.locator('details').filter({ hasText: '80 · Negotiation' }).first();
@@ -288,6 +302,11 @@ test('manager drills into stage evidence, opens context and closes with Escape',
   await opportunity.click();
   const drawer = page.getByRole('dialog', { name: /Opportunity context|.+/ }).last();
   await expect(drawer).toBeVisible();
+  if (captureEvidence) {
+    await page.screenshot({
+      path: path.join(evidenceDirectory, 'opportunity-detail-1440-en-light.png'),
+    });
+  }
   const askCopilot = drawer.getByRole('button', { name: 'Ask Copilot' });
   await askCopilot.click();
   const copilot = page.getByRole('region', { name: 'Sales Copilot' });
@@ -305,6 +324,11 @@ test('manager drills into stage evidence, opens context and closes with Escape',
   await inspect.click();
   const alertDrawer = page.getByRole('dialog').last();
   await expect(alertDrawer).toBeVisible();
+  if (captureEvidence) {
+    await page.screenshot({
+      path: path.join(evidenceDirectory, 'alert-detail-1440-en-light.png'),
+    });
+  }
   await expect
     .poll(
       async () => {
@@ -317,13 +341,8 @@ test('manager drills into stage evidence, opens context and closes with Escape',
 });
 
 test('management dashboard stays accessible without horizontal page overflow', async () => {
-  const page = adminPage;
-  const captureEvidence =
-    process.env.E2E_ALLOW_LOCAL === 'true' && process.env.E2E_CAPTURE_SYNTHETIC_EVIDENCE === 'true';
-  const evidenceDirectory = path.resolve(
-    process.cwd(),
-    '../../docs/audit/evidence/manager-dashboard-edgar',
-  );
+  const captureEvidence = isSyntheticEvidenceCaptureEnabled();
+  const page = captureEvidence && managerPage ? managerPage : adminPage;
   if (captureEvidence) await mkdir(evidenceDirectory, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/app/dashboard', { waitUntil: 'networkidle' });

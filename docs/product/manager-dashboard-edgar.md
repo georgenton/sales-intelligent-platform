@@ -2,6 +2,8 @@
 
 Fecha del contrato implementado: 2026-10-08. Este documento describe el alcance de la vista gerencial de Edgar y las decisiones que siguen pendientes. No sustituye una aprobación comercial ni reproduce el workbook o conversaciones de origen.
 
+Revisión de integración G19: 2026-10-12 sobre `origin/staging` `2714700911293de14429f6851963168a929c0bf7`, sólo con datos sintéticos locales.
+
 ## Lectura principal
 
 La ruta `/app/dashboard` presenta una sola vista gerencial para roles no Seller. Seller conserva su espacio operativo actual. Managers y administradores pueden abrir la revisión de forecast heredada como detalle mediante `?view=review`; el Copilot permanece colapsado por defecto.
@@ -79,3 +81,28 @@ Los valores `stalledOpportunityDays`, `weeklyVisitTarget` y `pipelineCoverageRat
 - D02 — FUENTE: pendiente workbook actualizado, corte confirmado y naturaleza transaccional/acumulada de `Facturado Daily`.
 - D03 — FECHAS: pendiente evento final del ciclo y umbral aprobado de estancamiento. El valor 30 se etiqueta como heredado.
 - D04 — CATÁLOGO: pendientes aliases HP/HPE/HIT, personas y Upside con fuente. No se deducen.
+
+## Guía de revisión local G19
+
+Abrir `http://localhost:3100/app/dashboard` después de iniciar PostgreSQL, API y web con los comandos indicados en `docs/audit/manager-dashboard-edgar-report.md`. Para recorrer el alcance gerencial se usa el usuario sintético `manager@techdistribution.demo`; la contraseña no está en Git ni en este documento y permanece en el archivo privado `~/.config/sales-intelligence-platform/g19-local-review.env` con permisos `0600`.
+
+| Petición de Edgar                      | Dónde pulsar                                                         | Qué se ve                                                                        | De dónde sale                                                        | Estado o limitación                                                         |
+| -------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| R01/R10 — resumen y forecast por marca | Tarjetas superiores y filas de `Forecast por marca y línea`          | Cuota, Facturado, Forecast, Backlog, gap y proyección del mismo filtro           | Quota, BillingRecord, Opportunity y OpportunityLineItem              | Probado sintéticamente; TOTAL/cumplimiento global sigue En validación (D01) |
+| R02 — evolución semanal                | `Evolución semanal del pipeline`                                     | Corte anterior, corte actual, variación y movimientos                            | ForecastSnapshot y ForecastSnapshotItem                              | Requiere cortes compatibles; una semana ausente nunca se trata como cero    |
+| R04 — regla 4:1                        | `Regla de trabajo 4:1`                                               | Base pendiente, pipeline requerido, disponible y resultado                       | Cuota, Facturado y `pipelineCoverageRatio`                           | Regla de planificación configurable; no es probabilidad histórica           |
+| R06 — segmentación por etapas          | Expandir 20/40/60/80/90 y seleccionar un negocio                     | Negocios justificantes y drawer de contexto con importe, responsable y evidencia | Opportunity, StageHistory y BillingRecord para 100                   | 100 es facturación, no oportunidad abierta                                  |
+| R09 — desempeño por vendedor           | Tarjetas de `Desempeño por vendedor`                                 | Pipeline, Forecast, Backlog, visitas y margen del ámbito autorizado              | Agregación server-side con scope de Manager                          | Sin score ni ranking inventado                                              |
+| R03 — vendedores y visitas             | `Clientes visitados`, selector de pendiente y `Vincular oportunidad` | Clientes distintos, progreso semanal, visita declarada y vínculo posterior       | CustomerVisit, Customer y Opportunity                                | Semana en curso se muestra En progreso; no dispara falso A03                |
+| A01–A07 — alertas                      | `Ver detalle` en la tarjeta correspondiente                          | Regla, dato observado, corte, importe, negocio y acción de contexto              | Motor determinista sobre snapshots, visitas, backlog, margen y etapa | A05/estancamiento conserva el umbral heredado hasta resolver D03            |
+| R05/R08 — ciclo y estancamiento        | `Oportunidades estancadas` y luego el negocio                        | Fechas disponibles, última transición fiable y contexto comercial                | Opportunity y StageHistory                                           | Promedio de ciclo no publicado; evento final y umbral pendientes (D03)      |
+
+Evidencia real de la ejecución local integrada:
+
+- `docs/audit/evidence/manager-dashboard-edgar/desktop-1440-es-light.png`: resumen, forecast, evolución, etapas, vendedores, visitas y alertas.
+- `docs/audit/evidence/manager-dashboard-edgar/tablet-1024-es-light.png`: recorrido completo a 1024 px.
+- `docs/audit/evidence/manager-dashboard-edgar/mobile-390-es-light.png`, `mobile-390-es-dark.png` y `mobile-390-en-light.png`: responsive, EN/ES y Light/Dark.
+- `docs/audit/evidence/manager-dashboard-edgar/opportunity-detail-1440-en-light.png`: detalle justificante desde una etapa.
+- `docs/audit/evidence/manager-dashboard-edgar/alert-detail-1440-en-light.png`: detalle justificante desde Alertas.
+
+Las capturas contienen únicamente el seed local sintético. No sustituyen la conciliación del workbook vigente ni la aceptación de Edgar.

@@ -1,10 +1,10 @@
 # Auditoría de implementación — Resumen gerencial Data Center
 
-Fecha: 2026-10-08
+Fecha: 2026-10-12 (última revisión G19)
 
 Rama: `feat/manager-dashboard-edgar`
 
-Base: `origin/staging` `de23454048f22bf2deac295630235c181b661c04`
+Base integrada localmente: `origin/staging` `2714700911293de14429f6851963168a929c0bf7`
 
 Entorno verificado: Docker PostgreSQL y aplicaciones localmente aisladas. No se importaron datos de staging.
 
@@ -12,7 +12,7 @@ Entorno verificado: Docker PostgreSQL y aplicaciones localmente aisladas. No se 
 
 El bloque A+B está implementado sobre NestJS/Prisma/PostgreSQL y Next.js/RTK Query existentes. El cálculo se concentra en `manager-dashboard.service.ts` y funciones puras de `manager-dashboard.metrics.ts`. La UI principal es `manager-dashboard-edgar.tsx`; importación y configuración amplían flujos existentes.
 
-El workbook real no apareció en rutas autorizadas del repositorio y las cuatro páginas de Notion no fueron accesibles desde este entorno. La conciliación de la carga de Edgar es **NO VERIFICADA**. Todas las evidencias versionadas usan fixtures sintéticos.
+El workbook real no apareció en rutas autorizadas del repositorio. Las páginas de contrato, historial, índice y encargo G19 de Notion sí se consultaron durante G19, sin que aportaran el Excel vigente ni resolvieran D01–D04. La conciliación de la carga de Edgar es **NO VERIFICADA**. Todas las evidencias versionadas usan fixtures sintéticos.
 
 ## Matriz contractual
 
@@ -78,6 +78,8 @@ El run de CI del baseline `de234540` ya terminaba en fallo externo con `quality`
 - `docs/audit/evidence/manager-dashboard-edgar/mobile-390-es-light.png`
 - `docs/audit/evidence/manager-dashboard-edgar/mobile-390-es-dark.png`
 - `docs/audit/evidence/manager-dashboard-edgar/mobile-390-en-light.png`
+- `docs/audit/evidence/manager-dashboard-edgar/opportunity-detail-1440-en-light.png`
+- `docs/audit/evidence/manager-dashboard-edgar/alert-detail-1440-en-light.png`
 
 El mismo recorrido valida 360/375 sin overflow, teclado sobre filtros/desgloses, drawer/Escape, EN/ES y Light/Dark. La bandera de captura sólo funciona junto con `E2E_ALLOW_LOCAL=true`, evitando versionar accidentalmente pantallas remotas.
 
@@ -241,3 +243,131 @@ La revisión independiente reprodujo un defecto temporal: con `now = 2026-10-12T
 Se añadieron cuatro casos deterministas usando registros clonados: revisión futura falla, revisión válida ya realizada pasa, `reviewedAt === now` pasa y fecha inválida falla. Los 27 casos anteriores permanecen; la suite completa es 31/31. Los casos existentes conservan la prueba de revisión vencida, vencimiento absoluto exacto y registro aprobado actual vigente. El audit real continúa como `AUDIT_RAW: FAIL`, mientras la política devuelve `SECURITY_POLICY: PASS_WITH_TIME_LIMITED_EXCEPTION` con 0 critical, 1 high, 2 moderate y 1 low.
 
 La autorización, el inicio, la revisión semanal, el vencimiento absoluto, el alcance y el historial real no cambiaron. Esta reparación no registra una revisión semanal futura ni renueva la excepción. No cambia producto, dependencias, schema, empaquetado, datos ni despliegues; los E2E, contenedores, runtime e imágenes de G15/G16 se reutilizan y no fueron ejecutados nuevamente.
+
+## G19 — Integración de staging y revisión local — 2026-10-12
+
+### Base, HEAD y conflicto resuelto
+
+- PR: [#29](https://github.com/georgenton/sales-intelligent-platform/pull/29), sin merge hacia `staging`.
+- HEAD remoto funcional: `157d28a776a6270aba434b26cb090c4ff610e9d5`.
+- Base estable integrada: `2714700911293de14429f6851963168a929c0bf7`.
+- Merge local: `5ed407ef6f4cc53e877770a1be3a5d3968f159c3`; `origin/staging` es ancestro del HEAD local.
+- `main` observado y no modificado: `77c58dd7f2fa7fe791f4a478ff1d3e7e7915d22a`.
+
+GitHub mostraba el PR remoto como `CONFLICTING/DIRTY` porque ambas ramas habían editado el mismo bloque de `apps/api/test/phase1-commercial.integration-spec.ts`. La resolución se hizo archivo por archivo: se conservaron los fixtures y casos ampliados del dashboard, y la corrección estable que selecciona la marca esperada por `brandId`, exige su cuota explícita y mantiene `null` para cuota y métricas dependientes de la marca no configurada. No se cambió el orden del backend, no se retiraron aserciones y no se tomó `ours`/`theirs` global.
+
+El diff `origin/staging..HEAD` conserva sólo el desarrollo gerencial pendiente. Los manifiestos, lockfile, política G17, workflow CI y configuración compartida de seguridad son idénticos a staging; no se repitió una actualización de dependencias.
+
+### Migraciones y datos sintéticos
+
+Se creó `sip_g19_local` con PostgreSQL `17.6-alpine`, base `sales_intelligence_g19`, puertos locales API `4100`, web `3100` y PostgreSQL `5459`. Los secretos sintéticos quedaron fuera del repositorio en `~/.config/sales-intelligence-platform/g19-local-review.env`, modo `0600`.
+
+Primero se aplicaron sólo las cuatro migraciones estables. Sus checksums SHA-256 coincidieron con los archivos versionados y se insertó el tenant centinela `g19-migration-sentinel`. Después se aplicaron las dos migraciones funcionales; las seis quedaron finalizadas y el centinela se conservó.
+
+| Migración                                          | SHA-256                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `20260825171652_init`                              | `de41f012d14017f210f69168f63dc0bad1d54a1bf545c41d8607f316ac3c5f1e` |
+| `20260906090000_phase_1_commercial_domain`         | `2a6cd1c488cf56b2cfbac312f26e00eaa585b26da4d28f31f86576f474864d65` |
+| `20260907090000_phase_1_contract_corrections`      | `ceb632e55b344250ef804c44f8bdd5bbc7af9d915212726a61ece97379792297` |
+| `20260907130000_phase_1_role_scope`                | `797136afcc11491b92f30005b821a949a43668f0b533eae495fde8c0914b81d6` |
+| `20261008120000_manager_dashboard_edgar`           | `cb4b4da305897b4d7908a5b28fa5f9f0321f57713336c8f89b0a26617fac6b8c` |
+| `20261008121000_manager_dashboard_settings_checks` | `5eb37859eb5df0f032e80cfd9653f04a59090a22b737141ad98b84be1cf175d6` |
+
+El seed local creó 40 oportunidades sintéticas y perfiles Admin, Manager, Seller, Executive y Viewer. El rol `sip_runtime_g19` quedó `NOSUPERUSER` y `NOBYPASSRLS`; su falta de acceso directo a `_prisma_migrations` confirmó que no posee privilegios de owner. No se usaron cuentas, contraseñas, bases, imports ni datos remotos.
+
+### Pruebas nuevas de G19
+
+| Control                                       | Ejecutados | Aprobados | Fallidos | Omitidos | Resultado |
+| --------------------------------------------- | ---------: | --------: | -------: | -------: | --------- |
+| `pnpm format:check`                           |          1 |         1 |        0 |        0 | PASS      |
+| `pnpm lint`                                   |          1 |         1 |        0 |        0 | PASS      |
+| `pnpm typecheck`                              |          1 |         1 |        0 |        0 | PASS      |
+| Unitarias API/web/shared                      |         88 |        88 |        0 |        0 | PASS      |
+| Integración API                               |         27 |        27 |        0 |        0 | PASS      |
+| Tenant isolation/RLS                          |          5 |         5 |        0 |        0 | PASS      |
+| Build API/Next                                |          1 |         1 |        0 |        0 | PASS      |
+| E2E local completo, sin retries               |         10 |        10 |        0 |        0 | PASS      |
+| Captura focalizada drawer/alerta, sin retries |          1 |         1 |        0 |        0 | PASS      |
+| Evaluador G17                                 |         31 |        31 |        0 |        0 | PASS      |
+| Gitleaks historial completo                   |          1 |         1 |        0 |        0 | PASS      |
+
+Dos intentos iniciales de arranque E2E fallaron en `beforeAll`, antes de ejecutar los escenarios: el primero usó `next start`, que bloqueó correctamente un `API_ORIGIN` HTTP bajo semántica de producción; el segundo usó `127.0.0.1` contra `next dev`, cuyo control de origen impidió hidratar el formulario. La ejecución válida usa `next dev` y `http://localhost:3100`, no cambia producto, no desactiva controles y terminó 10/10 sin retries.
+
+Durante la pasada final, una ejecución intermedia de integración devolvió un único `401` en `/imports/analyze` después de que la misma suite ya hubiera pasado. El archivo comercial aislado pasó 18/18 tras un seed limpio y la integración completa volvió a pasar 27/27 también con seed limpio, sin retry de Vitest ni cambio de código. Al no reproducirse el defecto en dos corridas limpias, no se añadió una relogin artificial ni se ocultó la aserción; queda registrado como observación transitoria del harness local.
+
+La integración cubrió de nuevo idempotencia de lote, actualización semanal con historial, ausencia sin borrado, acumulado 300→350, lote parcial visible, backlog noviembre→diciembre, visitas sin oportunidad y vínculo posterior, filtros consistentes y Manager A/B. El E2E cubrió Manager real, Seller propio, Executive/Viewer de sólo lectura, detalle de etapas y alertas, Copilot error/retry, import gate, EN/ES, Light/Dark, 1440/1024/390, teclado, foco, Escape y logout/protected redirect. La semana en curso permanece `IN_PROGRESS` y no emite falso A03.
+
+### Seguridad G17 y CI/publicación
+
+- `AUDIT_RAW`: **FAIL**, como está diseñado, con 0 critical, 1 high, 2 moderate y 1 low. El high sigue siendo únicamente `GHSA-vfj7-8cjw-p6xm` en `braces@3.0.3` por la cadena de tooling aprobada.
+- `SECURITY_POLICY`: **PASS_WITH_TIME_LIMITED_EXCEPTION**, `SIP-SEC-EXC-2026-001`, revisión `2026-10-19T16:59:59Z`, vencimiento absoluto `2026-10-26T16:59:59Z`. No se cambió alcance, fecha, evaluador ni gate.
+- Gitleaks: 97 commits y aproximadamente 4.76 MB, sin hallazgos.
+- CI remoto visible: `quality` y `secrets` verdes sólo para el HEAD remoto anterior `157d28a` (run `38292595348`); no se atribuyen al HEAD local integrado.
+- Publicación: **pendiente de autorización específica**. El check existente demuestra que un push a la rama dispara Vercel Preview, es decir, un despliegue remoto. G19 permite publicar sólo si no se generan deployments; por ello no se hizo push ni se actualizó el PR remoto.
+
+No se modificaron `staging`, `main`, Railway, Vercel estable, DNS, Coolify, customer production, datos ni credenciales UAT. El worktree `fix/staging-runtime-security` y su informe local pendiente se preservaron sin cambios.
+
+### Revisión visual local
+
+URL efectiva: `http://localhost:3100/app/dashboard`.
+
+| Captura                                | Ruta             | Rol     | Filtros/fecha de corte                                                                 | Fixture                                                  | Contrato evidenciado                                                                                                                                   |
+| -------------------------------------- | ---------------- | ------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `desktop-1440-es-light.png`            | `/app/dashboard` | Manager | FY2026 Q4; todas las marcas, líneas y sellers; semana de 2026-10-12; Light; ES         | `tech-distribution-demo`, seed local de 40 oportunidades | R01–R04 y R06–R10; A01–A07; alcance completo de escritorio, estados no configurados y aviso de fuente no reconciliada                                  |
+| `tablet-1024-es-light.png`             | `/app/dashboard` | Manager | Mismos filtros y semana; Light; ES                                                     | Mismo seed sintético                                     | R01–R10 y A01–A07 en layout tablet; navegación, densidad y ausencia de overflow                                                                        |
+| `mobile-390-es-light.png`              | `/app/dashboard` | Manager | Mismos filtros y semana; Light; ES                                                     | Mismo seed sintético                                     | R01–R10 y A01–A07 en layout móvil; orden de lectura, controles y ausencia de clipping                                                                  |
+| `mobile-390-es-dark.png`               | `/app/dashboard` | Manager | Mismos filtros y semana; Dark; ES                                                      | Mismo seed sintético                                     | R01–R10 y A01–A07 en tema oscuro y layout móvil                                                                                                        |
+| `mobile-390-en-light.png`              | `/app/dashboard` | Manager | Mismos filtros y semana; Light; EN                                                     | Mismo seed sintético                                     | R01–R10 y A01–A07 con internacionalización y layout móvil                                                                                              |
+| `opportunity-detail-1440-en-light.png` | `/app/dashboard` | Manager | FY2026 Q4; filtros globales sin restricción adicional; semana de 2026-10-12; Light; EN | Oportunidad HP sintética del mismo tenant                | Drill-down R06/R08 y contexto A05; detalle trazable sin afirmar conciliación real                                                                      |
+| `alert-detail-1440-en-light.png`       | `/app/alerts`    | Manager | Ámbito autenticado del tenant; Light; EN                                               | Alerta de riesgo sintética generada por el motor local   | Navegación y detalle usados por el contrato A01–A07; la fila capturada es evidencia de interacción, no una equivalencia individual a todos los códigos |
+
+No existe un corte semanal publicado ni una conciliación con el Excel real: la fecha visible corresponde al seed local actualizado el 2026-10-12. Las capturas no convierten esa fecha en fecha comercial aprobada.
+
+Inicio reproducible desde la raíz del repositorio, sin imprimir secretos:
+
+```bash
+docker compose --env-file ~/.config/sales-intelligence-platform/g19-local-review.env -p sip_g19_local up -d db
+
+set -a
+source ~/.config/sales-intelligence-platform/g19-local-review.env
+set +a
+export PATH=/Users/jorgequizamanchuro/.nvm/versions/node/v24.19.0/bin:$PATH
+DATABASE_URL="$MIGRATION_DATABASE_URL" pnpm db:migrate:deploy
+DATABASE_URL="$MIGRATION_DATABASE_URL" pnpm db:seed
+pnpm db:provision:runtime
+pnpm --filter @sip/api start
+```
+
+En una segunda terminal:
+
+```bash
+set -a
+source ~/.config/sales-intelligence-platform/g19-local-review.env
+set +a
+export PATH=/Users/jorgequizamanchuro/.nvm/versions/node/v24.19.0/bin:$PATH
+pnpm --filter @sip/web exec next dev --webpack --port 3100
+```
+
+Para copiar la contraseña sintética del Manager al clipboard sin mostrarla:
+
+```bash
+set -a
+source ~/.config/sales-intelligence-platform/g19-local-review.env
+set +a
+printf %s "$E2E_MANAGER_PASSWORD" | pbcopy
+```
+
+Ingresar con `manager@techdistribution.demo`. La guía de clics y la correspondencia petición → UI → fuente → limitación están en `docs/product/manager-dashboard-edgar.md`. Las siete capturas G19 son nuevas y se generaron desde la ejecución integrada; no se reutilizaron prototipos.
+
+### Estado comercial pendiente
+
+| Dependencia       | Estado G19                                                                  |
+| ----------------- | --------------------------------------------------------------------------- |
+| D01               | Abierta: falta ejemplo aprobado de TOTAL/cumplimiento global.               |
+| D02               | Abierta: falta workbook vigente, corte y naturaleza de `Facturado Daily`.   |
+| D03               | Abierta: falta evento final del ciclo y umbral aprobado de estancamiento.   |
+| D04               | Abierta: faltan aliases, catálogo/personas y Upside respaldados por fuente. |
+| Conciliación real | **NO VERIFICADA**; el seed y las capturas sintéticas no la sustituyen.      |
+| H3                | **NO INICIADO**; no existe aceptación de Edgar.                             |
+
+Notion quedó actualizado y verificado en las páginas 13, 14, índice 15 y encargo G19, sin reabrir G18-C1 ni alterar la historia de G15–G17.

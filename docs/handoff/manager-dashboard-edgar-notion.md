@@ -1,14 +1,14 @@
 # Handoff para Notion — Bloque gerencial de Edgar
 
-NOTION: ENTREGA INICIAL YA SINCRONIZADA POR CHATGPT; ACTUALIZACIONES G15/G16 PENDIENTES DE SINCRONIZACIÓN
+NOTION: G18/G18-C1 CONFIRMADOS CERRADOS; G19 SINCRONIZADO Y VERIFICADO
 
-Fecha de corte: 2026-10-08
+Fecha de corte: 2026-10-12
 
 Rama: `feat/manager-dashboard-edgar`
 
-Base: `de23454048f22bf2deac295630235c181b661c04`
+Base integrada: `2714700911293de14429f6851963168a929c0bf7`
 
-Este archivo está preparado para incorporar el avance G15 a las páginas de contrato, hitos e historial sin convertir supuestos en aprobaciones. ChatGPT ya sincronizó la entrega inicial de PR #29 después del handoff anterior. Las URLs de Notion no fueron legibles desde este entorno; no se sobrescribió esa actualización remota con el estado antiguo.
+Este archivo mantiene el historial G15–G18 y agrega G19 sin convertir pruebas sintéticas en aprobación comercial. Durante G19 el conector autorizado permitió leer contrato, historial, índice y encargo antes de actualizar. G18 y G18-C1 permanecen cerrados; no se reabren rotaciones, investigaciones ni despliegues ya finalizados.
 
 ## H1 — Implementación A+B
 
@@ -65,6 +65,24 @@ Este archivo está preparado para incorporar el avance G15 a las páginas de con
 - Comercial: R01–R10/A01–A07 sin cambios; D01–D04, R05, R08/A05 y R10 abiertos; conciliación real NO VERIFICADA; H3 NO INICIADO.
 - Entornos: Railway estable sigue live/ready 200 en el artefacto anterior; Vercel estable no se movió. Main, staging, datos, credenciales, DNS y customer production sin cambios.
 - Notion: sin conector autorizado en este entorno; este handoff queda pendiente de sincronización y no sobrescribe la historia ya enviada.
+
+## G19 — Integración y revisión local del mismo PR #29
+
+- Estado: **INTEGRADO LOCALMENTE Y LISTO PARA REVISIÓN LOCAL; PUBLICACIÓN REMOTA PENDIENTE DE AUTORIZACIÓN**.
+- Rama/PR: `feat/manager-dashboard-edgar`, mismo PR #29 hacia `staging`; no se abrió PR sustituto.
+- Base estable integrada: `origin/staging` `2714700911293de14429f6851963168a929c0bf7`; merge local `5ed407ef6f4cc53e877770a1be3a5d3968f159c3`.
+- Conflicto: único archivo `apps/api/test/phase1-commercial.integration-spec.ts`; se conservaron fixtures/casos gerenciales y la aserción estable por `brandId`, incluida la marca sin cuota con valores `null`.
+- Migrations: cuatro estables más dos funcionales, seis total; checksums coincidentes y tenant centinela conservado al pasar 4→6.
+- Entorno: PostgreSQL `17.6-alpine`, API `4100`, web `3100`; seed de 40 oportunidades y perfiles sintéticos. Secretos fuera de Git en `~/.config/sales-intelligence-platform/g19-local-review.env` modo `0600`.
+- Calidad nueva G19: frozen install, format/lint/typecheck/build PASS; 88/88 unitarias, 27/27 integración, 5/5 RLS, 10/10 E2E completos sin retries, 1/1 captura focalizada, 31/31 política G17 y gitleaks sin hallazgos en 97 commits.
+- Seguridad: `AUDIT_RAW: FAIL` por el high exacto de `braces@3.0.3`; `SECURITY_POLICY: PASS_WITH_TIME_LIMITED_EXCEPTION`. Revisión `2026-10-19T16:59:59Z`, vencimiento absoluto `2026-10-26T16:59:59Z`; sin renovación ni cambio de alcance.
+- Evidencia: siete capturas nuevas de la ejecución integrada, con 1440/1024/390, ES/EN, Light/Dark, resumen, forecast, evolución, etapas, vendedores, visitas, alertas y drawers de negocio/alerta.
+- Revisión: `http://localhost:3100/app/dashboard`; usuario sintético `manager@techdistribution.demo`. La contraseña no se registra y se copia desde el archivo privado mediante `pbcopy`.
+- Publicación: no se hizo push porque el check del PR demuestra que actualizar la rama crea Vercel Preview. El CI remoto verde visible pertenece al HEAD remoto anterior `157d28a`, no al HEAD local integrado.
+- Entornos remotos: `staging`, `main`, Railway, Vercel estable, DNS, Coolify, datos y seis credenciales UAT permanecen sin cambios.
+- Comercial: R01–R04, R06–R07, R09 y A01–A04/A06–A07 revalidados; las mecánicas seguras de R05/R08/A05/R10 se conservan sin cerrar D01–D04. Conciliación real **NO VERIFICADA**; H3 **NO INICIADO**.
+- Documentos: `docs/product/manager-dashboard-edgar.md` contiene la guía de clics; `docs/audit/manager-dashboard-edgar-report.md` conserva comandos, checksums, pruebas, capturas y límites.
+- Memoria: insertar G19 como actualización nueva en contrato/historial/índice/encargo, sin reemplazar G15–G18 ni marcar riesgo aceptado fuera de G17.
 
 ## H3 — Aceptación posterior de Edgar
 
