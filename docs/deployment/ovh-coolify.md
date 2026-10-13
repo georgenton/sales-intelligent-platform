@@ -197,3 +197,64 @@ SyntaVera producción/staging y EIA Demo/Staging permanecieron `running:healthy`
 ### Estado posterior
 
 Demo y Staging están disponibles para revisión sintética; Producción está preparada pero no está LIVE. D01-D04, la conciliación del workbook vigente y H3 continúan pendientes/no iniciados. Antes de datos reales o go-live se requiere una decisión separada sobre fuente de verdad, consentimiento, ventana de un solo escritor, backup off-site/retención, conciliación comercial, corte y rollback.
+
+## Registro G25 — acceso y validación de los tres ambientes
+
+Fecha de ejecución: 2026-10-13. Este registro amplía la evidencia G23 sin cambiar el artefacto de aplicación, las fórmulas comerciales ni las ramas `staging`/`main`. La guía operativa para Jorge está en [ovh-access-review.md](./ovh-access-review.md).
+
+### Resultado por ambiente
+
+Los tres ambientes ejecutan las imágenes AMD64 ya verificadas, con revisión OCI `3daaf401ecd6a4885731d48234c73e4a4bb8d883`:
+
+- API: `sha256:70fd2d6a5ba23840035860f54e6414a8c90e1fdbc84d6cbe2072894a8ac5664b`.
+- Web: `sha256:a1e842b3458e508846db3b21d02d1cdcef226443d31c9150a747cebbc0afd475`.
+- PostgreSQL 18.4: `sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15`.
+
+| Ambiente           | Estado                     | URL de revisión                       | Datos                                        | Resultado           |
+| ------------------ | -------------------------- | ------------------------------------- | -------------------------------------------- | ------------------- |
+| Demo               | `running:healthy`          | `https://demo.sales.syntavera.dev`    | sintéticos G23 preservados                   | **HECHO**           |
+| Staging            | `running:healthy`          | `https://staging.sales.syntavera.dev` | sintéticos G23 preservados                   | **HECHO**           |
+| Producción privada | `running:healthy`, no LIVE | `https://preprod.sales.syntavera.dev` | tenant temporal inequívoco, sin datos reales | **HECHO/PROTECTED** |
+
+Demo y Staging conservaron sus volúmenes y registros. Para facilitar la revisión del propietario en Staging se rotaron únicamente las credenciales locales de las identidades sintéticas exactas Manager, Seller y Viewer mediante Argon2id con los mismos parámetros de autenticación, guardas de ambiente/base/tenant/rol y revocación de cuatro sesiones. No se resembró ni se redujo el rate limit.
+
+Producción usa el recurso ya provisionado `2iyl3kboglq5odrvpwk45qad`, su propia base `sip_production`, rol `sip_runtime_production`, redes y volumen. API y PostgreSQL no publican puertos del host. Se aplicaron secuencialmente las ocho migraciones y se verificó la base vacía antes de crear el fixture. El único tenant se etiqueta `PRUEBA — NO PRODUCCIÓN COMERCIAL`; contiene 7 identidades técnicas sintéticas, 40 oportunidades sintéticas, 27 alertas y 0 oportunidades no sintéticas. Sólo las identidades Manager y Viewer están entregadas para revisión. No se importaron datos ni usuarios de Edgar, no se conectó Railway y no se activaron SMTP/invitaciones.
+
+`preprod.sales.syntavera.dev` estaba libre y quedó protegido en el perímetro por Basic Auth de Traefik, además del login de la aplicación. Sin credencial de perímetro responde 401 con `WWW-Authenticate`; con la credencial local responde 200. Ambas respuestas incluyen `X-Robots-Tag: noindex, nofollow` y el certificado TLS valida correctamente. El hash no reversible de Basic Auth vive sólo en la configuración de control de Coolify/Traefik; no se guardó valor ni hash en Git. `sales.syntavera.dev` continúa reservado y sin uso por SIP.
+
+### Smokes externos y seguridad
+
+- Demo: Manager, Seller y Viewer aprobaron login, dashboard, embudo/drill-down, drawer, alertas, modos Seller, restricciones Viewer, logout y redirect protegido.
+- Staging: Tenant Admin, Manager, Seller y Viewer aprobaron los mismos contratos. EN/ES conservó ruta y tema. Una carga CSV sintética con referencias desconocidas quedó `BLOCKED` en dry-run; el botón de ejecución permaneció deshabilitado y no hubo POST de ejecución.
+- Producción privada: Manager y Viewer aprobaron login detrás de la protección externa, resumen, drill-down, drawer, alertas, restricciones Viewer, logout y redirect protegido.
+- En los tres: cookie `Secure`, `HttpOnly`, `SameSite=Lax`; logout sin CSRF devolvió 403; cero HTTP 5xx y cero errores inesperados de consola. Los logs API/web de los seis procesos observados no tuvieron entradas estructuradas `ERROR`/`FATAL` durante la ventana G25.
+- Las tres bases tienen 8 migraciones y 25 tablas con `FORCE RLS`. `app_runtime` permanece `NOLOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOBYPASSRLS`. La lectura con tenant propio devolvió 41/42/40 oportunidades en Demo/Staging/Producción respectivamente; al cambiar el GUC a un tenant ajeno aleatorio devolvió 0 en los tres.
+
+### Capacidad, vecinos y legado
+
+El preflight observó 11 GiB de RAM total y aproximadamente 4,8 GiB disponibles. Con los tres stacks activos quedaron 4,6 GiB disponibles, 46 GiB libres en `/` (53% usado) y 16% de inodos usados. La medición puntual de los nueve contenedores SIP fue aproximadamente 698 MiB; los picos breves de CPU coincidieron con los smokes. No hay swap ni alta disponibilidad, por lo que esta capacidad es apta para revisión personal controlada, no una garantía de carga productiva.
+
+SyntaVera producción/staging, EIA Demo/Staging y FeelVerse staging continuaron saludables; sus rutas web devolvieron 200 y `/health` del API FeelVerse devolvió 200. No se cambió Coolify/Traefik/firewall global ni se reinició un vecino.
+
+El legado quedó intacto: Railway deployment `188246ae-35e7-40d9-8f3c-f02907b312f8` continúa `SUCCESS` sobre `staging@2714700911293de14429f6851963168a929c0bf7`, sin trabajo pendiente. Vercel deployment `dpl_5RU78doZMer6avmBJLomccgwaFEZ` continúa `READY` sobre el mismo SHA. `main@77c58dd7f2fa7fe791f4a478ff1d3e7e7915d22a` no cambió.
+
+### Backup off-site G24 — bloqueado de forma acotada
+
+Los restores locales G23 permanecen intactos. Coolify tiene dos destinos R2 utilizables, pero corresponden a buckets/credenciales compartidos de SyntaVera y FeelVerse y las programaciones actuales son para bases `StandalonePostgresql`; no existe bucket, access key ni política de retención específica para SIP y Service Compose. Reutilizarlos no demostraría aislamiento ni mínimo privilegio. Por tanto no se subió un objeto, no se simuló un restore externo y no se declara G24 terminado.
+
+Para desbloquear sólo este subpaso se requiere una de estas dos autorizaciones concretas: (a) bucket/prefijo R2 exclusivo para SIP con access key limitada a ese alcance y política de retención aprobada, o (b) autorización explícita para crear esos recursos y aceptar cualquier coste asociado. Después se debe probar upload, checksum/tamaño remoto, download y restore en una base desechable, nunca sobre los tres ambientes.
+
+### Rollback y limpieza previa al go-live
+
+Rollback sin pérdida de datos de la revisión privada:
+
+1. Detener únicamente el servicio Coolify `sip-production`; no borrar su volumen.
+2. Confirmar que los tres contenedores de ese recurso están detenidos y que Demo/Staging y los vecinos siguen saludables.
+3. Retirar la ruta `preprod.sales.syntavera.dev` y su middleware sólo después de detener el servicio. No tocar DNS o Traefik global.
+4. Conservar el volumen aislado para reanudar la revisión o generar evidencia de backup; no ejecutar `down -v`, `prune` ni borrado manual.
+
+Antes de un go-live comercial —requiere autorización separada— se debe detener Producción, completar el backup off-site y restore drill, decidir entre reemplazar el volumen por una base nueva vacía o borrar controladamente todo el tenant/usuarios/fixtures temporales, reaplicar las ocho migraciones y demostrar conteos de negocio en cero. Sólo entonces podrán configurarse el dominio definitivo, usuarios reales, fuente de verdad, ventana de un solo escritor, conciliación y rollback. D01–D04, conciliación del workbook vigente y H3 siguen pendientes; un smoke técnico no constituye aceptación gerencial.
+
+### Seguridad vigente
+
+Al 2026-10-13, `pnpm audit --audit-level high` y `pnpm security:audit` continúan **FAIL** con 0 críticas, 1 alta (`braces@3.0.3`), 2 moderadas y 1 baja. El evaluador separado devuelve `SECURITY_POLICY: PASS_WITH_TIME_LIMITED_EXCEPTION` sólo para `SIP-SEC-EXC-2026-001`; revisión `2026-10-19T16:59:59Z`, expiración absoluta `2026-10-26T16:59:59Z`. No se renovó, amplió ni registró una revisión futura.
