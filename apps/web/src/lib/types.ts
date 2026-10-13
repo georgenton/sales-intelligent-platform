@@ -100,11 +100,13 @@ export interface ManagerDashboardData {
     backlog: number;
     forecastAndBacklog: number;
     closeProjection: number;
-    compliance: { status: 'PENDING_VALIDATION'; reason: string };
+    attainmentAgainstQuota: number | null;
+    compliance: { status: 'SOURCE_DEFINED_PENDING_NUMERIC_VALIDATION'; reason: string };
     marginAmount: number;
     marginPercent: number | null;
     marginTarget: number;
   };
+  summaryDetails: Record<'BILLED' | 'FORECAST' | 'BACKLOG' | 'PIPELINE', string[]>;
   coverage: {
     status: 'NOT_EVALUABLE' | 'SUFFICIENT' | 'INSUFFICIENT';
     baseAmount: number | null;
@@ -112,6 +114,10 @@ export interface ManagerDashboardData {
     availablePipeline: number;
     difference: number | null;
     ratio: number;
+    quota: number | null;
+    eligibleSupport: number;
+    billedExcluded: number;
+    basis: 'QUOTA_MINUS_FORECAST_AND_BACKLOG';
   };
   brandHierarchy: {
     label: string;
@@ -147,6 +153,25 @@ export interface ManagerDashboardData {
     changeAmount: number | null;
     changePercent: number | null;
     droppedMoreThanTenPercent: boolean;
+    series: Array<{
+      snapshotId: string;
+      weekStart: string;
+      cutoff: string;
+      amount: number | null;
+      comparisonStatus: 'NO_COMPARISON' | 'AVAILABLE';
+      changeAmount: number | null;
+      changePercent: number | null;
+      movements: Array<{
+        opportunityId: string;
+        kind:
+          | 'ENTERED_PIPELINE'
+          | 'LEFT_PIPELINE'
+          | 'ADVANCED_TO_FORECAST'
+          | 'LOST_OR_CANCELLED'
+          | 'AMOUNT_CHANGED';
+        delta: number;
+      }>;
+    }>;
     movements: Array<{
       opportunityId: string;
       kind:
@@ -188,6 +213,7 @@ export interface ManagerDashboardData {
     visitStatus: 'CLOSED' | 'IN_PROGRESS';
     grossMarginAmount: number;
     grossMarginPercent: number | null;
+    marginBasis: 'ACTUAL_BILLED';
   }>;
   stalled: Array<{
     opportunityId: string;
@@ -202,6 +228,8 @@ export interface ManagerDashboardData {
     amount: number;
   }>;
   salesCycle: { status: 'PENDING_DEFINITION'; reason: string; averageDays: null };
+  periodDateGaps: Array<{ opportunityId: string; title: string; stageCode: string }>;
+  visitScope: 'CURRENT_FILTERS' | 'SELLER_TOTAL_NOT_COMMERCIAL_FILTER';
   alerts: Array<{
     id: string;
     code: 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'A06' | 'A07';

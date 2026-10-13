@@ -70,6 +70,7 @@ describe('MVP API vertical slice', () => {
       estimatedAmount: '42000.00',
       grossProfit: '6300.00',
       expectedCloseDate: '2026-10-15',
+      expectedBillingDate: '2026-11-15',
       lineItems: [
         {
           brandId: reference.brands[0]!.id,

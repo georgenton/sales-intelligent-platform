@@ -8,5 +8,6 @@ import { ForecastService } from './forecast.service';
   imports: [AuthModule, AuthorizationModule],
   controllers: [ForecastController],
   providers: [ForecastService],
+  exports: [ForecastService],
 })
 export class ForecastModule {}

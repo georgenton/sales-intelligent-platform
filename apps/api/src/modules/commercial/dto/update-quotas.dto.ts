@@ -4,7 +4,9 @@ import {
   IsArray,
   IsNumberString,
   IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -24,6 +26,18 @@ export class SellerQuotaDto {
   amount!: string;
 }
 
+export class LineQuotaDto {
+  @IsUUID()
+  brandId!: string;
+
+  @IsString()
+  @MaxLength(120)
+  line!: string;
+
+  @IsNumberString()
+  amount!: string;
+}
+
 export class UpdateQuotasDto {
   @IsOptional()
   @IsNumberString()
@@ -35,6 +49,13 @@ export class UpdateQuotasDto {
   @ValidateNested({ each: true })
   @Type(() => BrandQuotaDto)
   brandQuotas?: BrandQuotaDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => LineQuotaDto)
+  lineQuotas?: LineQuotaDto[];
 
   @IsOptional()
   @IsArray()

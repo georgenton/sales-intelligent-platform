@@ -84,6 +84,21 @@ Este archivo mantiene el historial G15–G18 y agrega G19 sin convertir pruebas 
 - Documentos: `docs/product/manager-dashboard-edgar.md` contiene la guía de clics; `docs/audit/manager-dashboard-edgar-report.md` conserva comandos, checksums, pruebas, capturas y límites.
 - Memoria: insertar G19 como actualización nueva en contrato/historial/índice/encargo, sin reemplazar G15–G18 ni marcar riesgo aceptado fuera de G17.
 
+## G20 — Cierre funcional local
+
+- Estado: **LISTO PARA REVISIÓN LOCAL, CON D01–D04 Y CONCILIACIÓN REAL PENDIENTES**.
+- Fecha: 2026-10-13. Rama `feat/manager-dashboard-edgar`; base estable `2714700911293de14429f6851963168a929c0bf7`. El SHA local final se registra después del commit y no se publicó.
+- Periodo: Pipeline 20/40, Forecast 60/80 y Backlog 90 se atribuyen por facturación prevista; cierre comercial sigue separado. Sin fecha se muestra información faltante.
+- Regla 4:1: cuota menos Forecast + Backlog elegible, multiplicado por 4; ejemplos persistidos 500k→2M y (500k−250k)→1M. Facturado queda separado por D01.
+- Backlog parcial: 100k−40k=60k consistente en resumen, marca/línea, vendedor, etapa, A06 y detalles; no se mueve a 100 hasta facturación completa.
+- Semanas: importación publicada crea corte; replay del lote no. Último corte por semana, semana ausente omitida, tres o más puntos y dimensiones históricas inmutables.
+- Equipo: pertenencia manager/seller explícita en `TenantMembership`; vendedor sin actividad visible sin ampliar el scope. Visitas sin oportunidad se conservan bajo filtros comerciales.
+- UX: alertas prioritarias junto al resumen, embudo gráfico reutilizado, serie semanal pulsable, detalle exacto de importes y alertas/fechas faltantes con expansión progresiva.
+- Verificación nueva: 88/88 unitarias, 28/28 integración, 5/5 RLS y 10/10 E2E sin retries; format/lint/typecheck/build PASS; siete capturas regeneradas; Gitleaks sin hallazgos.
+- Seguridad: raw audit FAIL (0 critical, 1 high, 2 moderate, 1 low); G17 PASS_WITH_TIME_LIMITED_EXCEPTION sin cambios, revisión `2026-10-19T16:59:59Z`, expiración `2026-10-26T16:59:59Z`.
+- Remoto: no push, merge, deploy, DNS, importación, datos ni credenciales. PR #29 remoto permanece en su HEAD anterior hasta autorización posterior.
+- H3: no iniciado. Las pruebas sintéticas no equivalen a aceptación de Edgar ni conciliación del workbook vigente.
+
 ## H3 — Aceptación posterior de Edgar
 
 - Estado: NO INICIADO.

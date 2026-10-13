@@ -1,12 +1,43 @@
 # Auditoría de implementación — Resumen gerencial Data Center
 
-Fecha: 2026-10-12 (última revisión G19)
+Fecha: 2026-10-13 (cierre local G20)
 
 Rama: `feat/manager-dashboard-edgar`
 
 Base integrada localmente: `origin/staging` `2714700911293de14429f6851963168a929c0bf7`
 
 Entorno verificado: Docker PostgreSQL y aplicaciones localmente aisladas. No se importaron datos de staging.
+
+## Cierre G20
+
+G20 corrige el horizonte comercial y completa el recorrido desde datos persistidos hasta detalle de pantalla sin cerrar D01–D04. La implementación conserva una sola fórmula backend y no modifica datos, servicios o credenciales remotos.
+
+- Periodo: Pipeline 20/40, Forecast 60/80 y Backlog 90 usan `expectedBillingDate`; `expectedCloseDate` permanece como fecha comercial separada. Los registros sin fecha aparecen como dato faltante.
+- 4:1: base = cuota − (Forecast + Backlog elegible). Los ejemplos persistidos prueban 500.000→2.000.000 y 500.000−250.000→1.000.000; Facturado queda separado por D01.
+- Backlog parcial: 100.000 con 40.000 facturados deja 60.000 en resumen, marca/línea, vendedor, etapa, alerta y detalles exactos. El detalle de Facturado usa IDs de `BillingRecord`, no inferencia por etapa.
+- Evolución: cada ejecución nueva de importación publicada crea un snapshot; una recarga idéntica no. La serie usa el último corte por semana, omite semanas ausentes y conserva seller/marca/línea históricos.
+- Equipo/visitas: `TenantMembership.managerId` registra pertenencia explícita; un vendedor sin actividad es visible. Las visitas sin oportunidad no desaparecen bajo marca/línea y se rotulan como actividad total del vendedor.
+- UX: alertas prioritarias junto al resumen, embudo existente reutilizado, barras semanales pulsables, importes/tarjetas con detalle contextual, fechas faltantes y alertas extensas bajo expansión progresiva.
+
+Matriz local final G20 sobre datos exclusivamente sintéticos:
+
+| Control                                  | Ejecutados | Aprobados | Fallidos | Omitidos | Resultado |
+| ---------------------------------------- | ---------: | --------: | -------: | -------: | --------- |
+| Unitarias API/web/shared                 |         88 |        88 |        0 |        0 | PASS      |
+| Integración API                          |         28 |        28 |        0 |        0 | PASS      |
+| Tenant isolation/RLS                     |          5 |         5 |        0 |        0 | PASS      |
+| E2E perfiles y responsive, `--retries=0` |         10 |        10 |        0 |        0 | PASS      |
+| Formato/lint/tipos/build                 |          4 |         4 |        0 |        0 | PASS      |
+| Política G17                             |         31 |        31 |        0 |        0 | PASS      |
+| Gitleaks historial                       |          1 |         1 |        0 |        0 | PASS      |
+
+La integración final se repitió sobre `sales_intelligence_g20_clean`, una base desechable creada vacía para esta comprobación. Se aplicaron desde cero las ocho migraciones versionadas de la rama, se ejecutó el seed sintético y la suite completa volvió a aprobar 28/28 sin retries ni dependencia del orden de marcas. La base desechable se eliminó al terminar; la base de revisión local y cualquier entorno remoto quedaron fuera de esta prueba.
+
+`AUDIT_RAW` permanece **FAIL** con 0 critical, 1 high, 2 moderate y 1 low. `SECURITY_POLICY` permanece **PASS_WITH_TIME_LIMITED_EXCEPTION** sólo para `braces@3.0.3`/GHSA-vfj7-8cjw-p6xm, con revisión 2026-10-19T16:59:59Z y vencimiento absoluto 2026-10-26T16:59:59Z. G20 no renueva, amplía ni modifica la excepción.
+
+La corrida E2E limpia final fue 10/10. Dos pasadas diagnósticas anteriores no se cuentan como evidencia final: la primera detectó selectores del acordeón reemplazado por el embudo y la segunda acumuló 429 del limitador entre procesos. Se actualizaron únicamente los selectores al contrato real, se reinició el API local para limpiar estado efímero y se ejecutó la corrida completa sin retries. No se desactivó ni amplió el rate limit.
+
+Las siete capturas versionadas se regeneraron desde la aplicación G20 ejecutada. Se comprobaron 1440/1024/390 y ausencia de overflow en 360/375; ES/EN, Light/Dark, foco, teclado, Escape y logout/protected redirect pasaron. No son prototipos ni login remoto.
 
 ## Resultado técnico
 

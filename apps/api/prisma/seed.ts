@@ -331,6 +331,14 @@ async function seedDemo(
   const period = fiscalQuarter(now, 12);
   const manager = users.find((user) => user.role === MembershipRole.MANAGER)!;
   const sellers = users.filter((user) => user.role === MembershipRole.SELLER);
+  await prisma.tenantMembership.updateMany({
+    where: {
+      tenantId: tenant.id,
+      userId: { in: sellers.map((seller) => seller.id) },
+      role: MembershipRole.SELLER,
+    },
+    data: { managerId: manager.id },
+  });
   await prisma.quota.deleteMany({ where: { tenantId: tenant.id } });
   await prisma.quota.create({
     data: {

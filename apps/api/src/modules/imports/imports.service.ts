@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { RequestAuth } from '../../common/http/authenticated-request';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { requiredQualificationGates } from '../opportunities/commercial-domain';
+import { ForecastService } from '../forecast/forecast.service';
 import {
   analyzeCommercialWorkbook,
   parseCommercialWorkbook,
@@ -37,7 +38,10 @@ const decimal = (value: Prisma.Decimal | null | undefined): number | null =>
 
 @Injectable()
 export class ImportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly forecast: ForecastService,
+  ) {}
 
   async analyze(file: UploadedCommercialFile) {
     this.assertFile(file);
@@ -88,7 +92,7 @@ export class ImportsService {
       )
       .digest('hex');
 
-    return this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
+    const executed = await this.prisma.withTenant(auth.activeTenantId, async (transaction) => {
       const existingBatch = await transaction.commercialImportBatch.findUnique({
         where: { tenantId_fileHash: { tenantId: auth.activeTenantId, fileHash } },
       });
@@ -210,6 +214,12 @@ export class ImportsService {
         batch: { id: batchId, status: result.status, sourceCutoff, reused: false },
       };
     });
+    if (executed.batch.reused) return executed;
+    const snapshot = await this.forecast.create(auth, requestId);
+    return {
+      ...executed,
+      snapshot: { id: snapshot.id, itemCount: snapshot._count.items },
+    };
   }
 
   private async importOpportunity(
@@ -247,6 +257,10 @@ export class ImportsService {
     ]);
     const managerId = manager?.userId ?? existing?.managerId ?? null;
     if (!seller || !stage || !managerId) return { status: 'REJECTED' };
+    await transaction.tenantMembership.update({
+      where: { tenantId_userId: { tenantId, userId: seller.userId } },
+      data: { managerId },
+    });
     const [customer, brand] = await Promise.all([
       transaction.customer.upsert({
         where: { tenantId_name: { tenantId, name: row.customer } },

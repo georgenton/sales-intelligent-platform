@@ -127,110 +127,111 @@ export class ManagerDashboardService {
             ? { scopeType: 'OWN' as const, scopeUserId: auth.userId }
             : { scopeType: 'TENANT' as const, scopeUserId: null };
 
-      const [opportunities, allQuotaRows, billing, brands, snapshots, latestBatch] =
-        await Promise.all([
-          transaction.opportunity.findMany({
-            where: opportunityWhere,
-            include: {
-              stage: true,
-              seller: { select: { id: true, name: true } },
-              customer: { select: { id: true, name: true } },
-              lineItems: { include: { brand: { select: { id: true, name: true } } } },
-              billingRecords: { select: { amount: true, grossProfit: true, billedAt: true } },
-              stageHistory: {
-                select: { changedAt: true, reason: true },
-                orderBy: { changedAt: 'desc' },
-                take: 1,
-              },
+      const [
+        opportunities,
+        allQuotaRows,
+        billing,
+        brands,
+        snapshots,
+        latestBatch,
+        teamMemberships,
+      ] = await Promise.all([
+        transaction.opportunity.findMany({
+          where: opportunityWhere,
+          include: {
+            stage: true,
+            seller: { select: { id: true, name: true } },
+            customer: { select: { id: true, name: true } },
+            lineItems: { include: { brand: { select: { id: true, name: true } } } },
+            billingRecords: {
+              select: { amount: true, grossProfit: true, billedAt: true, brandId: true },
             },
-          }),
-          transaction.quota.findMany({
-            where: {
-              tenantId: auth.activeTenantId,
-              periodStart: { lte: period.end },
-              periodEnd: { gte: period.start },
+            stageHistory: {
+              select: { changedAt: true, reason: true },
+              orderBy: { changedAt: 'desc' },
+              take: 1,
             },
-          }),
-          transaction.billingRecord.findMany({
-            where: {
-              tenantId: auth.activeTenantId,
-              billedAt: { gte: period.start, lte: period.end },
-              ...(scoped || query.sellerId
-                ? {
-                    opportunity: {
-                      ...(scoped ? accessScope : {}),
-                      ...(query.sellerId ? { sellerId: query.sellerId } : {}),
-                    },
-                  }
-                : {}),
-            },
-            include: {
-              brand: { select: { id: true, name: true } },
-              opportunity: {
-                select: {
-                  sellerId: true,
-                  lineItems: { select: { brandId: true, productLine: true, amount: true } },
-                },
-              },
-            },
-          }),
-          transaction.brand.findMany({
-            where: { tenantId: auth.activeTenantId },
-            orderBy: { name: 'asc' },
-          }),
-          transaction.forecastSnapshot.findMany({
-            where: {
-              tenantId: auth.activeTenantId,
-              ...snapshotScope,
-              periodStart: period.start,
-              periodEnd: period.end,
-              createdAt: { lte: week.end },
-            },
-            include: {
-              items: {
-                include: {
-                  stage: { select: { code: true } },
+          },
+        }),
+        transaction.quota.findMany({
+          where: {
+            tenantId: auth.activeTenantId,
+            periodStart: { lte: period.end },
+            periodEnd: { gte: period.start },
+          },
+        }),
+        transaction.billingRecord.findMany({
+          where: {
+            tenantId: auth.activeTenantId,
+            billedAt: { gte: period.start, lte: period.end },
+            ...(scoped || query.sellerId
+              ? {
                   opportunity: {
-                    select: {
-                      title: true,
-                      sellerId: true,
-                      lineItems: { select: { brandId: true, productLine: true, amount: true } },
-                    },
+                    ...(scoped ? accessScope : {}),
+                    ...(query.sellerId ? { sellerId: query.sellerId } : {}),
                   },
-                },
+                }
+              : {}),
+          },
+          include: {
+            brand: { select: { id: true, name: true } },
+            opportunity: {
+              select: {
+                sellerId: true,
+                lineItems: { select: { brandId: true, productLine: true, amount: true } },
               },
             },
-            orderBy: { createdAt: 'desc' },
-            take: 2,
-          }),
-          transaction.commercialImportBatch.findFirst({
-            where: { tenantId: auth.activeTenantId },
-            orderBy: { createdAt: 'desc' },
-          }),
-        ]);
+          },
+        }),
+        transaction.brand.findMany({
+          where: { tenantId: auth.activeTenantId },
+          orderBy: { name: 'asc' },
+        }),
+        transaction.forecastSnapshot.findMany({
+          where: {
+            tenantId: auth.activeTenantId,
+            ...snapshotScope,
+            periodStart: period.start,
+            periodEnd: period.end,
+            createdAt: { lte: week.end },
+          },
+          include: {
+            items: {
+              include: {
+                stage: { select: { code: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        }),
+        transaction.commercialImportBatch.findFirst({
+          where: { tenantId: auth.activeTenantId },
+          orderBy: { createdAt: 'desc' },
+        }),
+        transaction.tenantMembership.findMany({
+          where: {
+            tenantId: auth.activeTenantId,
+            role: 'SELLER',
+            status: 'ACTIVE',
+            ...(auth.role === 'MANAGER'
+              ? { managerId: auth.userId }
+              : auth.role === 'SELLER'
+                ? { userId: auth.userId }
+                : {}),
+          },
+          select: { userId: true, user: { select: { name: true } } },
+          orderBy: { user: { name: 'asc' } },
+        }),
+      ]);
 
-      const visibleSellerIds = new Set(opportunities.map((item) => item.sellerId));
+      const visibleSellerIds = new Set(teamMemberships.map((membership) => membership.userId));
+      for (const opportunity of opportunities) visibleSellerIds.add(opportunity.sellerId);
       if (auth.role === 'SELLER') visibleSellerIds.add(auth.userId);
       const visitWhere: Prisma.CustomerVisitWhereInput = {
         tenantId: auth.activeTenantId,
         visitedAt: { gte: week.start, lte: week.end },
         ...(query.sellerId ? { sellerId: query.sellerId } : {}),
-        ...(query.brandId || query.line
-          ? {
-              opportunity: {
-                is: {
-                  lineItems: {
-                    some: {
-                      ...(query.brandId ? { brandId: query.brandId } : {}),
-                      ...(query.line
-                        ? { productLine: { equals: query.line, mode: 'insensitive' as const } }
-                        : {}),
-                    },
-                  },
-                },
-              },
-            }
-          : {}),
         ...(auth.permissions.has('opportunities.read.all')
           ? {}
           : { sellerId: { in: [...visibleSellerIds] } }),
@@ -260,25 +261,28 @@ export class ManagerDashboardService {
             query.brandId ? undefined : dataCenterBrandIds,
           ).amount > 0,
       );
-      const billingAllocation = (
-        record: (typeof billing)[number],
+      const billingShare = (
+        recordBrandId: string | null,
+        opportunityLines: Array<{
+          brandId: string;
+          productLine: string | null;
+          amount: { toNumber(): number };
+        }>,
         brandId?: string,
         line?: string,
         allowedBrandIds?: ReadonlySet<string>,
       ) => {
-        if (record.brandId) {
-          if (brandId && record.brandId !== brandId) return 0;
-          if (allowedBrandIds && !allowedBrandIds.has(record.brandId)) return 0;
+        if (recordBrandId) {
+          if (brandId && recordBrandId !== brandId) return 0;
+          if (allowedBrandIds && !allowedBrandIds.has(recordBrandId)) return 0;
           if (!line) return 1;
-          const brandLines =
-            record.opportunity?.lineItems.filter((item) => item.brandId === record.brandId) ?? [];
+          const brandLines = opportunityLines.filter((item) => item.brandId === recordBrandId);
           const denominator = brandLines.reduce((total, item) => total + money(item.amount), 0);
           const numerator = brandLines
             .filter((item) => matchesLine(item.productLine, line))
             .reduce((total, item) => total + money(item.amount), 0);
           return denominator > 0 ? numerator / denominator : 0;
         }
-        const opportunityLines = record.opportunity?.lineItems ?? [];
         const denominator = opportunityLines.reduce((total, item) => total + money(item.amount), 0);
         const numerator = opportunityLines
           .filter(
@@ -297,7 +301,13 @@ export class ManagerDashboardService {
         allowedBrandIds?: ReadonlySet<string>,
       ) =>
         rows.flatMap((record) => {
-          const share = billingAllocation(record, brandId, line, allowedBrandIds);
+          const share = billingShare(
+            record.brandId,
+            record.opportunity?.lineItems ?? [],
+            brandId,
+            line,
+            allowedBrandIds,
+          );
           if (share <= 0) return [];
           return [
             {
@@ -308,16 +318,41 @@ export class ManagerDashboardService {
             },
           ];
         });
+      const allocatedOutstandingBacklog = (
+        opportunity: (typeof opportunities)[number],
+        brandId?: string,
+        line?: string,
+        allowedBrandIds?: ReadonlySet<string>,
+      ) => {
+        const allocation = allocationFor(opportunity, brandId, line, allowedBrandIds);
+        const billedAmount = opportunity.billingRecords.reduce(
+          (total, record) =>
+            total +
+            money(record.amount) *
+              billingShare(record.brandId, opportunity.lineItems, brandId, line, allowedBrandIds),
+          0,
+        );
+        return outstandingBacklogAmount({
+          opportunityAmount: allocation.amount,
+          billedAmount,
+        });
+      };
       const dataCenterBilling = allocateBilling(
         billing,
         query.brandId,
         query.line,
         query.brandId ? undefined : dataCenterBrandIds,
       );
-      const quotaRows = allQuotaRows.filter(
-        (row) =>
-          row.assigneeId === (query.sellerId ?? null) && row.brandId === (query.brandId ?? null),
-      );
+      const quotaRows = allQuotaRows.filter((row) => {
+        if (row.assigneeId !== (query.sellerId ?? null)) return false;
+        if (query.line) {
+          return (
+            row.productLine?.trim().toLocaleLowerCase() === query.line.trim().toLocaleLowerCase() &&
+            (!query.brandId || row.brandId === query.brandId)
+          );
+        }
+        return row.brandId === (query.brandId ?? null) && row.productLine === null;
+      });
 
       const commercialRow = (
         opportunity: (typeof opportunities)[number],
@@ -326,25 +361,29 @@ export class ManagerDashboardService {
         allowedBrandIds?: ReadonlySet<string>,
       ) => {
         const stageCode = opportunity.stage.code;
-        const inClosePeriod =
-          opportunity.expectedCloseDate >= period.start &&
-          opportunity.expectedCloseDate <= period.end;
         const inBillingPeriod = Boolean(
           opportunity.expectedBillingDate &&
           opportunity.expectedBillingDate >= period.start &&
           opportunity.expectedBillingDate <= period.end,
         );
-        if (!(['20', '40', '60', '80'].includes(stageCode) ? inClosePeriod : inBillingPeriod)) {
-          return null;
-        }
+        if (!inBillingPeriod) return null;
         const allocation = allocationFor(opportunity, brandId, line, allowedBrandIds);
         if (allocation.amount <= 0) return null;
+        const amount =
+          opportunity.status === 'WON' && stageCode === BACKLOG_STAGE
+            ? allocatedOutstandingBacklog(opportunity, brandId, line, allowedBrandIds)
+            : allocation.amount;
+        if (amount <= 0) return null;
+        const grossProfit =
+          allocation.grossProfit ??
+          (opportunity.grossProfit ? money(opportunity.grossProfit) : null);
         return {
           id: opportunity.id,
-          amount: allocation.amount,
+          amount,
           grossProfit:
-            allocation.grossProfit ??
-            (opportunity.grossProfit ? money(opportunity.grossProfit) : null),
+            grossProfit === null || allocation.amount <= 0
+              ? null
+              : grossProfit * (amount / allocation.amount),
           stageCode,
           status: opportunity.status,
           expectedBillingDate: opportunity.expectedBillingDate,
@@ -371,26 +410,55 @@ export class ManagerDashboardService {
       const quota = quotaRows.length
         ? quotaRows.reduce((total, row) => total + money(row.amount), 0)
         : null;
-      const pendingTarget = quota === null ? null : Math.max(0, quota - billed);
-      const coverage = fourToOneCoverage({
-        baseAmount: pendingTarget,
-        availablePipeline: buckets.pipeline,
-        ratio: money(settings.pipelineCoverageRatio),
-      });
+      const pendingTarget = quota === null ? null : Math.max(0, quota - buckets.forecastAndBacklog);
+      const coverage = {
+        ...fourToOneCoverage({
+          baseAmount: pendingTarget,
+          availablePipeline: buckets.pipeline,
+          ratio: money(settings.pipelineCoverageRatio),
+        }),
+        quota,
+        eligibleSupport: buckets.forecastAndBacklog,
+        billedExcluded: billed,
+        basis: 'QUOTA_MINUS_FORECAST_AND_BACKLOG' as const,
+      };
 
-      const matchesFilter = (item: (typeof snapshots)[number]['items'][number]) =>
-        (!query.sellerId || item.opportunity.sellerId === query.sellerId) &&
-        (!query.brandId ||
-          item.opportunity.lineItems.some((line) => line.brandId === query.brandId)) &&
-        (Boolean(query.brandId) ||
-          item.opportunity.lineItems.some((line) => dataCenterBrandIds.has(line.brandId))) &&
-        (!query.line ||
-          item.opportunity.lineItems.some((line) => matchesLine(line.productLine, query.line)));
+      const historicalLines = (item: (typeof snapshots)[number]['items'][number]) => {
+        const dimensions = item.commercialDimensions;
+        if (!dimensions || Array.isArray(dimensions) || typeof dimensions !== 'object') return null;
+        const candidate = (dimensions as Record<string, unknown>).lineItems;
+        if (!Array.isArray(candidate)) return null;
+        const lines = candidate.flatMap((entry) => {
+          if (!entry || Array.isArray(entry) || typeof entry !== 'object') return [];
+          const row = entry as Record<string, unknown>;
+          if (typeof row.brandId !== 'string' || typeof row.amount !== 'number') return [];
+          return [
+            {
+              brandId: row.brandId,
+              productLine: typeof row.productLine === 'string' ? row.productLine : null,
+              amount: row.amount,
+            },
+          ];
+        });
+        return lines.length ? lines : null;
+      };
+      const matchesFilter = (item: (typeof snapshots)[number]['items'][number]) => {
+        const lines = historicalLines(item);
+        if (!lines) return false;
+        return (
+          (!query.sellerId || item.sellerId === query.sellerId) &&
+          (!query.brandId || lines.some((entry) => entry.brandId === query.brandId)) &&
+          (Boolean(query.brandId) ||
+            lines.some((entry) => dataCenterBrandIds.has(entry.brandId))) &&
+          (!query.line || lines.some((entry) => matchesLine(entry.productLine, query.line)))
+        );
+      };
       const snapshotMetrics = (snapshot: (typeof snapshots)[number] | undefined) =>
         snapshot
           ? snapshot.items.filter(matchesFilter).flatMap((item) => {
-              const allLines = item.opportunity.lineItems;
-              const total = allLines.reduce((sum, entry) => sum + money(entry.amount), 0);
+              const allLines = historicalLines(item);
+              if (!allLines) return [];
+              const total = allLines.reduce((sum, entry) => sum + entry.amount, 0);
               const selected = allLines
                 .filter(
                   (entry) =>
@@ -398,7 +466,7 @@ export class ManagerDashboardService {
                     (Boolean(query.brandId) || dataCenterBrandIds.has(entry.brandId)) &&
                     matchesLine(entry.productLine, query.line),
                 )
-                .reduce((sum, entry) => sum + money(entry.amount), 0);
+                .reduce((sum, entry) => sum + entry.amount, 0);
               const amount = total > 0 ? money(item.estimatedAmount) * (selected / total) : 0;
               return amount > 0
                 ? [
@@ -412,10 +480,48 @@ export class ManagerDashboardService {
                 : [];
             })
           : null;
+      const snapshotsByWeek = new Map<string, (typeof snapshots)[number]>();
+      for (const snapshot of snapshots) {
+        const key = isoDate(mondayWeek(snapshot.createdAt).start);
+        if (!snapshotsByWeek.has(key)) snapshotsByWeek.set(key, snapshot);
+      }
+      const weeklySnapshots = [...snapshotsByWeek.entries()]
+        .map(([weekStart, snapshot]) => ({
+          weekStart,
+          snapshot,
+          metrics: snapshotMetrics(snapshot),
+        }))
+        .sort(
+          (left, right) => left.snapshot.createdAt.getTime() - right.snapshot.createdAt.getTime(),
+        );
+      const currentWeekly = weeklySnapshots.at(-1);
+      const previousWeekly = weeklySnapshots.at(-2);
       const movement = compareWeeklyPipeline(
-        snapshotMetrics(snapshots[0]),
-        snapshotMetrics(snapshots[1]),
+        currentWeekly?.metrics ?? null,
+        previousWeekly?.metrics ?? null,
       );
+      const weeklySeries = weeklySnapshots.map((entry, index) => {
+        const comparison = compareWeeklyPipeline(
+          entry.metrics,
+          index > 0 ? weeklySnapshots[index - 1]!.metrics : null,
+        );
+        const amount = entry.metrics?.reduce(
+          (total, item) =>
+            total +
+            (item.status === 'OPEN' && ['20', '40'].includes(item.stageCode) ? item.amount : 0),
+          0,
+        );
+        return {
+          snapshotId: entry.snapshot.id,
+          weekStart: entry.weekStart,
+          cutoff: entry.snapshot.createdAt,
+          amount: amount ?? null,
+          comparisonStatus: comparison.status,
+          changeAmount: comparison.changeAmount,
+          changePercent: comparison.changePercent,
+          movements: comparison.movements,
+        };
+      });
 
       const stageBreakdown = STAGE_CODES.map((stageCode) => {
         if (stageCode === '100') {
@@ -436,6 +542,25 @@ export class ManagerDashboardService {
           opportunityIds: rows.map((item) => item.id),
         };
       });
+
+      const summaryDetails = {
+        BILLED: [
+          ...new Set(
+            dataCenterBilling.flatMap((record) =>
+              record.opportunityId ? [record.opportunityId] : [],
+            ),
+          ),
+        ],
+        FORECAST: periodOpportunities
+          .filter((item) => ['60', '80'].includes(item.stageCode))
+          .map((item) => item.id),
+        BACKLOG: periodOpportunities
+          .filter((item) => item.stageCode === BACKLOG_STAGE)
+          .map((item) => item.id),
+        PIPELINE: periodOpportunities
+          .filter((item) => ['20', '40'].includes(item.stageCode))
+          .map((item) => item.id),
+      };
 
       const brandHierarchy = dataCenterBrands
         .filter((brand) => !query.brandId || brand.id === query.brandId)
@@ -461,7 +586,13 @@ export class ManagerDashboardService {
             }
           }
           const brandQuotaRows = allQuotaRows.filter(
-            (row) => row.brandId === brand.id && row.assigneeId === (query.sellerId ?? null),
+            (row) =>
+              row.brandId === brand.id &&
+              row.assigneeId === (query.sellerId ?? null) &&
+              (query.line
+                ? row.productLine?.trim().toLocaleLowerCase() ===
+                  query.line.trim().toLocaleLowerCase()
+                : row.productLine === null),
           );
           return {
             brandId: brand.id,
@@ -481,9 +612,17 @@ export class ManagerDashboardService {
               });
               const lineBuckets = managerCommercialBuckets(lineRows);
               const lineBilling = allocateBilling(billing, brand.id, line);
+              const lineQuotaRows = allQuotaRows.filter(
+                (row) =>
+                  row.brandId === brand.id &&
+                  row.assigneeId === (query.sellerId ?? null) &&
+                  row.productLine?.trim().toLocaleLowerCase() === line.toLocaleLowerCase(),
+              );
               return {
                 line,
-                quota: null,
+                quota: lineQuotaRows.length
+                  ? lineQuotaRows.reduce((total, row) => total + money(row.amount), 0)
+                  : null,
                 billed: lineBilling.reduce((total, row) => total + row.amount, 0),
                 ...lineBuckets,
                 opportunityIds: lineRows.map((row) => row.id),
@@ -493,6 +632,13 @@ export class ManagerDashboardService {
         });
 
       const sellerMap = new Map<string, { id: string; name: string; rows: typeof opportunities }>();
+      for (const membership of teamMemberships) {
+        sellerMap.set(membership.userId, {
+          id: membership.userId,
+          name: membership.user.name,
+          rows: [],
+        });
+      }
       for (const opportunity of dashboardOpportunities) {
         const currentSeller = sellerMap.get(opportunity.sellerId) ?? {
           id: opportunity.sellerId,
@@ -520,7 +666,18 @@ export class ManagerDashboardService {
         });
         const sellerBuckets = managerCommercialBuckets(rows);
         const sellerVisits = visits.filter((visit) => visit.sellerId === seller.id);
-        const margin = weightedGrossMargin(rows);
+        const sellerBilling = allocateBilling(
+          billing.filter((record) => record.opportunity?.sellerId === seller.id),
+          query.brandId,
+          query.line,
+          query.brandId ? undefined : dataCenterBrandIds,
+        );
+        const margin = weightedGrossMargin(
+          sellerBilling.map((record) => ({
+            amount: record.amount,
+            grossProfit: record.grossProfit,
+          })),
+        );
         return {
           sellerId: seller.id,
           seller: seller.name,
@@ -531,13 +688,14 @@ export class ManagerDashboardService {
           visitStatus: weekClosed ? 'CLOSED' : 'IN_PROGRESS',
           grossMarginAmount: margin.amount,
           grossMarginPercent: margin.percent,
+          marginBasis: 'ACTUAL_BILLED',
         };
       });
 
       const alerts: Array<Record<string, unknown>> = [];
       if (movement.status === 'AVAILABLE' && movement.droppedMoreThanTenPercent) {
         alerts.push({
-          id: `A01-${snapshots[0]?.id}`,
+          id: `A01-${currentWeekly?.snapshot.id}`,
           code: 'A01',
           group: 'SELLERS_BRANDS',
           kind: 'SIGNAL',
@@ -545,7 +703,7 @@ export class ManagerDashboardService {
           title: 'El pipeline bajó esta semana',
           observed: movement,
           rule: 'Descenso estrictamente mayor al 10% en etapas 20/40',
-          cutoff: snapshots[0]?.createdAt,
+          cutoff: currentWeekly?.snapshot.createdAt,
           affectedAmount: movement.changeAmount === null ? null : Math.abs(movement.changeAmount),
         });
       } else if (movement.status === 'NO_COMPARISON') {
@@ -677,14 +835,12 @@ export class ManagerDashboardService {
       for (const opportunity of dashboardOpportunities.filter(
         (item) => item.status === 'WON' && item.stage.code === BACKLOG_STAGE,
       )) {
-        const billedAmount = opportunity.billingRecords.reduce(
-          (total, record) => total + money(record.amount),
-          0,
+        const outstanding = allocatedOutstandingBacklog(
+          opportunity,
+          query.brandId,
+          query.line,
+          query.brandId ? undefined : dataCenterBrandIds,
         );
-        const outstanding = outstandingBacklogAmount({
-          opportunityAmount: money(opportunity.estimatedAmount),
-          billedAmount,
-        });
         const outside =
           opportunity.expectedBillingDate &&
           (opportunity.expectedBillingDate < period.start ||
@@ -797,11 +953,17 @@ export class ManagerDashboardService {
           backlog: buckets.backlog,
           forecastAndBacklog: buckets.forecastAndBacklog,
           closeProjection: buckets.forecastAndBacklog,
-          compliance: { status: 'PENDING_VALIDATION', reason: 'D01_TOTAL_DEFINITION' },
+          attainmentAgainstQuota:
+            quota !== null && quota > 0 ? (buckets.forecastAndBacklog / quota) * 100 : null,
+          compliance: {
+            status: 'SOURCE_DEFINED_PENDING_NUMERIC_VALIDATION',
+            reason: 'D01_CURRENT_SOURCE_FORECAST_AND_BACKLOG',
+          },
           marginAmount: billingMargin.amount,
           marginPercent: billingMargin.percent,
           marginTarget: money(settings.defaultMarginThreshold),
         },
+        summaryDetails,
         coverage,
         brandHierarchy: {
           label: 'Data Center',
@@ -809,10 +971,20 @@ export class ManagerDashboardService {
           brands: brandHierarchy,
         },
         weeklyPipeline: {
-          currentCutoff: snapshots[0]?.createdAt ?? null,
-          previousCutoff: snapshots[1]?.createdAt ?? null,
+          currentCutoff: currentWeekly?.snapshot.createdAt ?? null,
+          previousCutoff: previousWeekly?.snapshot.createdAt ?? null,
+          series: weeklySeries,
           ...movement,
         },
+        periodDateGaps: dashboardOpportunities
+          .filter((opportunity) => !opportunity.expectedBillingDate)
+          .map((opportunity) => ({
+            opportunityId: opportunity.id,
+            title: opportunity.title,
+            stageCode: opportunity.stage.code,
+          })),
+        visitScope:
+          query.brandId || query.line ? 'SELLER_TOTAL_NOT_COMMERCIAL_FILTER' : 'CURRENT_FILTERS',
         stages: stageBreakdown,
         visits: visits.map((visit) => ({
           id: visit.id,

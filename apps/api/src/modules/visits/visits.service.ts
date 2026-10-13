@@ -191,16 +191,17 @@ export class VisitsService {
       throw new ForbiddenException('A seller may only record their own visits');
     }
     if (auth.role !== 'MANAGER' || sellerId === auth.userId) return;
-    const teamEvidence = await transaction.opportunity.findFirst({
+    const teamMembership = await transaction.tenantMembership.findFirst({
       where: {
         tenantId: auth.activeTenantId,
-        sellerId,
+        userId: sellerId,
         managerId: auth.userId,
-        deletedAt: null,
+        role: 'SELLER',
+        status: 'ACTIVE',
       },
       select: { id: true },
     });
-    if (!teamEvidence) throw new ForbiddenException('Seller is outside the manager scope');
+    if (!teamMembership) throw new ForbiddenException('Seller is outside the manager scope');
   }
 
   private serialize(visit: {

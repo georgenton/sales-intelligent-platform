@@ -21,11 +21,13 @@ export interface CommercialConfig {
   };
   period: { label: string; start: string; end: string };
   brands: Array<{ id: string; name: string }>;
+  lineOptions: Array<{ brandId: string; line: string }>;
   sellers: Array<{ id: string; name: string }>;
   quotas: Array<{
     id: string;
     assigneeId: string | null;
     brandId: string | null;
+    productLine: string | null;
     amount: number;
   }>;
   criteria: QualificationCriterion[];
@@ -36,7 +38,9 @@ const moneyValue = (value: number | undefined) => (value === undefined ? '' : St
 export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
   const locale = useLocale() as AppLocale;
   const t = useTranslations('settingsCommercial');
-  const total = initial.quotas.find((quota) => !quota.assigneeId && !quota.brandId)?.amount;
+  const total = initial.quotas.find(
+    (quota) => !quota.assigneeId && !quota.brandId && quota.productLine === null,
+  )?.amount;
   const [currency, setCurrency] = useState(initial.settings.currency);
   const [fiscalStart, setFiscalStart] = useState(String(initial.settings.fiscalYearStartMonth));
   const [margin, setMargin] = useState(String(initial.settings.defaultMarginThreshold));
@@ -51,7 +55,25 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
       initial.brands.map((brand) => [
         brand.id,
         moneyValue(
-          initial.quotas.find((quota) => !quota.assigneeId && quota.brandId === brand.id)?.amount,
+          initial.quotas.find(
+            (quota) =>
+              !quota.assigneeId && quota.brandId === brand.id && quota.productLine === null,
+          )?.amount,
+        ),
+      ]),
+    ),
+  );
+  const [lineQuotas, setLineQuotas] = useState<Record<string, string>>(
+    Object.fromEntries(
+      initial.lineOptions.map((option) => [
+        `${option.brandId}:${option.line}`,
+        moneyValue(
+          initial.quotas.find(
+            (quota) =>
+              !quota.assigneeId &&
+              quota.brandId === option.brandId &&
+              quota.productLine === option.line,
+          )?.amount,
         ),
       ]),
     ),
@@ -61,7 +83,10 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
       initial.sellers.map((seller) => [
         seller.id,
         moneyValue(
-          initial.quotas.find((quota) => quota.assigneeId === seller.id && !quota.brandId)?.amount,
+          initial.quotas.find(
+            (quota) =>
+              quota.assigneeId === seller.id && !quota.brandId && quota.productLine === null,
+          )?.amount,
         ),
       ]),
     ),
@@ -108,6 +133,12 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
         brandQuotas: Object.entries(brandQuotas)
           .filter(([, amount]) => amount.trim())
           .map(([brandId, amount]) => ({ brandId, amount })),
+        lineQuotas: initial.lineOptions
+          .map((option) => ({
+            ...option,
+            amount: lineQuotas[`${option.brandId}:${option.line}`] ?? '',
+          }))
+          .filter((quota) => quota.amount.trim()),
         sellerQuotas: Object.entries(sellerQuotas)
           .filter(([, amount]) => amount.trim())
           .map(([sellerId, amount]) => ({ sellerId, amount })),
@@ -267,6 +298,29 @@ export function CommercialSettings({ initial }: { initial: CommercialConfig }) {
                   />
                 </label>
               ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">{t('lineQuotas')}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{t('lineQuotaDescription')}</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {initial.lineOptions.map((option) => {
+                const brand = initial.brands.find((item) => item.id === option.brandId);
+                const key = `${option.brandId}:${option.line}`;
+                return (
+                  <label key={key} className="text-xs font-medium">
+                    {brand?.name ?? t('unknownBrand')} · {option.line}
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      value={lineQuotas[key] ?? ''}
+                      onChange={(event) =>
+                        setLineQuotas((current) => ({ ...current, [key]: event.target.value }))
+                      }
+                    />
+                  </label>
+                );
+              })}
             </div>
           </div>
           <div>

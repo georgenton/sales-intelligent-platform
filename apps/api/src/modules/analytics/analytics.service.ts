@@ -46,6 +46,7 @@ export class AnalyticsService {
           where: {
             tenantId: auth.activeTenantId,
             assigneeId: quotaAssigneeId,
+            productLine: null,
             periodStart: { lte: period.end },
             periodEnd: { gte: period.start },
           },

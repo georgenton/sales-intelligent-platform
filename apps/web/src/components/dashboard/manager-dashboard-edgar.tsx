@@ -8,11 +8,11 @@ import {
   Plus,
   RefreshCw,
   Target,
-  TrendingDown,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { SalesFunnel, type FunnelStageDatum } from '@/components/sales/sales-components';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -48,26 +48,38 @@ function Metric({
   value,
   detail,
   tone = 'default',
+  onClick,
 }: {
   label: string;
   value: string;
   detail: string;
   tone?: 'default' | 'warning' | 'positive';
+  onClick?: () => void;
 }) {
-  return (
-    <div
-      className={`rounded-xl border p-4 ${
-        tone === 'warning'
-          ? 'border-warning/35 bg-surface-warning-soft'
-          : tone === 'positive'
-            ? 'border-success/30 bg-surface-success-soft'
-            : 'bg-card'
-      }`}
-    >
+  const className = `rounded-xl border p-4 text-left ${
+    tone === 'warning'
+      ? 'border-warning/35 bg-surface-warning-soft'
+      : tone === 'positive'
+        ? 'border-success/30 bg-surface-success-soft'
+        : 'bg-card'
+  }`;
+  const content = (
+    <>
       <p className="text-xs font-semibold text-muted-foreground">{label}</p>
       <p className="tnum mt-1 text-kpi-secondary font-semibold">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </div>
+    </>
+  );
+  return onClick ? (
+    <button
+      type="button"
+      className={`${className} hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+      onClick={onClick}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -117,6 +129,96 @@ function OpportunityLinks({
         );
       })}
     </ul>
+  );
+}
+
+function WeeklyPipelineChart({
+  data,
+  currency,
+}: {
+  data: ManagerDashboardData['weeklyPipeline'];
+  currency: (value: number | null) => string;
+}) {
+  const t = useTranslations('managerEdgar');
+  const dispatch = useAppDispatch();
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
+  const selected =
+    data.series.find((point) => point.weekStart === selectedWeek) ?? data.series.at(-1);
+  const maximum = Math.max(1, ...data.series.map((point) => point.amount ?? 0));
+  if (!data.series.length) {
+    return (
+      <p className="rounded-xl bg-muted p-4 text-sm">
+        <CircleHelp className="mr-2 inline size-4" aria-hidden />
+        {t('noWeeklySeries')}
+      </p>
+    );
+  }
+  return (
+    <div>
+      <div
+        className="flex h-44 items-end gap-2 overflow-x-auto border-b px-1 pt-4"
+        aria-label={t('weeklyPipeline')}
+      >
+        {data.series.map((point) => {
+          const active = point.weekStart === selected?.weekStart;
+          const height = Math.max(8, ((point.amount ?? 0) / maximum) * 100);
+          return (
+            <button
+              key={point.snapshotId}
+              type="button"
+              aria-pressed={active}
+              aria-label={t('weeklyPointLabel', {
+                week: point.weekStart,
+                amount: currency(point.amount),
+              })}
+              className="group flex min-w-16 flex-1 flex-col items-center justify-end gap-1 self-stretch rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setSelectedWeek(point.weekStart)}
+            >
+              <span className="tnum text-[11px] font-semibold">{currency(point.amount)}</span>
+              <span
+                className={`block w-full max-w-20 rounded-t-md ${active ? 'bg-primary ring-2 ring-ring ring-offset-2' : 'bg-primary/55 group-hover:bg-primary/75'}`}
+                style={{ height: `${height}%` }}
+              />
+              <span className="text-[10px] text-muted-foreground">{point.weekStart.slice(5)}</span>
+            </button>
+          );
+        })}
+      </div>
+      {selected ? (
+        <div className="mt-3 rounded-xl bg-muted p-3">
+          <p className="text-sm font-semibold">
+            {selected.weekStart} · {currency(selected.amount)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {selected.comparisonStatus === 'AVAILABLE'
+              ? t('weeklyChange', {
+                  amount: currency(selected.changeAmount),
+                  percent:
+                    selected.changePercent === null
+                      ? t('notAvailable')
+                      : `${selected.changePercent.toFixed(1)}%`,
+                })
+              : t('firstComparableWeek')}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {selected.movements.map((movement) => (
+              <li key={`${selected.snapshotId}-${movement.opportunityId}-${movement.kind}`}>
+                <button
+                  type="button"
+                  className="w-full rounded-lg border bg-card p-2 text-left text-xs hover:border-primary"
+                  onClick={() => dispatch(selectOpportunity(movement.opportunityId))}
+                >
+                  <b>{t(`movements.${movement.kind}`)}</b> · {currency(movement.delta)}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {!selected.movements.length ? (
+            <p className="mt-2 text-xs text-muted-foreground">{t('noWeeklyMovements')}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -307,6 +409,11 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
   const locale = useLocale() as AppLocale;
   const dispatch = useAppDispatch();
   const [filters, setFilters] = useState<Filters>({ period: 'current' });
+  const [selectedStage, setSelectedStage] = useState<string | null>(null);
+  const [summaryDetail, setSummaryDetail] = useState<
+    'BILLED' | 'FORECAST' | 'BACKLOG' | 'PIPELINE' | null
+  >(null);
+  const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
   const { data, isLoading, isFetching, isError, refetch } = useManagerDashboardQuery(filters);
   const { data: opportunityList } = useOpportunitiesQuery();
   const canRecordVisits = profile.permissions.includes('opportunities.create');
@@ -334,6 +441,7 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
     setFilters((current) => ({ ...current, [key]: value || undefined }));
   const dealsAlerts = data.alerts.filter((alert) => alert.group === 'DEALS');
   const teamAlerts = data.alerts.filter((alert) => alert.group === 'SELLERS_BRANDS');
+  const priorityAlerts = data.alerts.filter((alert) => alert.kind === 'SIGNAL').slice(0, 3);
   const alertObserved = (alert: ManagerDashboardData['alerts'][number]) => {
     const observed =
       alert.observed && typeof alert.observed === 'object'
@@ -523,16 +631,19 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
             value={currency(data.summary.billed)}
             detail={t('authoritativeBilling')}
             tone="positive"
+            onClick={() => setSummaryDetail('BILLED')}
           />
           <Metric
             label={t('forecast')}
             value={currency(data.summary.forecast)}
             detail={t('forecastRule')}
+            onClick={() => setSummaryDetail('FORECAST')}
           />
           <Metric
             label={t('backlog')}
             value={currency(data.summary.backlog)}
             detail={t('backlogRule')}
+            onClick={() => setSummaryDetail('BACKLOG')}
           />
           <Metric
             label={t('closeProjection')}
@@ -541,7 +652,11 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
           />
           <Metric
             label={t('compliance')}
-            value={t('inValidation')}
+            value={
+              data.summary.attainmentAgainstQuota === null
+                ? t('notAvailable')
+                : `${formatNumber(data.summary.attainmentAgainstQuota, locale, { maximumFractionDigits: 1 })}%`
+            }
             detail={t('d01Pending')}
             tone="warning"
           />
@@ -549,6 +664,7 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
             label={t('pipeline')}
             value={currency(data.summary.pipeline)}
             detail={t('pipelineRule')}
+            onClick={() => setSummaryDetail('PIPELINE')}
           />
           <Metric
             label={t('margin')}
@@ -562,6 +678,66 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
               target: data.summary.marginTarget,
             })}
           />
+        </div>
+        {summaryDetail ? (
+          <div className="mt-3 rounded-xl border bg-muted p-3">
+            <div className="flex items-center justify-between gap-2">
+              <b className="text-sm">{t(`summaryDetails.${summaryDetail}`)}</b>
+              <Button size="sm" variant="ghost" onClick={() => setSummaryDetail(null)}>
+                {t('closeDetail')}
+              </Button>
+            </div>
+            <OpportunityLinks
+              ids={data.summaryDetails[summaryDetail]}
+              opportunities={opportunityMap}
+            />
+          </div>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="alert-overview-title" className="rounded-xl border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 id="alert-overview-title" className="text-section-title font-semibold">
+              {t('alertsTitle')}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">{t('alertsDescription')}</p>
+          </div>
+          <a className={buttonVariants({ size: 'sm', variant: 'outline' })} href="#alerts-title">
+            {t('review')}
+          </a>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {priorityAlerts.map((alert) => (
+            <button
+              key={alert.id}
+              type="button"
+              className="rounded-lg border border-warning/40 bg-surface-warning-soft p-2 text-left text-xs hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => {
+                if (alert.opportunityId) {
+                  dispatch(selectOpportunity(alert.opportunityId));
+                  return;
+                }
+                setExpandedAlertId(alert.id);
+                requestAnimationFrame(() =>
+                  document.getElementById(`alert-${alert.id}`)?.scrollIntoView({ block: 'center' }),
+                );
+              }}
+            >
+              <b>
+                {alert.code} · {t(`alerts.${alert.code}.title`)}
+              </b>
+              <span className="mt-1 block text-muted-foreground">
+                {alert.entity?.label ?? alertObserved(alert)}
+              </span>
+            </button>
+          ))}
+          {!priorityAlerts.length ? (
+            <p className="text-sm text-muted-foreground">
+              <CheckCircle2 className="mr-2 inline size-4 text-success" aria-hidden />
+              {t('noEvaluatedSignals')}
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -654,6 +830,14 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
                   <dd className="tnum">{currency(data.coverage.baseAmount)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
+                  <dt>{t('coverageQuota')}</dt>
+                  <dd className="tnum">{currency(data.coverage.quota)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>{t('eligibleSupport')}</dt>
+                  <dd className="tnum">{currency(data.coverage.eligibleSupport)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
                   <dt>{t('requiredPipeline')}</dt>
                   <dd className="tnum">{currency(data.coverage.requiredPipeline)}</dd>
                 </div>
@@ -663,6 +847,11 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
                 </div>
               </dl>
               <p className="mt-3 text-xs text-muted-foreground">{t('fourToOneExplanation')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('billedExcludedFromCoverage', {
+                  amount: currency(data.coverage.billedExcluded),
+                })}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -674,54 +863,7 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
             <CardTitle>{t('weeklyPipeline')}</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.weeklyPipeline.status === 'NO_COMPARISON' ? (
-              <p className="rounded-xl bg-muted p-4 text-sm">
-                <CircleHelp className="mr-2 inline size-4" aria-hidden />
-                {t('noComparison')}
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <Metric
-                    label={t('previousCut')}
-                    value={currency(data.weeklyPipeline.previous)}
-                    detail={
-                      data.weeklyPipeline.previousCutoff
-                        ? formatDateOnly(data.weeklyPipeline.previousCutoff, locale)
-                        : t('notAvailable')
-                    }
-                  />
-                  <Metric
-                    label={t('currentCut')}
-                    value={currency(data.weeklyPipeline.current)}
-                    detail={
-                      data.weeklyPipeline.currentCutoff
-                        ? formatDateOnly(data.weeklyPipeline.currentCutoff, locale)
-                        : t('notAvailable')
-                    }
-                    tone={data.weeklyPipeline.droppedMoreThanTenPercent ? 'warning' : 'default'}
-                  />
-                </div>
-                <p className="mt-3 text-sm font-semibold">
-                  <TrendingDown className="mr-2 inline size-4" aria-hidden />
-                  {data.weeklyPipeline.changePercent === null
-                    ? t('notAvailable')
-                    : `${data.weeklyPipeline.changePercent.toFixed(1)}%`}
-                </p>
-                <ul className="mt-2 space-y-2">
-                  {data.weeklyPipeline.movements.map((movement) => (
-                    <li key={`${movement.opportunityId}-${movement.kind}`}>
-                      <button
-                        className="w-full rounded-lg border p-2 text-left text-xs hover:border-primary"
-                        onClick={() => dispatch(selectOpportunity(movement.opportunityId))}
-                      >
-                        <b>{t(`movements.${movement.kind}`)}</b> · {currency(movement.delta)}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+            <WeeklyPipelineChart data={data.weeklyPipeline} currency={currency} />
           </CardContent>
         </Card>
 
@@ -730,14 +872,27 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
             <CardTitle>{t('stageSegmentation')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {data.stages.map((stage) => (
-              <details key={stage.stageCode} className="rounded-xl border p-3">
-                <summary className="cursor-pointer text-sm font-semibold">
-                  {t(`stages.${stage.stageCode}`)} · {stage.count} · {currency(stage.amount)}
-                </summary>
-                <OpportunityLinks ids={stage.opportunityIds} opportunities={opportunityMap} />
-              </details>
-            ))}
+            <SalesFunnel
+              stages={data.stages.map((stage): FunnelStageDatum => ({
+                stage: t(`stages.${stage.stageCode}`),
+                stageCode: stage.stageCode,
+                probability: Number(stage.stageCode),
+                count: stage.count,
+                amount: stage.amount,
+              }))}
+              currency={data.currency}
+              selectedStage={selectedStage}
+              onSelectStage={setSelectedStage}
+              renderDetail={(stage) => {
+                const source = data.stages.find((item) => item.stageCode === stage?.stageCode);
+                return (
+                  <OpportunityLinks
+                    ids={[...new Set(source?.opportunityIds ?? [])]}
+                    opportunities={opportunityMap}
+                  />
+                );
+              }}
+            />
             <p className="text-xs text-muted-foreground">{t('billedStageNote')}</p>
           </CardContent>
         </Card>
@@ -782,6 +937,7 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
                         : `${seller.grossMarginPercent.toFixed(1)}%`}
                     </dd>
                   </div>
+                  <p className="text-xs text-muted-foreground">{t('actualBilledMargin')}</p>
                 </dl>
               </CardContent>
             </Card>
@@ -800,6 +956,9 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
+            {data.visitScope === 'SELLER_TOTAL_NOT_COMMERCIAL_FILTER' ? (
+              <p className="rounded-lg bg-muted p-2 text-xs">{t('visitScopeTotal')}</p>
+            ) : null}
             {data.visits.map((visit) => (
               <div key={visit.id} className="rounded-xl border p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -812,6 +971,7 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
                 </p>
                 {visit.opportunity ? (
                   <button
+                    type="button"
                     className="mt-2 text-xs font-semibold text-primary"
                     onClick={() => dispatch(selectOpportunity(visit.opportunity!.id))}
                   >
@@ -866,6 +1026,25 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
         </Card>
       </div>
 
+      {data.periodDateGaps.length ? (
+        <Card>
+          <CardContent>
+            <details>
+              <summary className="cursor-pointer py-1 text-sm font-semibold">
+                {t('missingBillingDates')} · {data.periodDateGaps.length}
+              </summary>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t('missingBillingDatesDescription')}
+              </p>
+              <OpportunityLinks
+                ids={data.periodDateGaps.map((item) => item.opportunityId)}
+                opportunities={opportunityMap}
+              />
+            </details>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <section aria-labelledby="alerts-title">
         <h2 id="alerts-title" className="text-section-title font-semibold">
           {t('alertsTitle')}
@@ -882,39 +1061,85 @@ export function ManagerDashboardEdgar({ profile }: { profile: ProfileSummary }) 
               </CardHeader>
               <CardContent className="space-y-2">
                 {group.rows.map((alert) => (
-                  <div
+                  <details
                     key={alert.id}
+                    id={`alert-${alert.id}`}
+                    open={expandedAlertId === alert.id || undefined}
+                    onToggle={(event) => {
+                      if (!event.currentTarget.open && expandedAlertId === alert.id) {
+                        setExpandedAlertId(null);
+                      }
+                    }}
                     className={`rounded-xl border p-3 ${alert.kind === 'SIGNAL' ? 'border-warning/40 bg-surface-warning-soft' : 'bg-muted'}`}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <b>
-                        {alert.code} · {t(`alerts.${alert.code}.title`)}
-                      </b>
-                      <span className="text-xs font-semibold">{t(`kinds.${alert.kind}`)}</span>
-                    </div>
-                    {alert.entity ? <p className="mt-1 text-sm">{alert.entity.label}</p> : null}
-                    <p className="mt-2 text-xs font-medium">
-                      {t('observed')}: {alertObserved(alert)}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {t(`alerts.${alert.code}.rule`)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {t('cutoff')}:{' '}
-                      {alert.cutoff ? formatDateOnly(alert.cutoff, locale) : t('notAvailable')}
-                      {alert.affectedAmount !== null ? ` · ${currency(alert.affectedAmount)}` : ''}
-                    </p>
-                    {alert.opportunityId ? (
+                    <summary className="cursor-pointer list-none">
+                      <span className="flex flex-wrap items-center justify-between gap-2">
+                        <b>
+                          {alert.code} · {t(`alerts.${alert.code}.title`)}
+                        </b>
+                        <span className="text-xs font-semibold">{t(`kinds.${alert.kind}`)}</span>
+                      </span>
+                      {alert.entity ? (
+                        <span className="mt-1 block text-sm">{alert.entity.label}</span>
+                      ) : null}
+                    </summary>
+                    <div className="mt-2 border-t pt-2">
+                      <p className="mt-2 text-xs font-medium">
+                        {t('observed')}: {alertObserved(alert)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t(`alerts.${alert.code}.rule`)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t('cutoff')}:{' '}
+                        {alert.cutoff ? formatDateOnly(alert.cutoff, locale) : t('notAvailable')}
+                        {alert.affectedAmount !== null
+                          ? ` · ${currency(alert.affectedAmount)}`
+                          : ''}
+                      </p>
                       <Button
                         className="mt-2"
                         size="sm"
                         variant="outline"
-                        onClick={() => dispatch(selectOpportunity(alert.opportunityId!))}
+                        aria-expanded={!alert.opportunityId && expandedAlertId === alert.id}
+                        onClick={() => {
+                          if (alert.opportunityId) {
+                            dispatch(selectOpportunity(alert.opportunityId));
+                          } else {
+                            setExpandedAlertId((current) =>
+                              current === alert.id ? null : alert.id,
+                            );
+                          }
+                        }}
                       >
                         {t('review')}
                       </Button>
-                    ) : null}
-                  </div>
+                      {!alert.opportunityId && expandedAlertId === alert.id ? (
+                        <div className="mt-2 rounded-lg border bg-card p-2 text-xs">
+                          <p>{t('alertDetailContext', { period: data.period.label })}</p>
+                          {alert.code === 'A01' ? (
+                            <OpportunityLinks
+                              ids={[
+                                ...new Set(
+                                  data.weeklyPipeline.movements.map((item) => item.opportunityId),
+                                ),
+                              ]}
+                              opportunities={opportunityMap}
+                            />
+                          ) : alert.code === 'A03' && alert.entity ? (
+                            <Button
+                              className="mt-2"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateFilter('sellerId', alert.entity!.id)}
+                            >
+                              {t('filterAffectedSeller')}
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </details>
                 ))}
                 {!group.rows.length ? (
                   <p className="text-sm text-muted-foreground">

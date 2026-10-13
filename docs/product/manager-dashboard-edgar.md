@@ -1,6 +1,6 @@
 # Resumen gerencial — Data Center
 
-Fecha del contrato implementado: 2026-10-08. Este documento describe el alcance de la vista gerencial de Edgar y las decisiones que siguen pendientes. No sustituye una aprobación comercial ni reproduce el workbook o conversaciones de origen.
+Fecha del contrato implementado: 2026-10-08. Cierre técnico G20: 2026-10-13. Este documento describe el alcance de la vista gerencial de Edgar y las decisiones que siguen pendientes. No sustituye una aprobación comercial ni reproduce el workbook o conversaciones de origen.
 
 Revisión de integración G19: 2026-10-12 sobre `origin/staging` `2714700911293de14429f6851963168a929c0bf7`, sólo con datos sintéticos locales.
 
@@ -28,14 +28,15 @@ Todos los KPI, desgloses, alertas y detalles se calculan en `GET /analytics/mana
 ## Fórmulas y periodo
 
 - Año fiscal: diciembre–noviembre; Q1 dic–feb, Q2 mar–may, Q3 jun–ago, Q4 sep–nov.
-- Pipeline: suma completa de oportunidades OPEN en 20/40 cuya fecha esperada de cierre cae en el trimestre.
-- Forecast: suma completa de oportunidades OPEN en 60/80 cuya fecha esperada de cierre cae en el trimestre; no se multiplica por 0.6/0.8.
+- Pipeline: suma completa de oportunidades OPEN en 20/40 cuya fecha esperada de facturación cae en el trimestre. La fecha de cierre comercial se conserva separada. Una fecha de facturación faltante se informa y no se sustituye silenciosamente.
+- Forecast: suma completa de oportunidades OPEN en 60/80 cuya fecha esperada de facturación cae en el trimestre; no se multiplica por 0.6/0.8.
 - Backlog: saldo al 90, WON, cuya fecha esperada de facturación cae en el trimestre.
 - Facturado: hechos `BillingRecord` por fecha real de facturación.
-- Proyección de cierre: Forecast + Backlog; no incluye Facturado.
+- Proyección de cierre: Forecast + Backlog; no incluye Facturado. El porcentaje visible contra cuota usa esa fuente reciente, pero continúa rotulado pendiente de validación numérica D01.
+- Regla 4:1: `max(cuota − (Forecast + Backlog elegible), 0) × ratio`. Facturado se informa separado y no reduce esta base mientras D01 no defina su relación.
 - Margen facturado: suma de GP conocido / suma del ingreso con GP conocido.
 - Data Center: etiquetas fuente HP, HPE, Nutanix y Lenovo. No se expande HIT sin fuente.
-- Cuotas: sólo ámbitos exactamente configurados; una cuota total o de marca no se reparte implícitamente hacia una línea. La línea muestra `No disponible` cuando no existe ese ámbito.
+- Cuotas: sólo ámbitos exactamente configurados; una cuota total o de marca no se reparte implícitamente hacia una línea. La configuración comercial permite cuota explícita por marca/línea y la línea muestra `No disponible` cuando no existe ese ámbito.
 
 Cuando una facturación no tiene marca explícita, el API la atribuye a Data Center o a una línea únicamente si existe una oportunidad vinculada con líneas comerciales respaldatorias; la asignación es proporcional al importe de esas líneas. Facturación sin respaldo de equipo queda fuera del agregado de un manager.
 
@@ -46,6 +47,7 @@ El flujo se mantiene como analizar → confirmar mapeo → validar → ejecutar.
 - Una oportunidad necesita identidad fuente estable. Sin ella queda Pendiente.
 - Mismo ID con cambios actualiza la oportunidad y registra historial con el importador real.
 - Mismo archivo y contrato no crea un nuevo lote.
+- Una ejecución nueva publicada crea un corte inmutable del mismo alcance. Reusar el mismo lote no crea otro corte. Varias ejecuciones en una semana se condensan al último corte de esa semana en la serie.
 - Una ausencia en el corte siguiente queda en `missingFromLatest`; no borra ni declara pérdida.
 - Los lotes informan altas, cambios, sin cambios, pendientes, rechazados y ausencias.
 - `PARTIAL` permanece visible y nunca se presenta como conciliado.
@@ -75,6 +77,8 @@ El endpoint hereda `analytics.read` y `opportunityReadScope`: Manager ve su equi
 
 Los valores `stalledOpportunityDays`, `weeklyVisitTarget` y `pipelineCoverageRatio` viven en `TenantSetting`, tienen límites de dominio y se administran por el endpoint/pantalla comercial ya existente.
 
+La pertenencia vendedor→manager vive explícitamente en `TenantMembership.managerId`. Por eso un vendedor activo con cero oportunidades y cero visitas continúa visible para su manager. Crear/importar una oportunidad con manager actualiza ese vínculo mínimo; no amplía el acceso a todos los vendedores del tenant. Las visitas usan la misma pertenencia para autorizar captura y vínculo.
+
 ## Decisiones abiertas
 
 - D01 — TOTAL: pendiente ejemplo aprobado de cumplimiento global. La interfaz sólo presenta componentes y Forecast + Backlog.
@@ -82,20 +86,20 @@ Los valores `stalledOpportunityDays`, `weeklyVisitTarget` y `pipelineCoverageRat
 - D03 — FECHAS: pendiente evento final del ciclo y umbral aprobado de estancamiento. El valor 30 se etiqueta como heredado.
 - D04 — CATÁLOGO: pendientes aliases HP/HPE/HIT, personas y Upside con fuente. No se deducen.
 
-## Guía de revisión local G19
+## Guía de revisión local G20
 
 Abrir `http://localhost:3100/app/dashboard` después de iniciar PostgreSQL, API y web con los comandos indicados en `docs/audit/manager-dashboard-edgar-report.md`. Para recorrer el alcance gerencial se usa el usuario sintético `manager@techdistribution.demo`; la contraseña no está en Git ni en este documento y permanece en el archivo privado `~/.config/sales-intelligence-platform/g19-local-review.env` con permisos `0600`.
 
-| Petición de Edgar                      | Dónde pulsar                                                         | Qué se ve                                                                        | De dónde sale                                                        | Estado o limitación                                                         |
-| -------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| R01/R10 — resumen y forecast por marca | Tarjetas superiores y filas de `Forecast por marca y línea`          | Cuota, Facturado, Forecast, Backlog, gap y proyección del mismo filtro           | Quota, BillingRecord, Opportunity y OpportunityLineItem              | Probado sintéticamente; TOTAL/cumplimiento global sigue En validación (D01) |
-| R02 — evolución semanal                | `Evolución semanal del pipeline`                                     | Corte anterior, corte actual, variación y movimientos                            | ForecastSnapshot y ForecastSnapshotItem                              | Requiere cortes compatibles; una semana ausente nunca se trata como cero    |
-| R04 — regla 4:1                        | `Regla de trabajo 4:1`                                               | Base pendiente, pipeline requerido, disponible y resultado                       | Cuota, Facturado y `pipelineCoverageRatio`                           | Regla de planificación configurable; no es probabilidad histórica           |
-| R06 — segmentación por etapas          | Expandir 20/40/60/80/90 y seleccionar un negocio                     | Negocios justificantes y drawer de contexto con importe, responsable y evidencia | Opportunity, StageHistory y BillingRecord para 100                   | 100 es facturación, no oportunidad abierta                                  |
-| R09 — desempeño por vendedor           | Tarjetas de `Desempeño por vendedor`                                 | Pipeline, Forecast, Backlog, visitas y margen del ámbito autorizado              | Agregación server-side con scope de Manager                          | Sin score ni ranking inventado                                              |
-| R03 — vendedores y visitas             | `Clientes visitados`, selector de pendiente y `Vincular oportunidad` | Clientes distintos, progreso semanal, visita declarada y vínculo posterior       | CustomerVisit, Customer y Opportunity                                | Semana en curso se muestra En progreso; no dispara falso A03                |
-| A01–A07 — alertas                      | `Ver detalle` en la tarjeta correspondiente                          | Regla, dato observado, corte, importe, negocio y acción de contexto              | Motor determinista sobre snapshots, visitas, backlog, margen y etapa | A05/estancamiento conserva el umbral heredado hasta resolver D03            |
-| R05/R08 — ciclo y estancamiento        | `Oportunidades estancadas` y luego el negocio                        | Fechas disponibles, última transición fiable y contexto comercial                | Opportunity y StageHistory                                           | Promedio de ciclo no publicado; evento final y umbral pendientes (D03)      |
+| Petición de Edgar                      | Dónde pulsar                                                         | Qué se ve                                                                        | De dónde sale                                                          | Estado o limitación                                                         |
+| -------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| R01/R10 — resumen y forecast por marca | Tarjetas superiores y filas de `Forecast por marca y línea`          | Cuota, Facturado, Forecast, Backlog, gap y proyección del mismo filtro           | Quota, BillingRecord, Opportunity y OpportunityLineItem                | Probado sintéticamente; TOTAL/cumplimiento global sigue En validación (D01) |
+| R02 — evolución semanal                | Pulsar una barra de `Evolución semanal del pipeline`                 | Serie, corte elegido, variación y movimientos del mismo filtro                   | ForecastSnapshot e dimensiones comerciales inmutables                  | Requiere cortes compatibles; una semana ausente no se dibuja como cero      |
+| R04 — regla 4:1                        | `Regla de trabajo 4:1`                                               | Cuota, respaldo elegible, base pendiente, pipeline requerido y disponible        | Cuota, Forecast + Backlog y `pipelineCoverageRatio`                    | Facturado se muestra separado; su relación con D01 sigue pendiente          |
+| R06 — segmentación por etapas          | Expandir 20/40/60/80/90 y seleccionar un negocio                     | Negocios justificantes y drawer de contexto con importe, responsable y evidencia | Opportunity, StageHistory y BillingRecord para 100                     | 100 es facturación, no oportunidad abierta                                  |
+| R09 — desempeño por vendedor           | Tarjetas de `Desempeño por vendedor`                                 | Pipeline, Forecast, Backlog, visitas y margen del ámbito autorizado              | Agregación server-side con scope de Manager                            | Sin score ni ranking inventado                                              |
+| R03 — vendedores y visitas             | `Clientes visitados`, selector de pendiente y `Vincular oportunidad` | Clientes distintos, progreso semanal, visita declarada y vínculo posterior       | CustomerVisit, Customer, Opportunity y pertenencia explícita de equipo | Filtro marca/línea no oculta visitas sin oportunidad ni fabrica A03         |
+| A01–A07 — alertas                      | `Ver detalle` en la tarjeta correspondiente                          | Regla, dato observado, corte, importe, negocio y acción de contexto              | Motor determinista sobre snapshots, visitas, backlog, margen y etapa   | A05/estancamiento conserva el umbral heredado hasta resolver D03            |
+| R05/R08 — ciclo y estancamiento        | `Oportunidades estancadas` y luego el negocio                        | Fechas disponibles, última transición fiable y contexto comercial                | Opportunity y StageHistory                                             | Promedio de ciclo no publicado; evento final y umbral pendientes (D03)      |
 
 Evidencia real de la ejecución local integrada:
 
@@ -105,4 +109,4 @@ Evidencia real de la ejecución local integrada:
 - `docs/audit/evidence/manager-dashboard-edgar/opportunity-detail-1440-en-light.png`: detalle justificante desde una etapa.
 - `docs/audit/evidence/manager-dashboard-edgar/alert-detail-1440-en-light.png`: detalle justificante desde Alertas.
 
-Las capturas contienen únicamente el seed local sintético. No sustituyen la conciliación del workbook vigente ni la aceptación de Edgar.
+Las capturas fueron regeneradas el 2026-10-13 con el cierre G20 y contienen únicamente el seed local sintético. No sustituyen la conciliación del workbook vigente ni la aceptación de Edgar.

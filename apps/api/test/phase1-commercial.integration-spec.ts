@@ -32,6 +32,7 @@ describe('Phase 1 commercial operating flows', () => {
   let managerAUserId = '';
   let managerBUserId = '';
   let sellerBUserId = '';
+  let zeroActivitySellerId = '';
   let managerBEmail = '';
   let sellerBEmail = '';
   let executiveEmail = '';
@@ -108,6 +109,11 @@ describe('Phase 1 commercial operating flows', () => {
         { name: 'Seller B', email: sellerBEmail, role: 'SELLER' as const },
         { name: 'Executive read only', email: executiveEmail, role: 'EXECUTIVE' as const },
         { name: 'Viewer read only', email: viewerEmail, role: 'VIEWER' as const },
+        {
+          name: 'Seller Zero Activity',
+          email: `seller-zero-${suffix}@example.test`,
+          role: 'SELLER' as const,
+        },
       ].map((principal) =>
         prisma.user.create({
           data: {
@@ -125,6 +131,17 @@ describe('Phase 1 commercial operating flows', () => {
     rbacUserIds.push(...users.map((user) => user.id));
     managerBUserId = users[0]!.id;
     sellerBUserId = users[1]!.id;
+    zeroActivitySellerId = users[4]!.id;
+    await Promise.all([
+      prisma.tenantMembership.update({
+        where: { tenantId_userId: { tenantId, userId: sellerBUserId } },
+        data: { managerId: managerBUserId },
+      }),
+      prisma.tenantMembership.update({
+        where: { tenantId_userId: { tenantId, userId: zeroActivitySellerId } },
+        data: { managerId: managerAUserId },
+      }),
+    ]);
 
     const [brandA, brandB] = await Promise.all([
       prisma.brand.create({ data: { tenantId, name: `Role Scope Brand A ${suffix}` } }),
@@ -250,6 +267,7 @@ describe('Phase 1 commercial operating flows', () => {
         estimatedAmount: '100000',
         grossMarginPercent: '15',
         expectedCloseDate: '2026-10-15',
+        expectedBillingDate: '2026-11-15',
         lineItems: [
           {
             brandId: roleScopeBrandAId,
@@ -406,6 +424,7 @@ describe('Phase 1 commercial operating flows', () => {
         estimatedAmount: '900000',
         grossMarginPercent: '12',
         expectedCloseDate: '2026-10-25',
+        expectedBillingDate: '2026-11-20',
         lineItems: [
           {
             brandId: roleScopeBrandBId,
@@ -639,6 +658,17 @@ describe('Phase 1 commercial operating flows', () => {
     expect(managerBWithoutQuota.body.kpis.quota).toBeNull();
     expect(managerBWithoutQuota.body.kpis.quotaConfigured).toBe(false);
     expect(adminAfterManagerQuota.body.kpis.quota).toBe(adminDashboard.body.kpis.quota);
+    const managerCommercial = await managerA.get('/analytics/manager-dashboard').expect(200);
+    expect(managerCommercial.body.sellerPerformance).toContainEqual(
+      expect.objectContaining({
+        sellerId: zeroActivitySellerId,
+        opportunities: 0,
+        pipeline: 0,
+        forecast: 0,
+        backlog: 0,
+        visitedCustomers: 0,
+      }),
+    );
   });
 
   it('attributes manager billing only through team opportunities', async () => {
@@ -795,6 +825,36 @@ describe('Phase 1 commercial operating flows', () => {
           })),
       })
       .expect(200);
+    const hpLine = config.body.lineOptions.find(
+      (option: { brandId: string; line: string }) => option.brandId === expectedBrandId,
+    );
+    expect(hpLine).toBeTruthy();
+    const configuredLines = await admin
+      .put('/commercial/config/quotas')
+      .set('x-csrf-token', adminCsrf)
+      .send({
+        lineQuotas: [{ brandId: hpLine.brandId, line: hpLine.line, amount: '125000' }],
+      })
+      .expect(200);
+    expect(configuredLines.body.quotas).toContainEqual(
+      expect.objectContaining({
+        assigneeId: null,
+        brandId: hpLine.brandId,
+        productLine: hpLine.line,
+        amount: 125000,
+      }),
+    );
+    const lineDashboard = await admin
+      .get(
+        `/analytics/manager-dashboard?brandId=${hpLine.brandId}&line=${encodeURIComponent(hpLine.line)}`,
+      )
+      .expect(200);
+    expect(lineDashboard.body.coverage.quota).toBe(125000);
+    await admin
+      .put('/commercial/config/quotas')
+      .set('x-csrf-token', adminCsrf)
+      .send({ lineQuotas: [] })
+      .expect(200);
     const sellerDashboard = await seller.get('/analytics/dashboard').expect(200);
     expect(sellerDashboard.body.kpis.quotaConfigured).toBe(false);
     expect(sellerDashboard.body.kpis.quota).toBeNull();
@@ -900,10 +960,12 @@ describe('Phase 1 commercial operating flows', () => {
     expect(
       stored.every(
         (item) =>
-          item.expectedCloseDate >= new Date('2026-09-01') &&
-          item.expectedCloseDate <= new Date('2026-11-30'),
+          item.expectedBillingDate !== null &&
+          item.expectedBillingDate >= new Date('2026-09-01') &&
+          item.expectedBillingDate <= new Date('2026-11-30'),
       ),
     ).toBe(true);
+    expect(stored.every((item) => item.sellerId && item.commercialDimensions)).toBe(true);
     await admin
       .patch(`/opportunities/${opportunityId}`)
       .set('x-csrf-token', adminCsrf)
@@ -1045,6 +1107,10 @@ describe('Phase 1 commercial operating flows', () => {
       .expect(201);
     expect(first.body.summary.billingProcessed).toBe(2);
     expect(first.body.summary.opportunityProcessed).toBe(1);
+    expect(first.body.snapshot).toEqual(
+      expect.objectContaining({ id: expect.any(String), itemCount: expect.any(Number) }),
+    );
+    snapshotIds.push(first.body.snapshot.id);
     importBatchIds.push(first.body.batch.id);
     const importedOpportunity = await prisma.opportunity.findFirstOrThrow({
       where: { tenantId, externalReference: 'OPPTY-XLSX-PHASE1' },
@@ -1073,6 +1139,8 @@ describe('Phase 1 commercial operating flows', () => {
       .expect(201);
     expect(second.body.batch.reused).toBe(true);
     expect(second.body.batch.id).toBe(first.body.batch.id);
+    expect(second.body.snapshot).toBeUndefined();
+    expect(await prisma.forecastSnapshot.count({ where: { id: first.body.snapshot.id } })).toBe(1);
   });
 
   it('updates stable opportunity identities, preserves history, and reports later absence', async () => {
@@ -1098,6 +1166,7 @@ describe('Phase 1 commercial operating flows', () => {
       sourceCutoff: '2026-10-02',
     });
     importBatchIds.push(first.body.batch.id);
+    snapshotIds.push(first.body.snapshot.id);
     expect(first.body.summary).toEqual(expect.objectContaining({ added: 1, changed: 0 }));
     const original = await prisma.opportunity.findFirstOrThrow({
       where: { tenantId, externalReference: reference },
@@ -1124,6 +1193,7 @@ describe('Phase 1 commercial operating flows', () => {
       { filename: 'edgar-trace-2.xlsx', sourceCutoff: '2026-10-09' },
     );
     importBatchIds.push(changed.body.batch.id);
+    snapshotIds.push(changed.body.snapshot.id);
     expect(changed.body.summary.changed).toBe(1);
     const updated = await prisma.opportunity.findFirstOrThrow({
       where: { tenantId, externalReference: reference },
@@ -1174,6 +1244,7 @@ describe('Phase 1 commercial operating flows', () => {
       { filename: 'edgar-trace-3.xlsx', sourceCutoff: '2026-10-16' },
     );
     importBatchIds.push(replacement.body.batch.id);
+    snapshotIds.push(replacement.body.snapshot.id);
     expect(replacement.body.summary.missingFromLatest).toBeGreaterThanOrEqual(1);
     expect(
       await prisma.opportunity.count({ where: { tenantId, externalReference: reference } }),
@@ -1194,6 +1265,7 @@ describe('Phase 1 commercial operating flows', () => {
       billingMode: 'CUMULATIVE',
     });
     importBatchIds.push(first.body.batch.id);
+    snapshotIds.push(first.body.snapshot.id);
     const firstRecord = await prisma.billingRecord.findFirstOrThrow({
       where: { tenantId, importBatchId: first.body.batch.id, importMode: 'CUMULATIVE' },
     });
@@ -1218,6 +1290,7 @@ describe('Phase 1 commercial operating flows', () => {
       },
     );
     importBatchIds.push(second.body.batch.id);
+    snapshotIds.push(second.body.snapshot.id);
     const records = await prisma.billingRecord.findMany({
       where: { tenantId, externalReference: firstRecord.externalReference },
     });
@@ -1251,6 +1324,7 @@ describe('Phase 1 commercial operating flows', () => {
       },
     );
     importBatchIds.push(result.body.batch.id);
+    snapshotIds.push(result.body.snapshot.id);
     expect(result.body).toEqual(
       expect.objectContaining({
         summary: expect.objectContaining({ status: 'PARTIAL' }),
@@ -1326,6 +1400,250 @@ describe('Phase 1 commercial operating flows', () => {
     expect(managerBIds).toEqual([]);
     await executive.get('/analytics/manager-dashboard').expect(200);
     await viewer.get('/analytics/manager-dashboard').expect(200);
+  });
+
+  it('applies Edgar billing horizon, 4:1 support, partial backlog, and weekly history end to end', async () => {
+    const suffix = Date.now();
+    const line = `G20 fidelity ${suffix}`;
+    const [stage20, stage40, stage60, stage90, sellerUser, customer, brand] = await Promise.all([
+      prisma.stage.findFirstOrThrow({ where: { tenantId, code: '20' } }),
+      prisma.stage.findFirstOrThrow({ where: { tenantId, code: '40' } }),
+      prisma.stage.findFirstOrThrow({ where: { tenantId, code: '60' } }),
+      prisma.stage.findFirstOrThrow({ where: { tenantId, code: '90' } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'sofia@techdistribution.demo' } }),
+      prisma.customer.findFirstOrThrow({ where: { tenantId } }),
+      prisma.brand.findFirstOrThrow({ where: { tenantId, name: 'Nutanix' } }),
+    ]);
+    const period = (await managerA.get('/analytics/manager-dashboard').expect(200)).body.period;
+    const quota = await prisma.quota.create({
+      data: {
+        tenantId,
+        assigneeId: sellerUser.id,
+        brandId: brand.id,
+        productLine: line,
+        periodStart: new Date(period.start),
+        periodEnd: new Date(period.end),
+        currency: 'USD',
+        amount: 500000,
+      },
+    });
+    quotaIds.push(quota.id);
+    const createOpportunity = (input: {
+      title: string;
+      stageId: string;
+      status?: 'OPEN' | 'WON';
+      amount: number;
+      expectedCloseDate?: string;
+      expectedBillingDate: string | null;
+    }) =>
+      prisma.opportunity.create({
+        data: {
+          tenantId,
+          sellerId: sellerUser.id,
+          managerId: managerAUserId,
+          customerId: customer.id,
+          title: input.title,
+          status: input.status ?? 'OPEN',
+          stageId: input.stageId,
+          forecastCategory: input.status === 'WON' ? 'COMMIT' : 'PIPELINE',
+          currency: 'USD',
+          estimatedAmount: input.amount,
+          probability: 20,
+          expectedCloseDate: new Date(input.expectedCloseDate ?? '2026-10-30'),
+          expectedBillingDate: input.expectedBillingDate
+            ? new Date(input.expectedBillingDate)
+            : null,
+          source: 'G20_FIDELITY_FIXTURE',
+          lineItems: {
+            create: {
+              tenantId,
+              brandId: brand.id,
+              description: input.title,
+              businessUnit: 'Data Center',
+              productLine: line,
+              amount: input.amount,
+            },
+          },
+        },
+        include: { lineItems: true },
+      });
+
+    const pipeline = await createOpportunity({
+      title: 'G20 4:1 pipeline',
+      stageId: stage20.id,
+      amount: 2000000,
+      expectedBillingDate: '2026-11-15',
+    });
+    managerPeriodOpportunityIds.push(pipeline.id);
+    const query = `brandId=${brand.id}&line=${encodeURIComponent(line)}&sellerId=${sellerUser.id}`;
+    const withoutSupport = await managerA.get(`/analytics/manager-dashboard?${query}`).expect(200);
+    expect(withoutSupport.body.coverage).toEqual(
+      expect.objectContaining({
+        quota: 500000,
+        eligibleSupport: 0,
+        baseAmount: 500000,
+        requiredPipeline: 2000000,
+        availablePipeline: 2000000,
+        basis: 'QUOTA_MINUS_FORECAST_AND_BACKLOG',
+      }),
+    );
+
+    const forecast = await createOpportunity({
+      title: 'G20 eligible forecast support',
+      stageId: stage60.id,
+      amount: 250000,
+      expectedBillingDate: '2026-11-20',
+    });
+    managerPeriodOpportunityIds.push(forecast.id);
+    const withSupport = await managerA.get(`/analytics/manager-dashboard?${query}`).expect(200);
+    expect(withSupport.body.coverage).toEqual(
+      expect.objectContaining({
+        quota: 500000,
+        eligibleSupport: 250000,
+        baseAmount: 250000,
+        requiredPipeline: 1000000,
+        billedExcluded: 0,
+      }),
+    );
+    expect(withSupport.body.summary).toEqual(
+      expect.objectContaining({ forecastAndBacklog: 250000, attainmentAgainstQuota: 50 }),
+    );
+
+    const backlog = await createOpportunity({
+      title: 'G20 partial backlog',
+      stageId: stage90.id,
+      status: 'WON',
+      amount: 100000,
+      expectedBillingDate: '2026-11-25',
+    });
+    managerPeriodOpportunityIds.push(backlog.id);
+    const billingReference = `G20-PARTIAL-${suffix}`;
+    managerImportBillingReferences.push(billingReference);
+    await prisma.billingRecord.create({
+      data: {
+        tenantId,
+        opportunityId: backlog.id,
+        brandId: brand.id,
+        amount: 40000,
+        grossProfit: 4000,
+        currency: 'USD',
+        billedAt: new Date('2026-11-10'),
+        source: 'G20_FIDELITY_FIXTURE',
+        externalReference: billingReference,
+      },
+    });
+    const partial = await managerA.get(`/analytics/manager-dashboard?${query}`).expect(200);
+    expect(partial.body.summary.backlog).toBe(60000);
+    expect(partial.body.summaryDetails.BILLED).toContain(backlog.id);
+    expect(partial.body.summaryDetails.BACKLOG).toContain(backlog.id);
+    expect(
+      partial.body.brandHierarchy.brands
+        .find((item: { brandId: string }) => item.brandId === brand.id)
+        .lines.find((item: { line: string }) => item.line === line).backlog,
+    ).toBe(60000);
+    expect(
+      partial.body.sellerPerformance.find(
+        (item: { sellerId: string }) => item.sellerId === sellerUser.id,
+      ).backlog,
+    ).toBe(60000);
+    expect(
+      partial.body.stages.find((item: { stageCode: string }) => item.stageCode === '90').amount,
+    ).toBe(60000);
+
+    await prisma.opportunity.update({
+      where: { id: backlog.id },
+      data: { expectedBillingDate: new Date('2026-12-15') },
+    });
+    const shifted = await managerA.get(`/analytics/manager-dashboard?${query}`).expect(200);
+    expect(shifted.body.summary.backlog).toBe(0);
+    expect(shifted.body.alerts).toContainEqual(
+      expect.objectContaining({
+        code: 'A06',
+        opportunityId: backlog.id,
+        affectedAmount: 60000,
+        observed: expect.objectContaining({ outstanding: 60000 }),
+      }),
+    );
+    const nextQuarter = await managerA
+      .get(`/analytics/manager-dashboard?period=next&${query}`)
+      .expect(200);
+    expect(nextQuarter.body.summary.backlog).toBe(60000);
+
+    const undated = await createOpportunity({
+      title: 'G20 missing billing date',
+      stageId: stage40.id,
+      amount: 12345,
+      expectedBillingDate: null,
+    });
+    managerPeriodOpportunityIds.push(undated.id);
+    const gaps = await managerA.get(`/analytics/manager-dashboard?${query}`).expect(200);
+    expect(gaps.body.summary.pipeline).toBe(2000000);
+    expect(gaps.body.periodDateGaps).toContainEqual(
+      expect.objectContaining({ opportunityId: undated.id, stageCode: '40' }),
+    );
+
+    const snapshotInput = (stageId: string, amount: number) => ({
+      tenantId,
+      opportunityId: pipeline.id,
+      stageId,
+      status: 'OPEN' as const,
+      forecastCategory: 'PIPELINE' as const,
+      estimatedAmount: amount,
+      expectedCloseDate: new Date('2026-10-30'),
+      expectedBillingDate: new Date('2026-11-15'),
+      sellerId: sellerUser.id,
+      commercialDimensions: {
+        lineItems: [{ brandId: brand.id, businessUnit: 'Data Center', productLine: line, amount }],
+      },
+    });
+    for (const point of [
+      { createdAt: '2026-09-03T12:00:00Z', stageId: stage20.id, amount: 90000 },
+      { createdAt: '2026-09-17T12:00:00Z', stageId: stage20.id, amount: 100000 },
+      { createdAt: '2026-09-24T12:00:00Z', stageId: stage40.id, amount: 120000 },
+      { createdAt: '2026-10-01T08:00:00Z', stageId: stage40.id, amount: 300000 },
+      { createdAt: '2026-10-02T08:00:00Z', stageId: stage60.id, amount: 350000 },
+    ]) {
+      const snapshot = await prisma.forecastSnapshot.create({
+        data: {
+          tenantId,
+          periodStart: new Date(period.start),
+          periodEnd: new Date(period.end),
+          createdById: managerAUserId,
+          scopeType: 'TEAM',
+          scopeUserId: managerAUserId,
+          createdAt: new Date(point.createdAt),
+          items: { create: snapshotInput(point.stageId, point.amount) },
+        },
+      });
+      snapshotIds.push(snapshot.id);
+    }
+    await prisma.opportunityLineItem.update({
+      where: { id: pipeline.lineItems[0]!.id },
+      data: { productLine: `${line} reassigned` },
+    });
+    const history = await managerA
+      .get(`/analytics/manager-dashboard?${query}&weekStart=2026-10-04`)
+      .expect(200);
+    const historicalPoints = history.body.weeklyPipeline.series.filter(
+      (point: { weekStart: string }) =>
+        ['2026-09-14', '2026-09-21', '2026-09-28'].includes(point.weekStart),
+    );
+    expect(historicalPoints).toHaveLength(3);
+    expect(historicalPoints.map((point: { amount: number }) => point.amount)).toEqual([
+      100000, 120000, 0,
+    ]);
+    expect(history.body.weeklyPipeline.movements).toContainEqual(
+      expect.objectContaining({
+        opportunityId: pipeline.id,
+        kind: 'ADVANCED_TO_FORECAST',
+        delta: -120000,
+      }),
+    );
+    expect(
+      history.body.weeklyPipeline.series.some(
+        (point: { weekStart: string }) => point.weekStart === '2026-09-07',
+      ),
+    ).toBe(false);
   });
 
   it('moves November backlog to December context without duplication or fictitious loss', async () => {
@@ -1441,6 +1759,17 @@ describe('Phase 1 commercial operating flows', () => {
       (row: { sellerId: string }) => row.sellerId === sofia.id,
     );
     expect(sellerPerformance.visitedCustomers).toBeGreaterThanOrEqual(1);
+    const commerciallyFiltered = await managerA
+      .get(
+        `/analytics/manager-dashboard?weekStart=${visitedAt}&brandId=${linkTarget.lineItems[0].brandId}`,
+      )
+      .expect(200);
+    expect(commerciallyFiltered.body.visitScope).toBe('SELLER_TOTAL_NOT_COMMERCIAL_FILTER');
+    expect(
+      commerciallyFiltered.body.visits.some(
+        (visit: { id: string }) => visit.id === created.body.id,
+      ),
+    ).toBe(true);
 
     await managerB
       .patch(`/visits/${pending.body.id}/opportunity`)

@@ -294,10 +294,16 @@ test('manager drills into stage evidence, opens context and closes with Escape',
   await page.evaluate(() => localStorage.setItem('sip-appearance', 'LIGHT'));
   await page.goto('/app/dashboard');
 
-  const negotiation = page.locator('details').filter({ hasText: '80 · Negotiation' }).first();
-  await expect(negotiation.locator('summary')).toBeVisible();
-  await negotiation.locator('summary').click();
-  const opportunity = negotiation.getByRole('button').first();
+  const negotiation = page.getByRole('button', { name: /^80 · Negotiation:/ }).first();
+  await expect(negotiation).toBeVisible();
+  await negotiation.click();
+  await expect(negotiation).toHaveAttribute('aria-pressed', 'true');
+  const opportunity = page
+    .getByLabel('Sales funnel')
+    .locator('..')
+    .locator('.mt-5')
+    .getByRole('button')
+    .first();
   await expect(opportunity).toBeVisible();
   await opportunity.click();
   const drawer = page.getByRole('dialog', { name: /Opportunity context|.+/ }).last();
@@ -416,14 +422,13 @@ test('management dashboard stays accessible without horizontal page overflow', a
     }
   }
 
-  const negotiation = page.locator('details').filter({ hasText: '80 · Negociación' }).first();
-  const summary = negotiation.locator('summary');
-  await summary.focus();
-  await expect(summary).toBeFocused();
+  const negotiation = page.getByRole('button', { name: /^80 · Negociación:/ }).first();
+  await negotiation.focus();
+  await expect(negotiation).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(negotiation).toHaveAttribute('open', '');
+  await expect(negotiation).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Enter');
-  await expect(negotiation).not.toHaveAttribute('open', '');
+  await expect(negotiation).toHaveAttribute('aria-pressed', 'false');
 
   await page.getByLabel('Apariencia').selectOption('SYSTEM');
   await page.getByLabel('Idioma').selectOption('en');

@@ -24,7 +24,7 @@ export class CommercialService {
         where: { tenantId: auth.activeTenantId },
       });
       const period = currentFiscalQuarter(new Date(), settings.fiscalYearStartMonth);
-      const [brands, memberships, quotas, criteria] = await Promise.all([
+      const [brands, memberships, quotas, criteria, lineOptions] = await Promise.all([
         transaction.brand.findMany({
           where: { tenantId: auth.activeTenantId },
           orderBy: { name: 'asc' },
@@ -46,6 +46,12 @@ export class CommercialService {
           where: { tenantId: auth.activeTenantId },
           orderBy: [{ gateCode: 'asc' }, { sortOrder: 'asc' }],
         }),
+        transaction.opportunityLineItem.findMany({
+          where: { tenantId: auth.activeTenantId, productLine: { not: null } },
+          select: { brandId: true, productLine: true },
+          distinct: ['brandId', 'productLine'],
+          orderBy: [{ brandId: 'asc' }, { productLine: 'asc' }],
+        }),
       ]);
       return {
         settings: {
@@ -56,6 +62,9 @@ export class CommercialService {
         period,
         brands,
         sellers: memberships.map((membership) => membership.user),
+        lineOptions: lineOptions.flatMap((item) =>
+          item.productLine ? [{ brandId: item.brandId, line: item.productLine }] : [],
+        ),
         quotas: quotas.map((quota) => ({ ...quota, amount: quota.amount.toNumber() })),
         criteria,
       };
@@ -127,8 +136,13 @@ export class CommercialService {
       });
       const period = currentFiscalQuarter(new Date(), settings.fiscalYearStartMonth);
       let sellerQuotaAssigneeIds: string[] = [];
-      if (input.brandQuotas) {
-        const brandIds = [...new Set(input.brandQuotas.map((quota) => quota.brandId))];
+      if (input.brandQuotas || input.lineQuotas) {
+        const brandIds = [
+          ...new Set([
+            ...(input.brandQuotas ?? []).map((quota) => quota.brandId),
+            ...(input.lineQuotas ?? []).map((quota) => quota.brandId),
+          ]),
+        ];
         const count = await transaction.brand.count({
           where: { tenantId: auth.activeTenantId, id: { in: brandIds } },
         });
@@ -158,6 +172,7 @@ export class CommercialService {
             tenantId: auth.activeTenantId,
             assigneeId: null,
             brandId: null,
+            productLine: null,
             periodStart: period.start,
             periodEnd: period.end,
           },
@@ -180,6 +195,7 @@ export class CommercialService {
             tenantId: auth.activeTenantId,
             assigneeId: null,
             brandId: { not: null },
+            productLine: null,
             periodStart: period.start,
             periodEnd: period.end,
           },
@@ -197,12 +213,50 @@ export class CommercialService {
           });
         }
       }
+      if (input.lineQuotas) {
+        const normalized = input.lineQuotas.map((quota) => ({
+          ...quota,
+          line: quota.line.trim(),
+        }));
+        if (normalized.some((quota) => !quota.line)) {
+          throw new BadRequestException('Line quota requires a product line');
+        }
+        const unique = new Set(
+          normalized.map((quota) => `${quota.brandId}:${quota.line.toLocaleLowerCase()}`),
+        );
+        if (unique.size !== normalized.length) {
+          throw new BadRequestException('Duplicate line quota');
+        }
+        await transaction.quota.deleteMany({
+          where: {
+            tenantId: auth.activeTenantId,
+            assigneeId: null,
+            productLine: { not: null },
+            periodStart: period.start,
+            periodEnd: period.end,
+          },
+        });
+        if (normalized.length) {
+          await transaction.quota.createMany({
+            data: normalized.map((quota) => ({
+              tenantId: auth.activeTenantId,
+              brandId: quota.brandId,
+              productLine: quota.line,
+              periodStart: period.start,
+              periodEnd: period.end,
+              currency: settings.currency,
+              amount: positiveAmount(quota.amount),
+            })),
+          });
+        }
+      }
       if (input.sellerQuotas) {
         await transaction.quota.deleteMany({
           where: {
             tenantId: auth.activeTenantId,
             assigneeId: { in: sellerQuotaAssigneeIds },
             brandId: null,
+            productLine: null,
             periodStart: period.start,
             periodEnd: period.end,
           },
@@ -230,6 +284,7 @@ export class CommercialService {
           metadata: {
             totalConfigured: input.totalQuota !== undefined,
             brandQuotas: input.brandQuotas?.length ?? null,
+            lineQuotas: input.lineQuotas?.length ?? null,
             sellerQuotas: input.sellerQuotas?.length ?? null,
             period: period.label,
           },
