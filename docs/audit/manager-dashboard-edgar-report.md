@@ -39,6 +39,36 @@ La corrida E2E limpia final fue 10/10. Dos pasadas diagnósticas anteriores no s
 
 Las siete capturas versionadas se regeneraron desde la aplicación G20 ejecutada. Se comprobaron 1440/1024/390 y ausencia de overflow en 360/375; ES/EN, Light/Dark, foco, teclado, Escape y logout/protected redirect pasaron. No son prototipos ni login remoto.
 
+## G21 — Empaquetado OVH/Coolify
+
+G21 parte exactamente del commit local de producto `eadc24080b1b90e0b1759fbefc63c098eaedf9cb` en el worktree/branch `chore/coolify-ovh-readiness`. Añade el Dockerfile standalone de Next, fija Node/PostgreSQL a índices multi-arquitectura, crea el Compose web/API/db con un job `release` separado y documenta Demo/Staging/Producción sin cambiar cálculos gerenciales.
+
+Inventario READ autorizado: el host OVH observado es AMD64 Ubuntu 24.04, 6 CPU, 11 GiB RAM (5,4 GiB disponibles), 48 GiB de disco disponibles y 16% de inodos usados; Docker 29.8.1 tiene 24 contenedores activos, 30,72 GiB de imágenes y 11,17 GiB de volúmenes. No hay swap y `live-restore` está desactivado. Coolify 4.4.6 y Traefik 3.6 están sanos. No existe recurso SIP. No se inspeccionaron datos/backups ajenos ni se ejecutaron cambios, prune, estrés o upgrades.
+
+Drill local G21, sólo datos sintéticos:
+
+| Control                                           | Resultado                                                                                            |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Compose validado sin imprimir secretos            | PASS                                                                                                 |
+| API/web multi-stage, frozen install, Node 24.19.0 | PASS                                                                                                 |
+| Cross-build AMD64 desde Mac ARM64                 | PASS por emulación; no mide rendimiento OVH                                                          |
+| PostgreSQL 18.4 ARM64 nativo                      | PASS                                                                                                 |
+| Baseline 4 migraciones → final 8                  | PASS; centinela conservado                                                                           |
+| Checksums de 8 migraciones                        | PASS                                                                                                 |
+| Runtime role                                      | PASS; `NOINHERIT`, sin superuser/createdb/createrole/BYPASSRLS, miembro de `app_runtime`             |
+| RLS                                               | PASS; 25 tablas restauradas con RLS forzado                                                          |
+| Backup/restore real                               | PASS; dump custom restaurado en otra base desechable                                                 |
+| Datos restaurados                                 | PASS; 8 migraciones, centinela y 40 oportunidades sintéticas                                         |
+| Acceso restaurado                                 | PASS; runtime tenant-scoped obtuvo las 40 oportunidades autorizadas                                  |
+| HTTPS local                                       | PASS; web health, API live/ready, login, dashboard, cookies seguras, CSRF, logout 204 y redirect 307 |
+| Logs                                              | PASS; sin HTTP 5xx inesperados                                                                       |
+
+El primer harness HTTPS esperaba incorrectamente 200 al hacer logout; el contrato real respondió 204 y la sesión quedó invalidada. Se corrigió la aserción del harness, no el producto. Los stacks, base restaurada, dump, cookies y credenciales efímeras se eliminaron al finalizar. El runbook único es `docs/deployment/ovh-coolify.md`.
+
+La combinación G21 exacta pasó formato, lint, tipos, build, 91/91 unitarias (incluidas tres nuevas del origen API), 28/28 integraciones y 5/5 pruebas de aislamiento/RLS. El evaluador G17 conservó 31/31. `pnpm audit --audit-level high` y `pnpm security:audit` permanecen **FAIL** con 0 críticas, 1 alta, 2 moderadas y 1 baja; `SECURITY_POLICY` permanece separado en `PASS_WITH_TIME_LIMITED_EXCEPTION` sólo para la coincidencia exacta ya aprobada, con revisión `2026-10-19T16:59:59Z` y vencimiento absoluto `2026-10-26T16:59:59Z`. No se modificó, renovó ni amplió la excepción.
+
+No se creó proyecto, aplicación, base, volumen, dominio, backup, imagen remota ni deployment. Demo/Staging/Producción y sus dominios permanecen propuestas. La capacidad observada no equivale a aprobación de producción ni alta disponibilidad.
+
 ## Resultado técnico
 
 El bloque A+B está implementado sobre NestJS/Prisma/PostgreSQL y Next.js/RTK Query existentes. El cálculo se concentra en `manager-dashboard.service.ts` y funciones puras de `manager-dashboard.metrics.ts`. La UI principal es `manager-dashboard-edgar.tsx`; importación y configuración amplían flujos existentes.

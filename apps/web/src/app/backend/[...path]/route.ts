@@ -1,3 +1,5 @@
+import { resolveApiOrigin } from '@/lib/api-origin';
+
 const REQUEST_HEADER_ALLOWLIST = [
   'accept',
   'accept-language',
@@ -22,23 +24,7 @@ const RESPONSE_HEADER_ALLOWLIST = [
 export const dynamic = 'force-dynamic';
 
 function apiOrigin(): URL {
-  const origin = new URL(process.env.API_ORIGIN ?? 'http://localhost:4000');
-  if (
-    origin.username ||
-    origin.password ||
-    origin.pathname !== '/' ||
-    origin.search ||
-    origin.hash
-  ) {
-    throw new Error('API_ORIGIN must be an origin without credentials, path, query, or fragment');
-  }
-  if (process.env.NODE_ENV === 'production' && origin.protocol !== 'https:') {
-    throw new Error('API_ORIGIN must use HTTPS in production');
-  }
-  if (!['http:', 'https:'].includes(origin.protocol)) {
-    throw new Error('API_ORIGIN must use HTTP or HTTPS');
-  }
-  return origin;
+  return resolveApiOrigin(process.env.API_ORIGIN, process.env.NODE_ENV);
 }
 
 function safePath(segments: string[]): string {

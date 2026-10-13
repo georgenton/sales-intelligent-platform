@@ -16,6 +16,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:provision:runtime": "tsx src/scripts/provision-runtime-role.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "db:bootstrap:demo": "tsx prisma/seed.ts --demo",
     "db:bootstrap:staging": "tsx prisma/seed.ts --staging",
     "db:rotate:staging-admin": "tsx prisma/rotate-staging-admin-password.ts",
     "db:verify:staging-security": "tsx src/scripts/verify-staging-security.ts --staging",

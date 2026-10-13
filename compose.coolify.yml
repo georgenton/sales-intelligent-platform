@@ -1,0 +1,172 @@
+name: sales-intelligence-${SIP_ENVIRONMENT:?Set SIP_ENVIRONMENT to demo, staging, or production}
+
+x-api-build: &api-build
+  context: .
+  dockerfile: apps/api/Dockerfile
+  args:
+    BUILD_SHA: ${SIP_BUILD_SHA:?Set SIP_BUILD_SHA to the exact Git commit}
+
+services:
+  db:
+    image: postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    expose:
+      - '5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - private
+    deploy:
+      resources:
+        limits:
+          cpus: '1.50'
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  migrate:
+    profiles: ['release']
+    image: sales-intelligence-api:${SIP_BUILD_SHA}
+    build: *api-build
+    command: ['node', 'scripts/predeploy.cjs']
+    restart: 'no'
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=1001,gid=1001
+    environment:
+      NODE_ENV: production
+      APP_ENV: ${SIP_ENVIRONMENT}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?Set MIGRATION_DATABASE_URL}
+      RUNTIME_DATABASE_USER: ${RUNTIME_DATABASE_USER:?Set RUNTIME_DATABASE_USER}
+      RUNTIME_DATABASE_PASSWORD: ${RUNTIME_DATABASE_PASSWORD:?Set RUNTIME_DATABASE_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - private
+
+  api:
+    image: sales-intelligence-api:${SIP_BUILD_SHA}
+    build: *api-build
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=1001,gid=1001
+    environment:
+      NODE_ENV: production
+      APP_ENV: ${SIP_ENVIRONMENT}
+      PORT: '4000'
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      RUNTIME_DATABASE_USER: ${RUNTIME_DATABASE_USER:?Set RUNTIME_DATABASE_USER}
+      APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS web origin}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
+      AI_PROVIDER: mock
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - '4000'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - private
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  web:
+    image: sales-intelligence-web:${SIP_BUILD_SHA}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        BUILD_SHA: ${SIP_BUILD_SHA}
+        API_ORIGIN: http://api:4000
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=1001,gid=1001
+      - /app/apps/web/.next/cache:rw,noexec,nosuid,size=64m,uid=1001,gid=1001
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: '3000'
+      API_ORIGIN: http://api:4000
+    expose:
+      - '3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - default
+      - private
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 768M
+        reservations:
+          memory: 192M
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: sip_${SIP_ENVIRONMENT}_edge
+  private:
+    name: sip_${SIP_ENVIRONMENT}_private
+    internal: true

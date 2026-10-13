@@ -24,6 +24,10 @@ function fiscalQuarter(now: Date, fiscalStartMonth: number): { start: Date; end:
 
 async function main(): Promise<void> {
   const stagingBootstrap = process.argv.includes('--staging');
+  const demoBootstrap = process.argv.includes('--demo');
+  if (stagingBootstrap && demoBootstrap) {
+    throw new Error('Choose exactly one hosted bootstrap environment');
+  }
   if (stagingBootstrap) {
     if (process.env.APP_ENV !== 'staging' || process.env.ALLOW_STAGING_BOOTSTRAP !== 'true') {
       throw new Error(
@@ -32,6 +36,13 @@ async function main(): Promise<void> {
     }
     if (!process.env.MIGRATION_DATABASE_URL) {
       throw new Error('MIGRATION_DATABASE_URL is required for staging bootstrap');
+    }
+  } else if (demoBootstrap) {
+    if (process.env.APP_ENV !== 'demo' || process.env.ALLOW_DEMO_BOOTSTRAP !== 'true') {
+      throw new Error('Demo bootstrap requires APP_ENV=demo and ALLOW_DEMO_BOOTSTRAP=true');
+    }
+    if (!process.env.MIGRATION_DATABASE_URL) {
+      throw new Error('MIGRATION_DATABASE_URL is required for demo bootstrap');
     }
   } else if (process.env.NODE_ENV === 'production') {
     throw new Error('Development demo seed is disabled in production');
@@ -45,11 +56,22 @@ async function main(): Promise<void> {
     throw new Error('The local demonstration password cannot be used for staging');
   }
 
-  const generatedPassword = !stagingBootstrap && !process.env.DEMO_ADMIN_PASSWORD;
+  const demoPassword = process.env.DEMO_ADMIN_PASSWORD;
+  if (demoBootstrap && (!demoPassword || demoPassword.length < 24)) {
+    throw new Error('DEMO_ADMIN_PASSWORD must contain at least 24 characters');
+  }
+  if (demoBootstrap && demoPassword === 'ChangeMe-Local-2026!') {
+    throw new Error('The local demonstration password cannot be used for hosted demo');
+  }
+
+  const hostedBootstrap = stagingBootstrap || demoBootstrap;
+  const generatedPassword = !hostedBootstrap && !process.env.DEMO_ADMIN_PASSWORD;
   const password = stagingBootstrap
     ? stagingPassword!
-    : (process.env.DEMO_ADMIN_PASSWORD ?? `Local-${randomBytes(18).toString('base64url')}!`);
-  const databaseUrl = stagingBootstrap
+    : demoBootstrap
+      ? demoPassword!
+      : (process.env.DEMO_ADMIN_PASSWORD ?? `Local-${randomBytes(18).toString('base64url')}!`);
+  const databaseUrl = hostedBootstrap
     ? process.env.MIGRATION_DATABASE_URL!
     : process.env.DATABASE_URL;
   const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });

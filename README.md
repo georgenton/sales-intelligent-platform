@@ -147,6 +147,13 @@ inside the API container so the owner connection remains on Railway's private ne
 
 No production deployment is performed by this repository bootstrap.
 
+### OVH / Coolify
+
+The locally verified three-service package and its controlled release, backup, restore and cutover
+procedure are documented in [`docs/deployment/ovh-coolify.md`](docs/deployment/ovh-coolify.md).
+`compose.coolify.yml` exposes only the standalone Next.js service; NestJS and PostgreSQL remain on
+the private Compose network. No Coolify resource or domain is created by the repository.
+
 ## User Acceptance Testing
 
 Manual staging UAT procedures are documented in:
