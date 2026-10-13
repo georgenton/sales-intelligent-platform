@@ -1,6 +1,6 @@
 # OVH/Coolify — publicación de Sales Intelligence Platform
 
-Estado de este documento: paquete G21 ensayado localmente y ejecución G23 autorizada el 2026-10-13. La sección "Registro G23" se completa sólo con evidencia observada del despliegue remoto.
+Estado de este documento: paquete G21 ensayado localmente y ejecución G23 completada el 2026-10-13 con Demo y Staging operativos y Producción provisionada/detenida. La sección "Registro G23" contiene únicamente evidencia observada del despliegue remoto.
 
 Producto ensayado: `eadc24080b1b90e0b1759fbefc63c098eaedf9cb` (`feat/manager-dashboard-edgar`). El commit de infraestructura G21 se registra al cerrar esta rama.
 
@@ -131,4 +131,68 @@ El helper no imprime la contraseña, usa `pbcopy` y limpia el portapapeles despu
 
 ## Registro G23
 
-Esta sección se actualiza al terminar Demo, Staging, restore remoto y preparación protegida de Producción. No registrar secretos, cookies, cadenas de conexión ni hashes de contraseñas.
+Fecha de ejecución: 2026-10-13. No se registran secretos, cookies, cadenas de conexión ni hashes de contraseñas.
+
+### Código, CI y artefactos
+
+- G20 quedó publicado en `feat/manager-dashboard-edgar` con HEAD local/remoto `eadc24080b1b90e0b1759fbefc63c098eaedf9cb`; PR #29 sigue abierto y sin merge.
+- G21 quedó publicado en `chore/coolify-ovh-readiness` con HEAD de aplicación/despliegue `3daaf401ecd6a4885731d48234c73e4a4bb8d883`; PR #31 es apilado sobre G20 y no cambia `staging` ni `main`.
+- CI de `3daaf401`: Quality `38463878945`/`115525702422` y Secret scan `115525702846`, ambos `SUCCESS`; Preview Vercel `SUCCESS` build-only.
+- API AMD64: `sha256:70fd2d6a5ba23840035860f54e6414a8c90e1fdbc84d6cbe2072894a8ac5664b`.
+- Web AMD64: `sha256:a1e842b3458e508846db3b21d02d1cdcef226443d31c9150a747cebbc0afd475`.
+- Ambas imágenes tienen arquitectura `amd64` y etiqueta OCI `org.opencontainers.image.revision=3daaf401...`; el historial inspeccionado no contiene passwords, tokens, secretos ni URLs de base. Se transfirieron fuera del VPS y Coolify usa `SIP_IMAGE_PULL_POLICY=never`.
+- PostgreSQL remoto: 18.4 AMD64, imagen/ID fijado `sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15`.
+
+Verificación del SHA desplegado: frozen install, formato, lint, tipos, build, 91 unitarias, 28 integraciones, 5 de aislamiento tenant, 10 E2E locales y Gitleaks sobre 101 commits. PostgreSQL 18.4 aplicó 8 migraciones; 25 tablas tienen RLS forzado. `pnpm audit --audit-level high` permanece `FAIL` por el `braces` tooling ya registrado (1 high, 2 moderate, 1 low; 0 critical), mientras `pnpm security:audit` devuelve `PASS_WITH_TIME_LIMITED_EXCEPTION` exclusivamente para `SIP-SEC-EXC-2026-001`, revisión 2026-10-19T16:59:59Z y expiración 2026-10-26T16:59:59Z. No se amplió ni renovó la excepción.
+
+### Recursos Coolify creados
+
+Proyecto `Sales Intelligence Platform`: `tw7eg2r5kncapwwwzraxyigw`.
+
+| Ambiente   | Environment UUID           | Service UUID               | Estado 2026-10-13 | Dominio público                       | Datos                                  |
+| ---------- | -------------------------- | -------------------------- | ----------------- | ------------------------------------- | -------------------------------------- |
+| Demo       | `hvigp4mtz3dj9edmly3kf1qy` | `w9sfzwnotc47qq2qe5qrpm6z` | `running:healthy` | `https://demo.sales.syntavera.dev`    | 100% sintéticos                        |
+| Staging    | `ktjnxd2aowocbkwomgftvoy3` | `v0k6gw5fvn8vjzft3v99uf0y` | `running:healthy` | `https://staging.sales.syntavera.dev` | 100% sintéticos                        |
+| Producción | `qydftfgqu7a7gu7zoysknr2i` | `2iyl3kboglq5odrvpwk45qad` | `exited`/STOPPED  | ninguno                               | base no iniciada, sin seed ni usuarios |
+
+Demo y Staging usan bases, roles owner/runtime, secretos, volúmenes y redes distintos. Ningún contenedor publica 4000/5432 ni monta el socket Docker. API y web son no-root, rootfs read-only y `cap_drop: ALL`; las bases no tienen bindings de puertos host. Los volúmenes observados son `w9sfzwnotc47qq2qe5qrpm6z_postgres-data` y `v0k6gw5fvn8vjzft3v99uf0y_postgres-data`. Producción tiene configuración y secretos propios, pero no creó contenedores, volumen ni ruta pública. Los tres servicios tienen `instant_deploy=false`.
+
+Los dos dominios publicados ya estaban cubiertos por el wildcard DNS verificado de `syntavera.dev`; no fue necesario escribir ni sobrescribir registros. Traefik emitió certificados Let's Encrypt válidos, fuerza HTTPS y añade `X-Robots-Tag: noindex, nofollow`. `sales.syntavera.dev` permanece reservado y no enrutado.
+
+### Verificación funcional y de seguridad remota
+
+Demo:
+
+- `/login`, `/api/health`, `/backend/health/live` y `/backend/health/ready`: HTTP 200 con TLS verificado.
+- E2E remoto sin reintentos: 6 aprobados y 4 omitidos al no inyectar credenciales opcionales en esa corrida.
+- Smoke adicional con Manager: login, resumen, marcas, pipeline, forecast, backlog, facturado, visitas, embudo, regla 4:1, alertas, drill-down, drawer y rutas de oportunidades/forecast/alertas; cero errores de consola y cero HTTP 5xx.
+
+Staging:
+
+- `/login`, `/api/health`, `/backend/health/live` y `/backend/health/ready`: HTTP 200 con TLS verificado.
+- Perfiles sintéticos activos: Tenant Admin, Manager A, Manager B, Seller, Executive y Viewer. Los tres sellers están divididos entre ambos managers; Manager B observó 26 oportunidades dentro de su ámbito.
+- E2E remoto sin reintentos: 9/9 para login/i18n/tema/mobile/admin/Manager A/Seller/import gate/Copilot y 1/1 para Executive+Viewer read-only.
+- Auth/CSRF: sesión `Secure`, `HttpOnly`, `SameSite=Lax`; mutación sin cabecera CSRF devolvió 403; logout y redirect protegido aprobados.
+- RLS/RBAC: runtime `sip_runtime_staging` es login miembro de `app_runtime`, sin superusuario ni `BYPASSRLS`; 25 tablas `FORCE RLS`. Un tenant desechable dentro de transacción mostró 15 filas propias, 0 filas cruzadas y 1 fila propia del segundo tenant; la escritura cruzada falló con SQLSTATE 42501 y la transacción se revirtió.
+- Import semanal sintético: lote `PUBLISHED`, 1/1 oportunidad procesada desde CSV, fuente `WORKBOOK_IMPORT`, persistencia por endpoint y snapshot generado. La oportunidad produjo alerta HIGH `QUALIFICATION_INCOMPLETE`; el botón de inspección abrió su drawer con respuestas 200 del detalle y la calificación, y el dashboard permaneció operativo. Un lote anterior deliberadamente incompleto quedó `PARTIAL`, preservando el contrato de backlog parcial/null sin convertirlo en cero.
+
+### Backup y restauración
+
+Backups específicos de SIP quedaron en `/var/backups/sales-intelligence-platform/g23`, propiedad de root y modo 0600. No dependen del backup del panel Coolify y contienen sólo datos sintéticos:
+
+| Ambiente |       Tamaño | SHA-256                                                            | Restore real en base desechable           |
+| -------- | -----------: | ------------------------------------------------------------------ | ----------------------------------------- |
+| Demo     | 168847 bytes | `5632b1c58fdbe78e2a6fc9eca9e8fb76940ccb0bd309333fdb9d4f1c5c173d6e` | 8 migraciones, 1 tenant, 41 oportunidades |
+| Staging  | 176648 bytes | `2c03dbcb4e996d7bb49b5546ece91be256617419e1ec9ea77da4005b43fc2793` | 8 migraciones, 1 tenant, 42 oportunidades |
+
+Ambas restauraciones usaron `pg_restore --no-owner --no-privileges`; las bases desechables creadas por el drill se eliminaron después de validar. Estos archivos residen en el mismo VPS: demuestran recuperabilidad lógica, no backup off-site, retención programada ni alta disponibilidad. Producción detenida conserva el procedimiento definido, pero no se generó un dump vacío artificial.
+
+### Capacidad y no regresión de vecinos
+
+Preflight: 11 GiB RAM, 5,2 GiB disponibles, 48 GiB de disco libres, 24 contenedores activos. Tras Demo+Staging: 4,9 GiB RAM disponibles, 46 GiB libres, 16% de inodos y 30 contenedores activos. Los seis contenedores SIP medidos consumieron aproximadamente 484 MiB; los límites Compose siguen siendo el techo, no memoria reservada real. No se ejecutaron builds pesadas, `prune`, stress, cambios globales de Docker/Traefik/Coolify/firewall ni apagados de terceros.
+
+SyntaVera producción/staging y EIA Demo/Staging permanecieron `running:healthy`; sus rutas públicas respondieron sin error TLS. Railway staging conserva deploy `188246ae-35e7-40d9-8f3c-f02907b312f8` `SUCCESS` sobre `2714700911293de14429f6851963168a929c0bf7`. Vercel conserva deployment `dpl_5RU78doZMer6avmBJLomccgwaFEZ` `READY` sobre el mismo SHA. `origin/staging` y `main` no cambiaron. No se trasladó información real de Edgar y no se conectó ninguna base Railway.
+
+### Estado posterior
+
+Demo y Staging están disponibles para revisión sintética; Producción está preparada pero no está LIVE. D01-D04, la conciliación del workbook vigente y H3 continúan pendientes/no iniciados. Antes de datos reales o go-live se requiere una decisión separada sobre fuente de verdad, consentimiento, ventana de un solo escritor, backup off-site/retención, conciliación comercial, corte y rollback.
